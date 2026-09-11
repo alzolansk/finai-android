@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#e8e8ea;font-family:Inter,system-ui,sans-serif}
+a{color:#10b981;text-decoration:none}a:hover{color:#059669}
+::-webkit-scrollbar{width:0;height:0}
+@keyframes finRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes finBreath{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.45)}50%{box-shadow:0 0 0 7px rgba(16,185,129,0)}}
+@keyframes finSweep{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes finDots{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+.fin-rise{animation:finRise .42s cubic-bezier(.32,.72,0,1) both}
+.fin-rise:nth-child(2){animation-delay:.05s}.fin-rise:nth-child(3){animation-delay:.1s}
+.fin-rise:nth-child(4){animation-delay:.15s}.fin-rise:nth-child(5){animation-delay:.2s}
+.fin-snap{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 16px 4px;margin:0 -16px}
+.fin-snap>*{scroll-snap-align:start;flex:0 0 auto}
+.fin-press{transition:transform .12s ease}.fin-press:active{transform:scale(.97)}
+</style>
+</helmet>
+
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" hint-size="412px,892px">
+
+<div style="height:100%;background:#fafafa;font-family:Inter,system-ui,sans-serif;color:#18181b;position:relative;display:flex;flex-direction:column;overflow:hidden">
+
+<!-- ── top bar ────────────────────────────────────────────── -->
+<div style="position:sticky;top:0;z-index:30;background:rgba(250,250,250,.92);backdrop-filter:blur(12px);border-bottom:1px solid rgba(0,0,0,.05);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+  <div style="display:flex;align-items:center;gap:10px">
+    <div style="width:34px;height:34px;border-radius:11px;background:#18181b;display:flex;align-items:center;justify-content:center">
+      <div style="width:13px;height:13px;border-radius:50%;background:#10b981;animation:finBreath 3s ease-in-out infinite"></div>
+    </div>
+    <div>
+      <div style="font-size:16px;font-weight:700;letter-spacing:-.02em;line-height:1.1">FinAI</div>
+      <div style="font-size:10px;color:#a1a1aa;font-weight:500;line-height:1.3">{{ screenLabel }}</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <button onClick="{{ openNotifs }}" class="fin-press" style="position:relative;width:38px;height:38px;border:none;background:transparent;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#71717a;cursor:pointer">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
+      <span style="position:absolute;top:5px;right:6px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:8px;background:#f43f5e;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ notifCount }}</span>
+    </button>
+    <button onClick="{{ openChat }}" class="fin-press" style="display:flex;align-items:center;gap:7px;padding:6px 12px 6px 6px;border-radius:99px;border:1px solid #e4e4e7;background:#fff;cursor:pointer">
+      <span style="width:24px;height:24px;border-radius:50%;background:#ecfdf5;color:#059669;display:flex;align-items:center;justify-content:center">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"></path><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"></path></svg>
+      </span>
+      <span style="font-size:12px;font-weight:600;color:#3f3f46">Assistente</span>
+    </button>
+  </div>
+</div>
+
+<div style="flex:1;min-height:0;overflow-y:auto">
+<!-- ── HOME ───────────────────────────────────────────────── -->
+<sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+<div style="padding:16px 16px 132px;display:flex;flex-direction:column;gap:20px">
+
+  <div class="fin-rise">
+    <div style="font-size:24px;font-weight:800;letter-spacing:-.03em;line-height:1.15">{{ greeting }}</div>
+    <div style="font-size:13px;color:#71717a;margin-top:3px">{{ subGreeting }}</div>
+  </div>
+
+  <!-- objetivos -->
+  <div class="fin-rise">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;letter-spacing:-.01em">Seus objetivos</div>
+      <button onClick="{{ navMetas }}" style="border:none;background:none;font-size:11px;font-weight:600;color:#059669;cursor:pointer;padding:0;white-space:nowrap">Ver todos</button>
+    </div>
+    <div class="fin-snap">
+      <sc-for list="{{ goals }}" as="g" hint-placeholder-count="2">
+        <button onClick="{{ g.open }}" class="fin-press" style="width:236px;text-align:left;border:1px solid rgba(0,0,0,.06);background:#fff;border-radius:20px;padding:14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.04)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#a1a1aa">{{ g.kind }}</span>
+            <span style="font-size:10px;font-weight:700;padding:3px 7px;border-radius:99px">{{ g.badge }}</span>
+          </div>
+          <div style="font-size:15px;font-weight:700;letter-spacing:-.02em;line-height:1.25;margin-bottom:2px">{{ g.name }}</div>
+          <div style="font-size:11px;color:#71717a;margin-bottom:12px">{{ g.eta }}</div>
+          <div style="display:flex;align-items:baseline;gap:5px;margin-bottom:8px">
+            <span style="font-size:19px;font-weight:800;letter-spacing:-.03em;color:#059669">{{ g.saved }}</span>
+            <span style="font-size:11px;color:#a1a1aa;font-weight:500">de {{ g.target }}</span>
+          </div>
+          <div style="height:7px;border-radius:99px;background:#f4f4f5;overflow:hidden">
+            <div style="{{ g.barStyle }}"></div>
+          </div>
+          <div style="margin-top:9px;font-size:11px;color:#52525b;line-height:1.4">{{ g.note }}</div>
+        </button>
+      </sc-for>
+      <button onClick="{{ navMetas }}" class="fin-press" style="width:120px;border:1px dashed #d4d4d8;background:transparent;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#a1a1aa;cursor:pointer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+        <span style="font-size:11px;font-weight:600">Novo objetivo</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- saldo seguro do dia -->
+  <div class="fin-rise" style="background:#18181b;border-radius:24px;padding:18px;color:#fff;position:relative;overflow:hidden">
+    <div style="position:absolute;inset:0;background:radial-gradient(120% 80% at 100% 0%,rgba(16,185,129,.22),transparent 60%);pointer-events:none"></div>
+    <div style="position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,.5)">Pode gastar hoje</div>
+        <div style="font-size:34px;font-weight:800;letter-spacing:-.04em;margin-top:6px;line-height:1">{{ safeToday }}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.62);margin-top:7px;line-height:1.45">{{ safeNote }}</div>
+      </div>
+      <div style="{{ ringStyle }}">
+        <div style="width:58px;height:58px;border-radius:50%;background:#18181b;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <span style="font-size:15px;font-weight:800;letter-spacing:-.02em">{{ dayLeftLabel }}</span>
+          <span style="font-size:8px;color:rgba(255,255,255,.45);font-weight:600;letter-spacing:.04em">DIAS</span>
+        </div>
+      </div>
+    </div>
+    <div style="position:relative;display:flex;gap:8px;margin-top:16px">
+      <button onClick="{{ openSim }}" class="fin-press" style="flex:1;padding:11px;border-radius:14px;border:none;background:#10b981;color:#fff;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer">Posso comprar?</button>
+      <button onClick="{{ navOrcamentos }}" class="fin-press" style="flex:1;padding:11px;border-radius:14px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#fff;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer">Ajustar limites</button>
+    </div>
+  </div>
+
+  <!-- decisões -->
+  <div class="fin-rise">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+      <div>
+        <div style="font-size:13px;font-weight:700;letter-spacing:-.01em">Decisões para você</div>
+        <div style="font-size:11px;color:#a1a1aa;margin-top:1px">{{ pendingLabel }}</div>
+      </div>
+      <div style="display:flex;padding:3px;border-radius:99px;background:#f4f4f5;gap:2px">
+        <sc-for list="{{ surfaces }}" as="s" hint-placeholder-count="3">
+          <button onClick="{{ s.pick }}" style="{{ s.style }}">{{ s.label }}</button>
+        </sc-for>
+      </div>
+    </div>
+
+    <sc-if value="{{ isCards }}" hint-placeholder-val="{{ true }}">
+      <div class="fin-snap">
+        <sc-for list="{{ decisions }}" as="d" hint-placeholder-count="2">
+          <div style="width:272px;border-radius:20px;padding:16px;border:1px solid rgba(0,0,0,.06);background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.05)">
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px">
+              <span style="width:22px;height:22px;border-radius:7px;display:flex;align-items:center;justify-content:center;background:#ecfdf5;color:#059669">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"></path></svg>
+              </span>
+              <span style="font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#a1a1aa">{{ d.tag }}</span>
+            </div>
+            <div style="font-size:15.5px;font-weight:700;letter-spacing:-.02em;line-height:1.3">{{ d.title }}</div>
+            <div style="font-size:12.5px;color:#52525b;line-height:1.5;margin-top:7px">{{ d.why }}</div>
+            <div style="margin-top:12px;padding:10px 12px;border-radius:13px;background:#fafafa;border:1px solid #f4f4f5">
+              <div style="font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#a1a1aa">Impacto</div>
+              <div style="font-size:13px;font-weight:700;color:#059669;margin-top:3px">{{ d.impact }}</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button onClick="{{ d.accept }}" class="fin-press" style="flex:1;padding:10px;border-radius:12px;border:none;background:#18181b;color:#fff;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">{{ d.cta }}</button>
+              <button onClick="{{ d.dismiss }}" class="fin-press" style="padding:10px 13px;border-radius:12px;border:1px solid #e4e4e7;background:#fff;color:#71717a;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">Depois</button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isFeed }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:1px;border-radius:20px;overflow:hidden;border:1px solid rgba(0,0,0,.06);background:#fff">
+        <sc-for list="{{ decisions }}" as="d" hint-placeholder-count="3">
+          <button onClick="{{ d.accept }}" style="display:flex;align-items:flex-start;gap:12px;text-align:left;padding:14px;border:none;border-bottom:1px solid #f4f4f5;background:#fff;cursor:pointer;font-family:inherit;width:100%">
+            <span style="{{ d.dotStyle }}"></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13.5px;font-weight:700;letter-spacing:-.01em;line-height:1.3">{{ d.title }}</span>
+              <span style="display:block;font-size:11.5px;color:#71717a;line-height:1.45;margin-top:3px">{{ d.why }}</span>
+              <span style="display:inline-block;margin-top:7px;font-size:11px;font-weight:700;color:#059669">{{ d.impact }}</span>
+            </span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#d4d4d8" stroke-width="2.2" stroke-linecap="round" style="margin-top:4px;flex:none"><path d="m9 6 6 6-6 6"></path></svg>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isChatSurface }}" hint-placeholder-val="{{ false }}">
+      <div style="border-radius:20px;border:1px solid rgba(0,0,0,.06);background:linear-gradient(160deg,#ecfdf5,#fff 45%);padding:16px">
+        <div style="display:flex;gap:10px">
+          <span style="width:28px;height:28px;border-radius:9px;flex:none;background:#fff;border:1px solid #d1fae5;color:#059669;display:flex;align-items:center;justify-content:center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"></path></svg>
+          </span>
+          <div style="font-size:13px;line-height:1.55;color:#27272a">{{ chatPitch }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;margin-top:14px">
+          <sc-for list="{{ decisions }}" as="d" hint-placeholder-count="3">
+            <button onClick="{{ d.ask }}" class="fin-press" style="text-align:left;padding:11px 13px;border-radius:13px;border:1px solid #e4e4e7;background:#fff;font-family:inherit;font-size:12.5px;font-weight:600;color:#3f3f46;cursor:pointer">{{ d.question }}</button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <!-- linha do tempo do ano -->
+  <div class="fin-rise">
+    <div style="font-size:13px;font-weight:700;letter-spacing:-.01em;margin-bottom:3px">Linha do tempo do ano</div>
+    <div style="font-size:11px;color:#a1a1aa;margin-bottom:12px">Entradas extras previstas e o que elas destravam</div>
+    <div style="border-radius:20px;border:1px solid rgba(0,0,0,.06);background:#fff;padding:16px 0 14px">
+      <div class="fin-snap" style="padding-left:16px;padding-right:16px;margin:0">
+        <sc-for list="{{ timeline }}" as="t" hint-placeholder-count="6">
+          <div style="width:96px">
+            <div style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#a1a1aa">{{ t.month }}</div>
+            <div style="{{ t.lineStyle }}"></div>
+            <div style="{{ t.amountStyle }}">{{ t.amount }}</div>
+            <div style="font-size:10.5px;color:#71717a;line-height:1.35;margin-top:3px">{{ t.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="margin:14px 16px 0;padding:12px;border-radius:14px;background:#fafafa;border:1px solid #f4f4f5;font-size:12px;line-height:1.5;color:#3f3f46">{{ timelineNote }}</div>
+    </div>
+  </div>
+
+  <!-- próximos 7 dias -->
+  <div class="fin-rise">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;letter-spacing:-.01em">Próximos 7 dias</div>
+      <button onClick="{{ navAgenda }}" style="border:none;background:none;font-size:11px;font-weight:600;color:#059669;cursor:pointer;padding:0;white-space:nowrap">Abrir agenda</button>
+    </div>
+    <div style="border-radius:20px;border:1px solid rgba(0,0,0,.06);background:#fff;overflow:hidden">
+      <sc-for list="{{ week }}" as="w" hint-placeholder-count="3">
+        <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px solid #f4f4f5">
+          <span style="width:34px;height:34px;border-radius:11px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f4f4f5">
+            <span style="font-size:12px;font-weight:800;line-height:1">{{ w.day }}</span>
+            <span style="font-size:8px;font-weight:700;color:#a1a1aa;letter-spacing:.04em">{{ w.mon }}</span>
+          </span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:13px;font-weight:600;letter-spacing:-.01em">{{ w.name }}</span>
+            <span style="display:block;font-size:11px;color:#a1a1aa;margin-top:1px">{{ w.cat }}</span>
+          </span>
+          <span style="text-align:right">
+            <span style="display:block;font-size:13px;font-weight:700;letter-spacing:-.02em">{{ w.amount }}</span>
+            <span style="{{ w.statusStyle }}">{{ w.status }}</span>
+          </span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- coach -->
+  <sc-if value="{{ showCoach }}" hint-placeholder-val="{{ true }}">
+  <div class="fin-rise" style="border-radius:20px;padding:16px;background:linear-gradient(135deg,#1e1b4b,#312e81);color:#fff">
+    <div style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.55)">Padrão de comportamento</div>
+    <div style="font-size:15px;font-weight:700;letter-spacing:-.02em;margin-top:7px;line-height:1.35">{{ coachTitle }}</div>
+    <div style="font-size:12.5px;color:rgba(255,255,255,.72);line-height:1.5;margin-top:7px">{{ coachBody }}</div>
+    <button onClick="{{ openChat }}" class="fin-press" style="margin-top:13px;padding:10px 14px;border-radius:12px;border:none;background:rgba(255,255,255,.14);color:#fff;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">Conversar sobre isso</button>
+  </div>
+  </sc-if>
+
+</div>
+</sc-if>
+
+<!-- ── AGENDA ─────────────────────────────────────────────── -->
+<sc-if value="{{ isAgenda }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px 16px 132px;display:flex;flex-direction:column;gap:16px">
+  <div>
+    <div style="font-size:24px;font-weight:800;letter-spacing:-.03em">Agenda</div>
+    <div style="font-size:13px;color:#71717a;margin-top:3px">Pagamentos e recebimentos do mês</div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:99px;border:1px solid #e4e4e7;background:#fff">
+    <button onClick="{{ prevMonth }}" style="border:none;background:none;color:#a1a1aa;cursor:pointer;padding:4px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m15 6-6 6 6 6"></path></svg>
+    </button>
+    <span style="font-size:13px;font-weight:700;letter-spacing:-.01em">{{ monthLabel }}</span>
+    <button onClick="{{ nextMonth }}" style="border:none;background:none;color:#a1a1aa;cursor:pointer;padding:4px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m9 6 6 6-6 6"></path></svg>
+    </button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div style="border-radius:18px;border:1px solid rgba(0,0,0,.06);background:#fff;padding:13px">
+      <div style="font-size:11px;font-weight:700;color:#71717a">Contas a pagar</div>
+      <div style="font-size:20px;font-weight:800;letter-spacing:-.03em;margin-top:5px">{{ toPayTotal }}</div>
+      <div style="font-size:10.5px;color:#a1a1aa;margin-top:2px">{{ toPayCount }}</div>
+    </div>
+    <div style="border-radius:18px;border:1px solid rgba(0,0,0,.06);background:#fff;padding:13px">
+      <div style="font-size:11px;font-weight:700;color:#71717a">Recebimentos</div>
+      <div style="font-size:20px;font-weight:800;letter-spacing:-.03em;margin-top:5px;color:#059669">{{ toGetTotal }}</div>
+      <div style="font-size:10.5px;color:#a1a1aa;margin-top:2px">{{ toGetCount }}</div>
+    </div>
+  </div>
+  <div style="border-radius:18px;background:#ecfdf5;border:1px solid #d1fae5;padding:13px;display:flex;gap:10px">
+    <span style="width:24px;height:24px;border-radius:8px;flex:none;background:#fff;color:#059669;display:flex;align-items:center;justify-content:center">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"></path></svg>
+    </span>
+    <div style="font-size:12.5px;line-height:1.5;color:#065f46">{{ agendaTip }}</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <sc-for list="{{ bills }}" as="b" hint-placeholder-count="6">
+      <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:16px;border:1px solid rgba(0,0,0,.06);background:#fff">
+        <span style="{{ b.iconStyle }}">{{ b.initials }}</span>
+        <span style="flex:1;min-width:0">
+          <span style="display:block;font-size:13.5px;font-weight:600;letter-spacing:-.01em">{{ b.name }}</span>
+          <span style="display:block;font-size:11px;color:#a1a1aa;margin-top:1px">{{ b.meta }}</span>
+        </span>
+        <span style="text-align:right">
+          <span style="display:block;font-size:13.5px;font-weight:700;letter-spacing:-.02em">{{ b.amount }}</span>
+          <span style="{{ b.statusStyle }}">{{ b.status }}</span>
+        </span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</sc-if>
+
+<!-- ── METAS ──────────────────────────────────────────────── -->
+<sc-if value="{{ isMetas }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px 16px 132px;display:flex;flex-direction:column;gap:16px">
+  <div>
+    <div style="font-size:24px;font-weight:800;letter-spacing:-.03em">Objetivos</div>
+    <div style="font-size:13px;color:#71717a;margin-top:3px">Compras, viagens e reservas em andamento</div>
+  </div>
+  <div style="border-radius:20px;background:#18181b;color:#fff;padding:16px">
+    <div style="font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,.5)">Capacidade de poupança</div>
+    <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+      <span style="font-size:28px;font-weight:800;letter-spacing:-.04em">{{ capacity }}</span>
+      <span style="font-size:12px;color:rgba(255,255,255,.55)">por mês</span>
+    </div>
+    <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:8px;line-height:1.5">{{ capacityNote }}</div>
+  </div>
+  <sc-for list="{{ goalsFull }}" as="g" hint-placeholder-count="3">
+    <div style="border-radius:20px;border:1px solid rgba(0,0,0,.06);background:#fff;padding:16px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#a1a1aa">{{ g.kind }}</div>
+          <div style="font-size:16px;font-weight:700;letter-spacing:-.02em;margin-top:4px;line-height:1.3">{{ g.name }}</div>
+        </div>
+        <span style="{{ g.badgeStyle }}">{{ g.badge }}</span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin-top:12px">
+        <span style="font-size:22px;font-weight:800;letter-spacing:-.03em;color:#059669">{{ g.saved }}</span>
+        <span style="font-size:12px;color:#a1a1aa">de {{ g.target }}</span>
+      </div>
+      <div style="height:8px;border-radius:99px;background:#f4f4f5;overflow:hidden;margin-top:9px">
+        <div style="{{ g.barStyle }}"></div>
+      </div>
+      <div style="margin-top:12px;padding:12px;border-radius:14px;background:#fafafa;border:1px solid #f4f4f5">
+        <div style="font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#a1a1aa">Leitura da IA</div>
+        <div style="font-size:12.5px;color:#3f3f46;line-height:1.5;margin-top:5px">{{ g.analysis }}</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button onClick="{{ g.boost }}" class="fin-press" style="flex:1;padding:10px;border-radius:12px;border:none;background:#18181b;color:#fff;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">{{ g.action }}</button>
+        <button onClick="{{ openChat }}" class="fin-press" style="padding:10px 13px;border-radius:12px;border:1px solid #e4e4e7;background:#fff;color:#71717a;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">Simular</button>
+      </div>
+    </div>
+  </sc-for>
+</div>
+</sc-if>
+
+<!-- ── DÍVIDAS ────────────────────────────────────────────── -->
+<sc-if value="{{ isDividas }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px 16px 132px;display:flex;flex-direction:column;gap:16px">
+  <div>
+    <div style="font-size:24px;font-weight:800;letter-spacing:-.03em">Dívidas</div>
+    <div style="font-size:13px;color:#71717a;margin-top:3px">Estratégia de quitação e negociação</div>
+  </div>
+  <div style="border-radius:22px;background:linear-gradient(140deg,#4c0519,#881337);color:#fff;padding:18px">
+    <div style="font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,.55)">Total em aberto</div>
+    <div style="font-size:32px;font-weight:800;letter-spacing:-.04em;margin-top:5px">{{ debtTotal }}</div>
+    <div style="display:flex;gap:20px;margin-top:14px">
+      <div>
+        <div style="font-size:10px;color:rgba(255,255,255,.55);font-weight:600">Juros por mês</div>
+        <div style="font-size:15px;font-weight:700;margin-top:2px">{{ debtInterest }}</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:rgba(255,255,255,.55);font-weight:600">Livre em</div>
+        <div style="font-size:15px;font-weight:700;margin-top:2px">{{ debtFree }}</div>
+      </div>
+    </div>
+  </div>
+  <div style="border-radius:20px;border:1px solid rgba(0,0,0,.06);background:#fff;padding:16px">
+    <div style="font-size:13px;font-weight:700;letter-spacing:-.01em">Ordem sugerida de ataque</div>
+    <div style="font-size:11.5px;color:#a1a1aa;margin-top:2px">{{ strategyNote }}</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+      <sc-for list="{{ debts }}" as="d" hint-placeholder-count="3">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="width:26px;height:26px;border-radius:9px;flex:none;background:#f4f4f5;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#52525b">{{ d.rank }}</span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:13px;font-weight:600;letter-spacing:-.01em">{{ d.name }}</span>
+            <span style="display:block;font-size:11px;color:#a1a1aa;margin-top:1px">{{ d.meta }}</span>
+            <span style="display:block;height:6px;border-radius:99px;background:#f4f4f5;overflow:hidden;margin-top:6px">
+              <span style="{{ d.barStyle }}"></span>
+            </span>
+          </span>
+          <span style="text-align:right;flex:none">
+            <span style="display:block;font-size:13px;font-weight:700;letter-spacing:-.02em">{{ d.amount }}</span>
+            <span style="{{ d.rateStyle }}">{{ d.rate }}</span>
+          </span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="border-radius:20px;border:1px solid #e0e7ff;background:linear-gradient(160deg,#eef2ff,#fff 50%);padding:16px">
+    <div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#6366f1">Roteiro de negociação</div>
+    <div style="font-size:15px;font-weight:700;letter-spacing:-.02em;margin-top:6px;line-height:1.3">{{ negoTitle }}</div>
+    <div style="display:flex;flex-direction:column;gap:9px;margin-top:12px">
+      <sc-for list="{{ negoSteps }}" as="s" hint-placeholder-count="3">
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          <span style="width:18px;height:18px;border-radius:50%;flex:none;background:#4f46e5;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px">{{ s.n }}</span>
+          <span style="font-size:12.5px;line-height:1.5;color:#3f3f46">{{ s.text }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <button onClick="{{ openChat }}" class="fin-press" style="margin-top:14px;width:100%;padding:11px;border-radius:13px;border:none;background:#4f46e5;color:#fff;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer">Ensaiar a ligação com a IA</button>
+  </div>
+</div>
+</sc-if>
+
+<!-- ── ORÇAMENTOS / INSIGHTS ──────────────────────────────── -->
+<sc-if value="{{ isOrcamentos }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px 16px 132px;display:flex;flex-direction:column;gap:16px">
+  <div>
+    <div style="font-size:24px;font-weight:800;letter-spacing:-.03em">Limites do mês</div>
+    <div style="font-size:13px;color:#71717a;margin-top:3px">Onde o dinheiro está indo em dezembro</div>
+  </div>
+  <div style="border-radius:20px;border:1px solid rgba(0,0,0,.06);background:#fff;padding:16px;display:flex;flex-direction:column;gap:15px">
+    <sc-for list="{{ budgets }}" as="b" hint-placeholder-count="5">
+      <div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+          <span style="font-size:13px;font-weight:600;letter-spacing:-.01em">{{ b.name }}</span>
+          <span style="{{ b.valueStyle }}">{{ b.value }}</span>
+        </div>
+        <div style="height:8px;border-radius:99px;background:#f4f4f5;overflow:hidden;margin-top:7px">
+          <div style="{{ b.barStyle }}"></div>
+        </div>
+        <div style="font-size:11px;color:#a1a1aa;margin-top:5px">{{ b.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="border-radius:20px;border:1px solid rgba(0,0,0,.06);background:#fff;padding:16px">
+    <div style="font-size:13px;font-weight:700;letter-spacing:-.01em">Assinaturas que a IA questionou</div>
+    <div style="display:flex;flex-direction:column;gap:9px;margin-top:12px">
+      <sc-for list="{{ subs }}" as="s" hint-placeholder-count="3">
+        <div style="display:flex;align-items:center;gap:11px;padding:11px;border-radius:14px;background:#fafafa;border:1px solid #f4f4f5">
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:13px;font-weight:600">{{ s.name }}</span>
+            <span style="display:block;font-size:11px;color:#a1a1aa;margin-top:1px">{{ s.note }}</span>
+          </span>
+          <span style="font-size:13px;font-weight:700;letter-spacing:-.02em">{{ s.amount }}</span>
+          <button onClick="{{ s.act }}" class="fin-press" style="padding:7px 11px;border-radius:10px;border:none;background:#18181b;color:#fff;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer">{{ s.cta }}</button>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<!-- ── IMPORTAR ───────────────────────────────────────────── -->
+<sc-if value="{{ isImport }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px 16px 132px;display:flex;flex-direction:column;gap:16px">
+  <div>
+    <div style="font-size:24px;font-weight:800;letter-spacing:-.03em">Importar fatura</div>
+    <div style="font-size:13px;color:#71717a;margin-top:3px">PDF, planilha ou foto — a IA lê e classifica</div>
+  </div>
+  <div style="border-radius:22px;border:1.5px dashed #d4d4d8;background:#fff;padding:28px 18px;text-align:center">
+    <div style="width:52px;height:52px;border-radius:17px;margin:0 auto;background:#ecfdf5;color:#059669;display:flex;align-items:center;justify-content:center">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"></path><path d="m7 9 5-5 5 5"></path><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"></path></svg>
+    </div>
+    <div style="font-size:15px;font-weight:700;letter-spacing:-.02em;margin-top:12px">{{ importTitle }}</div>
+    <div style="font-size:12px;color:#71717a;margin-top:5px;line-height:1.5">{{ importSub }}</div>
+    <button onClick="{{ runImport }}" class="fin-press" style="margin-top:15px;padding:11px 20px;border-radius:13px;border:none;background:#10b981;color:#fff;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer">{{ importCta }}</button>
+  </div>
+  <div style="border-radius:20px;border:1px solid rgba(0,0,0,.06);background:#fff;padding:16px">
+    <div style="font-size:13px;font-weight:700;letter-spacing:-.01em;margin-bottom:12px">{{ importStepsTitle }}</div>
+    <div style="display:flex;flex-direction:column;gap:11px">
+      <sc-for list="{{ importSteps }}" as="s" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;gap:11px">
+          <span style="{{ s.markStyle }}">{{ s.mark }}</span>
+          <span style="{{ s.textStyle }}">{{ s.text }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+</div>
+
+<!-- ── FAB MENU ───────────────────────────────────────────── -->
+<sc-if value="{{ addOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeAdd }}" style="position:absolute;inset:0;z-index:45;background:rgba(24,24,27,.34);backdrop-filter:blur(2px)"></div>
+  <div style="position:absolute;left:16px;right:16px;bottom:104px;z-index:46;border-radius:22px;background:#fff;border:1px solid rgba(0,0,0,.07);box-shadow:0 20px 50px rgba(0,0,0,.22);padding:8px;animation:finRise .26s cubic-bezier(.32,.72,0,1) both">
+    <sc-for list="{{ addActions }}" as="a" hint-placeholder-count="4">
+      <button onClick="{{ a.go }}" class="fin-press" style="width:100%;display:flex;align-items:center;gap:12px;text-align:left;padding:13px;border:none;background:transparent;border-radius:15px;cursor:pointer;font-family:inherit">
+        <span style="{{ a.markStyle }}">{{ a.mark }}</span>
+        <span style="flex:1">
+          <span style="display:block;font-size:13.5px;font-weight:600;letter-spacing:-.01em;color:#18181b">{{ a.title }}</span>
+          <span style="display:block;font-size:11px;color:#a1a1aa;margin-top:1px">{{ a.sub }}</span>
+        </span>
+      </button>
+    </sc-for>
+  </div>
+</sc-if>
+
+<!-- ── SIMULADOR ──────────────────────────────────────────── -->
+<sc-if value="{{ simOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeSim }}" style="position:absolute;inset:0;z-index:55;background:rgba(24,24,27,.42);backdrop-filter:blur(3px)"></div>
+  <div style="position:absolute;left:0;right:0;bottom:0;z-index:56;border-radius:28px 28px 0 0;background:#fff;box-shadow:0 -18px 50px rgba(0,0,0,.2);padding:8px 18px 26px;animation:finRise .3s cubic-bezier(.32,.72,0,1) both;max-height:88%;overflow:auto">
+    <div style="width:38px;height:4px;border-radius:2px;background:#e4e4e7;margin:6px auto 16px"></div>
+    <div style="font-size:19px;font-weight:800;letter-spacing:-.03em">Posso comprar?</div>
+    <div style="font-size:12.5px;color:#71717a;margin-top:4px;line-height:1.5">A IA compara a compra com seus limites, contas e objetivos antes de você decidir.</div>
+
+    <div style="margin-top:16px;padding:14px;border-radius:18px;background:#fafafa;border:1px solid #f4f4f5">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#a1a1aa">Valor da compra</div>
+      <div style="font-size:32px;font-weight:800;letter-spacing:-.04em;margin-top:4px">{{ simAmountLabel }}</div>
+      <div style="display:flex;gap:7px;margin-top:12px;flex-wrap:wrap">
+        <sc-for list="{{ simPresets }}" as="p" hint-placeholder-count="4">
+          <button onClick="{{ p.pick }}" class="fin-press" style="{{ p.style }}">{{ p.label }}</button>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="{{ simVerdictStyle }}">
+      <div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.6">Veredito</div>
+      <div style="font-size:18px;font-weight:800;letter-spacing:-.03em;margin-top:6px">{{ simVerdict }}</div>
+      <div style="font-size:12.5px;line-height:1.55;margin-top:8px;opacity:.82">{{ simExplain }}</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+      <sc-for list="{{ simEffects }}" as="e" hint-placeholder-count="3">
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 13px;border-radius:14px;border:1px solid rgba(0,0,0,.06);background:#fff">
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:12.5px;font-weight:600">{{ e.label }}</span>
+            <span style="display:block;font-size:11px;color:#a1a1aa;margin-top:1px">{{ e.detail }}</span>
+          </span>
+          <span style="{{ e.deltaStyle }}">{{ e.delta }}</span>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;gap:9px;margin-top:16px">
+      <button onClick="{{ closeSim }}" class="fin-press" style="flex:1;padding:13px;border-radius:15px;border:none;background:#18181b;color:#fff;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer">Decidir depois</button>
+      <button onClick="{{ openChat }}" class="fin-press" style="padding:13px 16px;border-radius:15px;border:1px solid #e4e4e7;background:#fff;color:#52525b;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer">Perguntar</button>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ── CHAT ───────────────────────────────────────────────── -->
+<sc-if value="{{ chatOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:60;background:linear-gradient(170deg,#ecfdf5,#fafafa 40%);display:flex;flex-direction:column;animation:finRise .28s cubic-bezier(.32,.72,0,1) both">
+    <div style="padding:12px 16px;display:flex;align-items:center;gap:11px;border-bottom:1px solid rgba(0,0,0,.05);background:rgba(255,255,255,.75);backdrop-filter:blur(10px)">
+      <span style="width:36px;height:36px;border-radius:12px;background:#fff;border:1px solid #d1fae5;color:#059669;display:flex;align-items:center;justify-content:center">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"></path></svg>
+      </span>
+      <span style="flex:1">
+        <span style="display:block;font-size:14.5px;font-weight:700;letter-spacing:-.01em">FinAI</span>
+        <span style="display:block;font-size:11px;color:#71717a">{{ chatStatus }}</span>
+      </span>
+      <button onClick="{{ closeChat }}" class="fin-press" style="width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.05);color:#52525b;display:flex;align-items:center;justify-content:center;cursor:pointer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+    </div>
+
+    <div style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px">
+      <sc-for list="{{ messages }}" as="m" hint-placeholder-count="3">
+        <div style="{{ m.rowStyle }}">
+          <div style="{{ m.bubbleStyle }}">{{ m.text }}</div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;gap:5px;padding:12px 14px;background:#fff;border-radius:18px 18px 18px 5px;width:fit-content;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+          <span style="width:7px;height:7px;border-radius:50%;background:#10b981;animation:finDots 1.4s ease-in-out infinite"></span>
+          <span style="width:7px;height:7px;border-radius:50%;background:#10b981;animation:finDots 1.4s ease-in-out .2s infinite"></span>
+          <span style="width:7px;height:7px;border-radius:50%;background:#10b981;animation:finDots 1.4s ease-in-out .4s infinite"></span>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="padding:10px 16px 16px;background:rgba(255,255,255,.8);backdrop-filter:blur(10px);border-top:1px solid rgba(0,0,0,.05)">
+      <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:9px">
+        <sc-for list="{{ suggestions }}" as="q" hint-placeholder-count="4">
+          <button onClick="{{ q.send }}" class="fin-press" style="flex:0 0 auto;padding:8px 13px;border-radius:99px;border:1px solid #e4e4e7;background:#fff;font-family:inherit;font-size:11.5px;font-weight:600;color:#3f3f46;cursor:pointer">{{ q.label }}</button>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;padding:7px 7px 7px 16px;border-radius:99px;background:#fff;border:1px solid #e4e4e7">
+        <input value="{{ draft }}" onChange="{{ onDraft }}" onKeyDown="{{ onKey }}" placeholder="Pergunte sobre suas finanças..." style="flex:1;border:none;outline:none;font-family:inherit;font-size:13px;color:#18181b;background:transparent;min-width:0"/>
+        <button onClick="{{ send }}" class="fin-press" style="width:36px;height:36px;border-radius:50%;border:none;background:#10b981;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"></path><path d="M22 2 15 22l-4-9-9-4z"></path></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ── NOTIFICAÇÕES ───────────────────────────────────────── -->
+<sc-if value="{{ notifsOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeNotifs }}" style="position:absolute;inset:0;z-index:55;background:rgba(24,24,27,.4)"></div>
+  <div style="position:absolute;top:12px;left:16px;right:16px;z-index:56;border-radius:22px;background:#fff;border:1px solid rgba(0,0,0,.07);box-shadow:0 22px 50px rgba(0,0,0,.22);overflow:hidden;animation:finRise .24s cubic-bezier(.32,.72,0,1) both">
+    <div style="padding:14px 16px;border-bottom:1px solid #f4f4f5;font-size:13px;font-weight:700;letter-spacing:-.01em">Avisos da IA</div>
+    <sc-for list="{{ notifs }}" as="n" hint-placeholder-count="3">
+      <div style="display:flex;gap:11px;padding:13px 16px;border-bottom:1px solid #f4f4f5">
+        <span style="{{ n.dotStyle }}"></span>
+        <span style="flex:1">
+          <span style="display:block;font-size:12.5px;font-weight:700;letter-spacing:-.01em">{{ n.title }}</span>
+          <span style="display:block;font-size:11.5px;color:#71717a;line-height:1.45;margin-top:2px">{{ n.body }}</span>
+        </span>
+      </div>
+    </sc-for>
+    <button onClick="{{ closeNotifs }}" class="fin-press" style="width:100%;padding:13px;border:none;background:#fff;font-family:inherit;font-size:12.5px;font-weight:700;color:#059669;cursor:pointer">Fechar</button>
+  </div>
+</sc-if>
+
+<!-- ── BOTTOM NAV ─────────────────────────────────────────── -->
+<div style="position:absolute;left:12px;right:12px;bottom:14px;z-index:40">
+  <div style="background:rgba(24,24,27,.96);backdrop-filter:blur(14px);border:1px solid #27272a;border-radius:20px;padding:8px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 18px 40px rgba(0,0,0,.34)">
+    <button onClick="{{ navHome }}" class="fin-press" style="{{ tabHomeStyle }}">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"></path></svg>
+      <span style="font-size:9px;font-weight:700;letter-spacing:.01em">Início</span>
+    </button>
+    <button onClick="{{ navAgenda }}" class="fin-press" style="{{ tabAgendaStyle }}">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M8 3v4M16 3v4M3 11h18"></path></svg>
+      <span style="font-size:9px;font-weight:700">Agenda</span>
+    </button>
+    <button onClick="{{ toggleAdd }}" class="fin-press" style="width:50px;height:46px;margin:0 4px;border:none;border-radius:15px;background:#10b981;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;box-shadow:0 8px 18px rgba(16,185,129,.35)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="{{ plusStyle }}"><path d="M12 5v14M5 12h14"></path></svg>
+    </button>
+    <button onClick="{{ navMetas }}" class="fin-press" style="{{ tabMetasStyle }}">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1.4"></circle></svg>
+      <span style="font-size:9px;font-weight:700">Objetivos</span>
+    </button>
+    <button onClick="{{ navDividas }}" class="fin-press" style="{{ tabDividasStyle }}">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"></rect><path d="M2 10h20"></path></svg>
+      <span style="font-size:9px;font-weight:700">Dívidas</span>
+    </button>
+  </div>
+</div>
+
+</div>
+</x-import>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:460,&quot;height&quot;:940},&quot;recSurface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Cartões&quot;,&quot;Feed&quot;,&quot;Chat&quot;],&quot;default&quot;:&quot;Cartões&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Recomendações&quot;},&quot;showCoach&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Recomendações&quot;}}">
+const BRL = n => 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const BRL0 = n => 'R$ ' + n.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+
+class Component extends DCLogic {
+  state = {
+    screen: 'home',
+    surface: null,
+    addOpen: false,
+    simOpen: false,
+    chatOpen: false,
+    notifsOpen: false,
+    monthIndex: 11,
+    simAmount: 2400,
+    dismissed: [],
+    accepted: [],
+    draft: '',
+    thinking: false,
+    importStage: 0,
+    messages: [
+      { role: 'ai', text: 'Bom dia, João. Dezembro tem duas coisas fora do normal: o 13º entra dia 20 e a fatura do Nubank vem 38% acima da média. Quer decidir o destino do 13º agora?' },
+    ],
+  };
+
+  go = s => this.setState({ screen: s, addOpen: false, simOpen: false, notifsOpen: false });
+
+  say = (text, reply) => {
+    this.setState(st => ({ chatOpen: true, addOpen: false, simOpen: false, thinking: true, draft: '', messages: [...st.messages, { role: 'me', text }] }));
+    clearTimeout(this._t);
+    this._t = setTimeout(() => {
+      this.setState(st => ({ thinking: false, messages: [...st.messages, { role: 'ai', text: reply || this.answer(text) }] }));
+    }, 1100);
+  };
+
+  answer = q => {
+    const t = q.toLowerCase();
+    if (t.includes('13')) return 'Proposta para o 13º de R$ 8.500: R$ 4.200 quitam o rotativo do Nubank (economiza R$ 611/mês de juros), R$ 2.500 vão para Portugal — antecipa a viagem de julho para maio — e R$ 1.800 ficam livres. Nada é movido sem você aprovar.';
+    if (t.includes('portugal') || t.includes('viagem')) return 'Portugal está em R$ 5.500 de R$ 15.000. No ritmo atual você chega em julho. Se o bônus de março (R$ 3.000) for direcionado para lá, chega em maio e as passagens caem cerca de 18% fora da alta temporada.';
+    if (t.includes('nubank') || t.includes('fatura') || t.includes('dívida') || t.includes('divida')) return 'O rotativo do Nubank custa 13,9% ao mês — R$ 611 só de juros. Um parcelamento negociado em 12x sai a 3,2% ao mês. Posso montar o roteiro da ligação com os números que você deve citar.';
+    if (t.includes('economizar') || t.includes('assinatura')) return 'Três assinaturas somam R$ 174,80/mês e duas delas você não abriu nos últimos 60 dias. Cancelando Amazon Prime e Alura você libera R$ 123,90/mês — é uma parcela inteira de Portugal.';
+    return 'Olhando seus últimos 90 dias: renda fixa de R$ 8.500, gasto médio de R$ 6.653 e capacidade real de poupança de R$ 1.847/mês. Me diga o que você está pensando em fazer e eu mostro o efeito antes de você decidir.';
+  };
+
+  renderVals() {
+    const s = this.state;
+    const surface = s.surface || this.props.recSurface || 'Cartões';
+    const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const screens = { home: 'Controle inteligente', agenda: 'Agenda do mês', metas: 'Objetivos', dividas: 'Plano de quitação', orcamentos: 'Limites', importar: 'Importação' };
+
+    const tab = name => 'flex:1;padding:9px 0;border:none;border-radius:13px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;font-family:inherit;background:'
+      + (s.screen === name ? '#27272a' : 'transparent') + ';color:' + (s.screen === name ? '#ffffff' : '#a1a1aa');
+    const h = tab('home'), a = tab('agenda'), m = tab('metas'), d = tab('dividas');
+
+    const rawDecisions = [
+      {
+        id: 'd1', tag: '13º salário · entra dia 20', dot: '#10b981',
+        title: 'Dividir o 13º em três partes',
+        why: 'R$ 4.200 quitam o rotativo, R$ 2.500 vão para Portugal, R$ 1.800 ficam livres.',
+        impact: '−R$ 611/mês de juros e Portugal 2 meses antes',
+        cta: 'Ver o plano', question: 'Como devo dividir o 13º?',
+      },
+      {
+        id: 'd2', tag: 'Assinaturas', dot: '#f59e0b',
+        title: 'Cancelar Amazon Prime e Alura',
+        why: 'Nenhum acesso nos últimos 60 dias. Juntas custam R$ 123,90 por mês.',
+        impact: '+R$ 1.486/ano para os objetivos',
+        cta: 'Cancelar as duas', question: 'Quais assinaturas posso cortar?',
+      },
+      {
+        id: 'd3', tag: 'Cartão Nubank', dot: '#f43f5e',
+        title: 'Negociar o rotativo antes do dia 15',
+        why: 'A taxa de 13,9% a.m. pode cair para 3,2% em um parcelamento de 12x.',
+        impact: 'Economia estimada de R$ 3.840',
+        cta: 'Preparar negociação', question: 'Como negocio a fatura do Nubank?',
+      },
+    ];
+    const decisions = rawDecisions.filter(x => !s.dismissed.includes(x.id)).map(x => ({
+      ...x,
+      dotStyle: 'width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none;background:' + x.dot,
+      accept: () => x.id === 'd3' ? this.go('dividas') : x.id === 'd2' ? this.go('orcamentos') : this.say(x.question),
+      dismiss: () => this.setState(st => ({ dismissed: [...st.dismissed, x.id] })),
+      ask: () => this.say(x.question),
+    }));
+
+    const goalsRaw = [
+      { id: 'g1', kind: 'Viagem', name: 'Portugal — 10 dias', saved: 5500, target: 15000, eta: 'Julho de 2026', badge: 'No ritmo', note: 'R$ 1.583/mês mantém a data.', analysis: 'Com o bônus de março direcionado para cá, a meta fecha em maio e as passagens saem 18% mais baratas fora da alta temporada.', action: 'Direcionar o bônus' },
+      { id: 'g2', kind: 'Compra', name: 'iPhone 15 Pro Max', saved: 3200, target: 9499, eta: 'Abril de 2026', badge: 'Reavaliar', note: 'Concorre com Portugal no mesmo mês.', analysis: 'Os dois objetivos consomem R$ 3.433/mês e sua capacidade é R$ 1.847. Adiar o iPhone em 3 meses resolve o conflito sem tocar na viagem.', action: 'Adiar 3 meses' },
+      { id: 'g3', kind: 'Reserva', name: 'Reserva de emergência', saved: 12400, target: 25500, eta: 'Fevereiro de 2027', badge: 'Prioridade', note: '2,1 meses de custo coberto.', analysis: 'Três meses de custo fixo é o mínimo confortável para renda assalariada. Faltam R$ 3.560 para chegar lá.', action: 'Aumentar aporte' },
+    ];
+    const badgeTone = b => b === 'No ritmo' ? { badgeBg: '#ecfdf5', badgeFg: '#059669' } : b === 'Reavaliar' ? { badgeBg: '#fffbeb', badgeFg: '#b45309' } : { badgeBg: '#eef2ff', badgeFg: '#4f46e5' };
+    const mapGoal = g => ({
+      ...g,
+      badgeStyle: 'font-size:10px;font-weight:700;padding:4px 9px;border-radius:99px;flex:none;background:' + badgeTone(g.badge).badgeBg + ';color:' + badgeTone(g.badge).badgeFg,
+      barStyle: 'height:100%;border-radius:99px;background:linear-gradient(90deg,#10b981,#34d399);width:' + Math.round((g.saved / g.target) * 100) + '%',
+      saved: BRL0(g.saved), target: BRL0(g.target),
+      open: () => this.go('metas'),
+      boost: () => this.say('Quero ' + g.action.toLowerCase() + ' em "' + g.name + '"'),
+    });
+
+    const simAmount = s.simAmount;
+    const free = 1847;
+    const verdictOk = simAmount <= free;
+    const verdictWarn = simAmount > free && simAmount <= free * 2;
+
+    const chatSuggestions = ['Como divido o 13º?', 'Posso viajar em maio?', 'Onde economizar?', 'Negociar o Nubank'];
+
+    return {
+      screenLabel: screens[s.screen],
+      isHome: s.screen === 'home', isAgenda: s.screen === 'agenda', isMetas: s.screen === 'metas',
+      isDividas: s.screen === 'dividas', isOrcamentos: s.screen === 'orcamentos', isImport: s.screen === 'importar',
+      navHome: () => this.go('home'), navAgenda: () => this.go('agenda'), navMetas: () => this.go('metas'),
+      navDividas: () => this.go('dividas'), navOrcamentos: () => this.go('orcamentos'),
+      tabHomeStyle: h, tabAgendaStyle: a, tabMetasStyle: m, tabDividasStyle: d,
+      plusStyle: 'transition:transform .3s cubic-bezier(.32,.72,0,1);transform:' + (s.addOpen ? 'rotate(45deg)' : 'none'),
+
+      greeting: 'Bom dia, João',
+      subGreeting: 'Faltam 9 dias para o 13º cair. Três decisões esperam você.',
+      notifCount: 3,
+
+      goals: goalsRaw.slice(0, 2).map(mapGoal),
+      goalsFull: goalsRaw.map(mapGoal),
+      capacity: BRL0(free), capacityNote: 'Média dos últimos 90 dias, já descontando contas fixas, fatura e as parcelas em aberto.',
+
+      safeToday: BRL(74.3),
+      safeNote: 'Sobram R$ 892 até o dia 31 depois de contas e aportes. Ontem você ficou R$ 18 abaixo.',
+      dayLeftLabel: '12',
+      ringStyle: 'width:76px;height:76px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;background:conic-gradient(#10b981 0% 62%, rgba(255,255,255,.13) 62% 100%)',
+
+      surfaces: ['Cartões', 'Feed', 'Chat'].map(l => ({
+        label: l, pick: () => this.setState({ surface: l }),
+        style: 'border:none;font-family:inherit;font-size:10.5px;font-weight:700;padding:5px 10px;border-radius:99px;cursor:pointer;background:'
+          + (surface === l ? '#18181b' : 'transparent') + ';color:' + (surface === l ? '#ffffff' : '#71717a'),
+      })),
+      isCards: surface === 'Cartões', isFeed: surface === 'Feed', isChatSurface: surface === 'Chat',
+      decisions,
+      pendingLabel: decisions.length + ' sugestões · você aprova cada uma',
+      chatPitch: 'Encontrei três coisas que mudam seu dezembro. Escolha por onde começar e eu explico com os números.',
+
+      timeline: [
+        { month: 'Dez', amount: '+R$ 8.500', label: '13º salário', color: '#059669', line: '#10b981' },
+        { month: 'Jan', amount: '—', label: 'IPVA e matrícula', color: '#a1a1aa', line: '#e4e4e7' },
+        { month: 'Fev', amount: '—', label: 'Mês neutro', color: '#a1a1aa', line: '#e4e4e7' },
+        { month: 'Mar', amount: '+R$ 3.000', label: 'Bônus anual (previsto)', color: '#059669', line: '#10b981' },
+        { month: 'Abr', amount: '—', label: 'Mês neutro', color: '#a1a1aa', line: '#e4e4e7' },
+        { month: 'Mai', amount: '+R$ 1.240', label: 'Restituição do IR', color: '#059669', line: '#10b981' },
+        { month: 'Jul', amount: '−R$ 15.000', label: 'Portugal', color: '#e11d48', line: '#fda4af' },
+      ].map(t => ({ ...t,
+        lineStyle: 'height:2px;margin:10px 0;border-radius:2px;background:' + t.line,
+        amountStyle: 'font-size:13px;font-weight:800;letter-spacing:-.02em;color:' + t.color })),
+      timelineNote: 'Somando as três entradas extras, você tem R$ 12.740 fora do salário em 2026. Hoje, R$ 9.100 disso ainda não têm destino definido.',
+
+      week: [
+        { day: '11', mon: 'DEZ', name: 'Fatura Nubank', cat: 'Cartão de crédito', amount: BRL(4387.2), status: 'Vence hoje', statusColor: '#e11d48' },
+        { day: '12', mon: 'DEZ', name: 'Aluguel', cat: 'Moradia', amount: BRL(1800), status: 'Agendado', statusColor: '#a1a1aa' },
+        { day: '15', mon: 'DEZ', name: 'Conta de luz — Enel', cat: 'Contas', amount: BRL(234.67), status: 'Pendente', statusColor: '#b45309' },
+        { day: '20', mon: 'DEZ', name: '13º salário', cat: 'Entrada', amount: '+ ' + BRL(8500), status: 'Previsto', statusColor: '#059669' },
+      ].map(w => ({ ...w, statusStyle: 'display:block;font-size:10px;font-weight:700;margin-top:2px;color:' + w.statusColor })),
+
+      showCoach: this.props.showCoach ?? true,
+      coachTitle: 'Você pede delivery quando trabalha até depois das 20h',
+      coachBody: '9 das 11 compras no iFood aconteceram nesses dias, somando R$ 612 no mês. Nas semanas em que você deixou algo pronto na segunda, o gasto caiu 64%.',
+
+      monthLabel: months[s.monthIndex] + ' de 2025',
+      prevMonth: () => this.setState(st => ({ monthIndex: (st.monthIndex + 11) % 12 })),
+      nextMonth: () => this.setState(st => ({ monthIndex: (st.monthIndex + 1) % 12 })),
+      toPayTotal: BRL0(9021), toPayCount: '9 contas · 1 atrasada',
+      toGetTotal: '+ ' + BRL0(17000), toGetCount: '2 entradas',
+      agendaTip: 'Se pagar a fatura do Nubank no dia 20, depois do 13º, você evita o rotativo sem atrasar nada — a data limite é 15.',
+      bills: [
+        { name: 'Alura — Assinatura', meta: 'Educação · 30/11', amount: BRL(109), status: 'Atrasado', statusBg: '#fff1f2', statusFg: '#e11d48', initials: 'AL', tint: '#eef2ff', ink: '#4f46e5' },
+        { name: 'ChatGPT Plus', meta: 'Assinaturas · 03/12', amount: BRL(97), status: 'Pendente', statusBg: '#fffbeb', statusFg: '#b45309', initials: 'GP', tint: '#f4f4f5', ink: '#3f3f46' },
+        { name: 'Smart Fit', meta: 'Saúde · 03/12', amount: BRL(99.9), status: 'Pendente', statusBg: '#fffbeb', statusFg: '#b45309', initials: 'SF', tint: '#fff1f2', ink: '#e11d48' },
+        { name: 'Internet Vivo Fibra', meta: 'Contas · 06/12', amount: BRL(119.99), status: 'Pago', statusBg: '#ecfdf5', statusFg: '#059669', initials: 'VV', tint: '#ecfdf5', ink: '#059669' },
+        { name: 'Aluguel Apartamento', meta: 'Moradia · 08/12', amount: BRL(1800), status: 'Pendente', statusBg: '#fffbeb', statusFg: '#b45309', initials: 'AP', tint: '#ecfdf5', ink: '#059669' },
+        { name: 'Condomínio', meta: 'Moradia · 08/12', amount: BRL(450), status: 'Pendente', statusBg: '#fffbeb', statusFg: '#b45309', initials: 'CD', tint: '#ecfdf5', ink: '#059669' },
+        { name: 'Fatura Nubank', meta: 'Cartão · 11/12', amount: BRL(4387.2), status: 'Vence hoje', statusBg: '#fff1f2', statusFg: '#e11d48', initials: 'NU', tint: '#f5f3ff', ink: '#7c3aed' },
+      ].map(b => ({ ...b,
+        iconStyle: 'width:36px;height:36px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;background:' + b.tint + ';color:' + b.ink,
+        statusStyle: 'display:inline-block;margin-top:3px;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:99px;background:' + b.statusBg + ';color:' + b.statusFg })),
+
+      debtTotal: BRL0(13640), debtInterest: BRL0(689), debtFree: 'Ago 2026',
+      strategyNote: 'Ordenado pelo custo do juro, não pelo tamanho da dívida.',
+      debts: [
+        { rank: '1', name: 'Rotativo Nubank', meta: '13,9% a.m. · sem prazo definido', amount: BRL0(4387), rate: '13,9% a.m.', rateColor: '#e11d48', pct: '18%', bar: '#f43f5e' },
+        { rank: '2', name: 'Empréstimo consignado', meta: '18 de 36 parcelas · R$ 412/mês', amount: BRL0(7413), rate: '1,9% a.m.', rateColor: '#b45309', pct: '50%', bar: '#f59e0b' },
+        { rank: '3', name: 'Parcelamento notebook', meta: '4 de 10 parcelas · R$ 310/mês', amount: BRL0(1840), rate: '0% a.m.', rateColor: '#059669', pct: '40%', bar: '#10b981' },
+      ].map(x => ({ ...x,
+        barStyle: 'display:block;height:100%;border-radius:99px;width:' + x.pct + ';background:' + x.bar,
+        rateStyle: 'display:block;font-size:10px;font-weight:700;margin-top:2px;color:' + x.rateColor })),
+      negoTitle: 'Ligação para o Nubank — antes do dia 15',
+      negoSteps: [
+        { n: '1', text: 'Diga que é cliente há 4 anos, sem atraso acima de 10 dias nos últimos 24 meses.' },
+        { n: '2', text: 'Peça o parcelamento do rotativo em 12x citando a taxa de 3,2% a.m. anunciada no app.' },
+        { n: '3', text: 'Se recusarem, ofereça R$ 4.200 de entrada com o 13º e peça o saldo em 6x sem juros.' },
+        { n: '4', text: 'Peça o número do protocolo e a proposta por escrito antes de aceitar.' },
+      ],
+
+      budgets: [
+        { name: 'Alimentação', value: BRL0(1120) + ' / ' + BRL0(1200), pct: '93%', bar: '#f59e0b', color: '#b45309', note: 'No ritmo atual fecha R$ 180 acima. Restam 20 dias.' },
+        { name: 'Transporte', value: BRL0(313) + ' / ' + BRL0(600), pct: '52%', bar: '#10b981', color: '#059669', note: 'Folga de R$ 287.' },
+        { name: 'Lazer', value: BRL0(1429) + ' / ' + BRL0(800), pct: '100%', bar: '#f43f5e', color: '#e11d48', note: 'Estourado em R$ 629 — Rock in Rio e a hotel de réveillon.' },
+        { name: 'Assinaturas', value: BRL0(283) + ' / ' + BRL0(200), pct: '100%', bar: '#f43f5e', color: '#e11d48', note: 'Sete assinaturas ativas, três sem uso.' },
+        { name: 'Saúde', value: BRL0(536) + ' / ' + BRL0(700), pct: '76%', bar: '#10b981', color: '#059669', note: 'Dentro do previsto.' },
+      ].map(b => ({ ...b,
+        valueStyle: 'font-size:12px;font-weight:700;color:' + b.color,
+        barStyle: 'height:100%;border-radius:99px;width:' + b.pct + ';background:' + b.bar })),
+      subs: [
+        { name: 'Amazon Prime', note: 'Sem acesso há 74 dias', amount: BRL(14.9), cta: 'Cancelar', act: () => this.say('Cancelar Amazon Prime') },
+        { name: 'Alura', note: 'Último acesso em setembro', amount: BRL(109), cta: 'Cancelar', act: () => this.say('Cancelar Alura') },
+        { name: 'ChatGPT Plus', note: 'Uso diário — manter', amount: BRL(97), cta: 'Manter', act: () => this.say('Manter ChatGPT Plus') },
+      ],
+
+      importTitle: s.importStage === 0 ? 'Solte a fatura aqui' : s.importStage === 1 ? 'Lendo o documento...' : '47 lançamentos importados',
+      importSub: s.importStage === 0 ? 'Nubank, Itaú, Bradesco, Inter e C6 reconhecidos automaticamente.' : s.importStage === 1 ? 'Identificando estabelecimentos, datas e parcelas.' : 'R$ 4.387,20 em 47 lançamentos. 3 possíveis duplicados foram separados.',
+      importCta: s.importStage === 2 ? 'Revisar lançamentos' : 'Escolher arquivo',
+      runImport: () => {
+        if (s.importStage === 2) return this.go('agenda');
+        this.setState({ importStage: 1 });
+        setTimeout(() => this.setState({ importStage: 2 }), 1400);
+      },
+      importStepsTitle: 'O que a IA faz com o arquivo',
+      importSteps: ['Extrai os lançamentos sem enviar o PDF para fora do aparelho', 'Classifica cada compra em uma categoria', 'Detecta assinaturas recorrentes e parcelas', 'Separa duplicados para você confirmar'].map((text, i) => {
+        const done = s.importStage === 2 || (s.importStage === 1 && i === 0);
+        return { text, mark: done ? '✓' : String(i + 1),
+          markStyle: 'width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;background:' + (done ? '#ecfdf5' : '#f4f4f5') + ';color:' + (done ? '#059669' : '#a1a1aa'),
+          textStyle: 'flex:1;font-size:12.5px;line-height:1.45;color:' + (done ? '#18181b' : '#71717a') };
+      }),
+
+      addOpen: s.addOpen,
+      toggleAdd: () => this.setState(st => ({ addOpen: !st.addOpen })),
+      closeAdd: () => this.setState({ addOpen: false }),
+      addActions: ([
+        { mark: 'R$', tint: '#ecfdf5', ink: '#059669', title: 'Lançar gasto', sub: 'Manual ou por voz', go: () => this.say('Quero adicionar uma despesa') },
+        { mark: '↑', tint: '#eef2ff', ink: '#4f46e5', title: 'Importar fatura', sub: 'PDF, planilha ou foto', go: () => this.go('importar') },
+        { mark: '?', tint: '#fffbeb', ink: '#b45309', title: 'Posso comprar?', sub: 'Simular antes de decidir', go: () => this.setState({ addOpen: false, simOpen: true }) },
+        { mark: '◎', tint: '#fff1f2', ink: '#e11d48', title: 'Novo objetivo', sub: 'Compra, viagem ou reserva', go: () => this.go('metas') },
+      ]).map(x => ({ ...x, markStyle: 'width:34px;height:34px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;background:' + x.tint + ';color:' + x.ink })),
+
+      simOpen: s.simOpen,
+      openSim: () => this.setState({ simOpen: true, addOpen: false }),
+      closeSim: () => this.setState({ simOpen: false }),
+      simAmountLabel: BRL0(simAmount),
+      simPresets: [350, 1200, 2400, 6800].map(v => ({
+        label: BRL0(v), pick: () => this.setState({ simAmount: v }),
+        style: 'padding:8px 13px;border-radius:11px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;background:'
+          + (v === simAmount ? '#18181b' : '#fff') + ';color:' + (v === simAmount ? '#fff' : '#52525b')
+          + ';border:1px solid ' + (v === simAmount ? '#18181b' : '#e4e4e7'),
+      })),
+      simVerdict: verdictOk ? 'Cabe, sem mexer em nada' : verdictWarn ? 'Cabe, mas custa tempo' : 'Não cabe este mês',
+      simVerdictStyle: 'margin-top:14px;padding:16px;border-radius:18px;color:#fff;background:' + (verdictOk ? '#065f46' : verdictWarn ? '#78350f' : '#881337'),
+      simExplain: verdictOk
+        ? 'O valor sai da folga do mês. Nenhum objetivo é adiado e a reserva continua intacta.'
+        : verdictWarn
+          ? 'Você cobre à vista, mas o aporte de dezembro para Portugal fica de fora. A viagem passa de julho para agosto.'
+          : 'O valor supera sua capacidade de poupança em dois meses. Comprar agora significaria usar o rotativo a 13,9% ao mês — o custo real sobe para ' + BRL0(Math.round(simAmount * 1.31)) + '.',
+      simEffects: ([
+        { label: 'Folga do mês', detail: 'depois da compra', delta: BRL0(free - simAmount), color: free - simAmount >= 0 ? '#059669' : '#e11d48' },
+        { label: 'Portugal', detail: verdictOk ? 'data mantida' : 'nova previsão', delta: verdictOk ? 'Jul 2026' : verdictWarn ? 'Ago 2026' : 'Out 2026', color: verdictOk ? '#059669' : '#b45309' },
+        { label: 'Reserva de emergência', detail: 'cobertura de custo fixo', delta: verdictOk ? '2,1 meses' : '1,7 mês', color: verdictOk ? '#059669' : '#b45309' },
+      ]).map(x => ({ ...x, deltaStyle: 'font-size:12.5px;font-weight:800;letter-spacing:-.02em;color:' + x.color })),
+
+      chatOpen: s.chatOpen, thinking: s.thinking,
+      openChat: () => this.setState({ chatOpen: true, addOpen: false, simOpen: false, notifsOpen: false }),
+      closeChat: () => this.setState({ chatOpen: false }),
+      chatStatus: s.thinking ? 'analisando seus dados...' : 'online · lê seus últimos 90 dias',
+      messages: s.messages.map(m => ({
+        text: m.text,
+        rowStyle: 'display:flex;justify-content:' + (m.role === 'me' ? 'flex-end' : 'flex-start'),
+        bubbleStyle: 'max-width:84%;padding:12px 14px;font-size:13px;line-height:1.55;box-shadow:0 1px 3px rgba(0,0,0,.05);background:'
+          + (m.role === 'me' ? '#18181b' : '#ffffff') + ';color:' + (m.role === 'me' ? '#ffffff' : '#27272a')
+          + ';border-radius:' + (m.role === 'me' ? '18px 18px 5px 18px' : '18px 18px 18px 5px'),
+      })),
+      suggestions: chatSuggestions.map(label => ({ label, send: () => this.say(label) })),
+      draft: s.draft,
+      onDraft: e => this.setState({ draft: e.target.value }),
+      onKey: e => { if (e.key === 'Enter' && s.draft.trim()) this.say(s.draft.trim()); },
+      send: () => { if (s.draft.trim()) this.say(s.draft.trim()); },
+
+      notifsOpen: s.notifsOpen,
+      openNotifs: () => this.setState({ notifsOpen: true }),
+      closeNotifs: () => this.setState({ notifsOpen: false }),
+      notifs: ([
+        { dot: '#f43f5e', title: 'Fatura do Nubank vence hoje', body: 'R$ 4.387,20. Pagar o mínimo joga R$ 611 de juros para janeiro.' },
+        { dot: '#f59e0b', title: 'Alimentação em 93% do limite', body: 'Faltam 20 dias e R$ 80. Três jantares fora estouram a categoria.' },
+        { dot: '#10b981', title: '13º confirmado para o dia 20', body: 'R$ 8.500. Ainda sem destino definido.' },
+      ]).map(x => ({ ...x, dotStyle: 'width:8px;height:8px;border-radius:50%;margin-top:5px;flex:none;background:' + x.dot })),
+    };
+  }
+}
+
+</script>
+</body>
+</html>
