@@ -1,0 +1,205 @@
+package com.finai.app.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.finai.app.data.fixtures.FinaiFixtures
+import com.finai.app.data.model.ChatMessage
+import com.finai.app.data.model.ChatRole
+import com.finai.app.ui.theme.FinaiColors
+
+/** Full-screen assistant chat — free-form conversation, canned in Phase 0/no AI yet. */
+@Composable
+fun ChatOverlay(
+    messages: List<ChatMessage>,
+    thinking: Boolean,
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onSuggestion: (String) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(FinaiColors.EmeraldSoftBg, FinaiColors.Background))),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(FinaiColors.Surface.copy(alpha = 0.75f))
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(FinaiColors.Surface)
+                    .border(1.dp, FinaiColors.EmeraldSoftBorder, RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = FinaiColors.EmeraldDark, modifier = Modifier.size(17.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("FinAI", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                Text(
+                    if (thinking) "analisando seus dados..." else "online · lê seus últimos 90 dias",
+                    fontSize = 11.sp, color = FinaiColors.TextTertiary,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.05f))
+                    .clickable(onClick = onClose),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Close, contentDescription = "Fechar", tint = FinaiColors.TextSecondary, modifier = Modifier.size(16.dp))
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(messages) { message -> ChatBubble(message) }
+            if (thinking) item { ThinkingBubble() }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(FinaiColors.Surface.copy(alpha = 0.8f))
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 16.dp),
+        ) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                items(FinaiFixtures.chatSuggestions) { suggestion ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(99.dp))
+                            .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
+                            .background(FinaiColors.Surface)
+                            .clickable { onSuggestion(suggestion) }
+                            .padding(horizontal = 13.dp, vertical = 8.dp),
+                    ) {
+                        Text(suggestion, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextBody)
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .padding(top = 9.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(99.dp))
+                    .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
+                    .background(FinaiColors.Surface)
+                    .padding(start = 16.dp, end = 7.dp, top = 7.dp, bottom = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
+                androidx.compose.material3.TextField(
+                    value = draft,
+                    onValueChange = onDraftChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Pergunte sobre suas finanças...", fontSize = 13.sp, color = FinaiColors.TextMuted) },
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = FinaiColors.TextPrimary),
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent,
+                    ),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { onSend() }),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(FinaiColors.Emerald)
+                        .clickable(onClick = onSend),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar", tint = Color.White, modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatBubble(message: ChatMessage) {
+    val fromMe = message.role == ChatRole.Me
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = if (fromMe) Arrangement.End else Arrangement.Start) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 280.dp)
+                .clip(
+                    RoundedCornerShape(
+                        topStart = 18.dp, topEnd = 18.dp,
+                        bottomStart = if (fromMe) 18.dp else 5.dp,
+                        bottomEnd = if (fromMe) 5.dp else 18.dp,
+                    ),
+                )
+                .background(if (fromMe) FinaiColors.Ink else FinaiColors.Surface)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            Text(
+                message.text, fontSize = 13.sp, lineHeight = 20.sp,
+                color = if (fromMe) Color.White else FinaiColors.TextBody,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThinkingBubble() {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 5.dp, bottomEnd = 18.dp))
+            .background(FinaiColors.Surface)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        repeat(3) { Dot(FinaiColors.Emerald, size = 7.dp) }
+    }
+}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Placeholder backup rules. FinAI's privacy principle (see planning.md §4) keeps
+   financial data on-device by default — revisit this file before enabling any
+   cloud backup so transaction/debt/goal data is excluded unless the user opts in.
+-->
+<full-backup-content>
+</full-backup-content>

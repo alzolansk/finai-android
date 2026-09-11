@@ -161,7 +161,7 @@ Esta foi a opção escolhida, então os riscos abaixo entram como itens de harde
 
 ## 9. Roadmap por fases
 
-**Fase 0 · Fundamentos**
+**Fase 0 · Fundamentos — ✅ concluída** (ver CLAUDE.md → Status atual para detalhes)
 Projeto Android configurado (Compose, Navigation, Room, DataStore), design system com os tokens de cor/tipografia extraídos do protótipo, todas as telas navegáveis com dados fixos de exemplo (iguais ao protótipo), sem lógica real ainda.
 
 **Fase 1 · MVP sem IA**
