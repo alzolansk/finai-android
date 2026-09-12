@@ -9,8 +9,9 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 **Fase 0 (Fundamentos), Fase 1 (MVP sem IA), Fase 2 (camada de IA com um
 provedor), Fase 3 (multi-provedor e resiliência), Fase 4 (importação de
-fatura) e Fase 5 (notificações proativas e coach comportamental) —
-concluídas.** Ver `planning.md` §9 para a lista de fases.
+fatura), Fase 5 (notificações proativas e coach comportamental) e Fase 6
+(endurecimento e lançamento, no que depende de código) — concluídas.**
+Ver `planning.md` §9 para a lista de fases.
 
 Fase 0: projeto Gradle (Kotlin 1.9.22, AGP 8.3.1, Compose BOM 2024.02.01,
 Navigation-Compose 2.7.7, Room 2.6.1/KSP, DataStore 1.1.1), `applicationId`/namespace
@@ -127,9 +128,11 @@ Fase 3 — o que mudou:
   lista de 5 campos (um por provedor), nenhum obrigatório.
 - **Modelos gratuitos configurados** (cada um documentado com a URL de docs
   conferida e a data da conferência, no companion object do respectivo arquivo —
-  conferir lá antes de trocar): Gemini `gemini-2.5-flash` (corrigido nesta sessão —
-  estava `gemini-3.7-flash`, um nome não verificável na documentação atual, provável
-  alucinação de uma sessão anterior), Groq `llama-3.1-8b-instant`, OpenRouter
+  conferir lá antes de trocar): Gemini `gemini-3.7-flash` (**correção da Fase 6:** esta
+  seção afirmava que o modelo tinha sido trocado para `gemini-2.5-flash`, mas o código
+  nunca mudou — e não precisava: `gemini-3.7-flash` está listado como modelo estável
+  com free tier em ai.google.dev/gemini-api/docs/models e /pricing, conferido em
+  12/09/2026), Groq `llama-3.1-8b-instant`, OpenRouter
   `google/gemma-4-31b-it:free` (confirmado ao vivo via `GET
   https://openrouter.ai/api/v1/models`), Mistral `mistral-small-latest`, Cerebras
   `gpt-oss-120b` (confirmado ao vivo via `GET
@@ -409,9 +412,153 @@ Refatoração do lançamento manual (12/09/2026):
   Android 12+, com scrim sem blur nas APIs 26–30. Calendário é Material 3.
   Menu de ações e rodapé global ficaram fora desta refatoração do lançamento.
 
-**Próximo passo:** Fase 6 (endurecimento e lançamento) — ver planning.md §9: ofuscação
-e proteção das chaves de API, testes de navegação completa em aparelho físico, revisão
-de privacidade, ficha da Play Store.
+Fase 6 — o que mudou (endurecimento e lançamento):
+- **Build de release de verdade** (`app/build.gradle.kts`): `isMinifyEnabled`/
+  `isShrinkResources` ligados, `buildConfig = true` (é o que apaga log em release),
+  `versionName` 1.0.0, idiomas limitados a pt/pt-rBR/en, `lint { abortOnError = true }`
+  para release, e assinatura lida de `keystore.properties` (gitignored, modelo em
+  `keystore.properties.example`). **Sem esse arquivo o `assembleRelease` continua
+  passando e gera APK não assinado** — de propósito, para o R8 poder ser validado por
+  quem não tem o keystore. `app/proguard-rules.pro` foi escrito do zero, com o motivo
+  de cada regra; a mais importante é o keep de `ListenableWorker`: o WorkManager
+  instancia `FinanceCheckWorker` por reflexão a partir do nome gravado no banco dele, e
+  sem a regra a rotina da Fase 5 pararia de rodar depois de um update **sem crash e sem
+  log** — o pior tipo de falha. Conferido no `mapping.txt` que a classe sobrevive com o
+  nome original enquanto `domain/`/`ui/` são ofuscados normalmente.
+- **Chave do Gemini saiu da query string** (`GeminiAiProvider`): agora vai no header
+  `x-goog-api-key`. Motivo concreto: `HttpURLConnection` repete a URL chamada na
+  mensagem de várias exceções de IO, então `?key=AIza...` acabava no logcat e em
+  qualquer bug report do aparelho.
+- **`util/FinaiLog.kt` (novo) é o único lugar do app que chama `android.util.Log`.**
+  `d`/`i` somem em release (guardados por `BuildConfig.DEBUG`, que o R8 resolve como
+  constante); `w`/`e` ficam, mas sem stack trace e sem mensagem de exceção — só a classe
+  — porque stack trace de rede carrega URL e mensagem de IO carrega caminho de arquivo.
+  Corpo de resposta de provedor só é logado em debug, e passa por `redactKeys`.
+  Verificado ao vivo no release: o log virou `W/GeminiAiProvider: Gemini respondeu HTTP
+  400`, sem corpo, onde antes ia a resposta inteira.
+- **Room deixou de apagar os dados do usuário num update.** `fallbackToDestructiveMigration()`
+  saiu; entraram `MIGRATION_1_2` (`dividas.valorOriginalCentavos`) e `MIGRATION_2_3`
+  (tabela `notificacoes_enviadas`), que nunca tinham sido escritas — só `MIGRATION_3_4`
+  existia, e o fallback mascarava o buraco. `exportSchema = true` + `app/schemas/`
+  versionado. Sobrou `fallbackToDestructiveMigrationOnDowngrade()`, que só dispara se o
+  usuário instalar um APK mais antigo por cima. Coberto por
+  `androidTest/.../FinaiDatabaseMigrationTest.kt`, que cria um banco v1 com dados e abre
+  pelo Room de verdade (roda 1→2→3→4 e valida o schema). Não usa `MigrationTestHelper`
+  porque ele exige o JSON das versões antigas, que não existe — `exportSchema` só foi
+  ligado agora.
+- **Nenhuma escrita de banco pode mais derrubar o app.** `FinanceViewModel` ganhou
+  `launchSafely` (toda escrita passa por ele) mais `persistenceError`, e o `combine`
+  que monta o estado ganhou `.catch`; `ImportViewModel` protege importar e confirmar;
+  `AppViewModel` protege o chat com `finally` (sem isso, uma falha deixava o indicador
+  de "pensando" girando para sempre); `ProviderUsageStore` trata `IOException` do
+  DataStore; `AiRouter.generate` passou a nunca lançar. Antes, tudo isso eram
+  `viewModelScope.launch { }` sem `try` — exceção de SQLite era crash.
+- **Permissões revisadas.** As do app continuam duas (`INTERNET`, `POST_NOTIFICATIONS`).
+  Descoberto e documentado que o manifest merger acrescenta mais quatro vindas do
+  WorkManager (`ACCESS_NETWORK_STATE`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`,
+  `FOREGROUND_SERVICE`); as três primeiras são requisito real da rotina proativa
+  (removê-las a derruba com SecurityException) e `FOREGROUND_SERVICE` ficou com o
+  trade-off registrado em RELEASE.md — o app nunca cria trabalho expedido/foreground.
+- **`network_security_config.xml` (novo)** com `cleartextTrafficPermitted="false"`.
+  Sem certificate pinning de propósito: um pin desatualizado derrubaria a camada de IA
+  inteira sem o usuário poder fazer nada, num app que não guarda segredo de servidor.
+- **`android:allowBackup="false"`** — decisão de privacidade, registrada em planning.md
+  §11 aguardando confirmação. Com backup ligado, o `finai.db` inteiro ia para a conta
+  Google. Custo assumido e explícito: trocar de aparelho perde os dados, porque não há
+  export manual. `backup_rules.xml`/`data_extraction_rules.xml` foram completados
+  (banco + DataStore, além das chaves) para que religar seja um atributo só.
+- **Dois defeitos de UI achados testando o release e corrigidos**: (a) `ChatOverlay` não
+  tratava insets — o cabeçalho ficava sob a barra de status e **o botão de fechar não
+  respondia ao toque**, porque caía embaixo do relógio do sistema; ganhou
+  `statusBarsPadding`/`imePadding`/`navigationBarsPadding`. (b) `AiRouter` citava o
+  motivo do *último* provedor da fila na mensagem de degradação, que é sempre o que o
+  usuário não configurou — dizia "Nenhuma chave do Cerebras configurada" quando o
+  problema real era a chave do Gemini estar inválida. Agora escolhe o motivo mais
+  acionável (`reasonRank`), com dois testes novos.
+- **Documentos de lançamento (novos)**: `PRIVACY.md` (auditoria do que sai e do que fica,
+  cada afirmação apontando para o arquivo que a implementa), `RELEASE.md` (runbook de
+  build/assinatura/publicação, com tudo que depende do usuário marcado **[VOCÊ]**),
+  `play-store/ficha-loja.md`, `play-store/data-safety.md`, `play-store/politica-de-privacidade.md`,
+  `keystore.properties.example`.
+- **Validação**: `assembleDebug`, `assembleRelease` (R8 + shrink), 102 testes JVM e os
+  instrumentados verdes. O APK de release **minificado** foi instalado e navegado no
+  emulador (Pixel 6 API 34): todas as telas leem o Room normalmente sob R8,
+  `EncryptedSharedPreferences` grava e lê a chave (conferido que o XML em disco está
+  cifrado, chave e valor), a chamada de IA sai e degrada graciosamente, e o worker
+  sobrevive à ofuscação. **Nada testado em aparelho físico** e **nenhuma chave real de
+  provedor foi usada** (o teste de IA foi com chave inválida, exercitando só o caminho
+  de erro) — ver "AÇÃO MANUAL NECESSÁRIA" no relatório da sessão e o checklist em
+  RELEASE.md.
+
+Remoção do dataset de demonstração + tour guiado + reset (12/09/2026):
+- **Causa raiz do "app nunca começa vazio": `FinanceSeeder`.** Desde a Fase 1,
+  `FinanceViewModel.init` chamava `FinanceSeeder.seedOnce(...)` na primeira execução
+  (guardado por `FinaiPreferences.seeded`) e gravava direto no Room um dataset fixo
+  (salário, aluguel, condomínio, fatura de cartão, três objetivos, três dívidas,
+  cinco limites de categoria, dez lançamentos e três assinaturas — tudo com nomes/
+  valores de exemplo tipo "Portugal — 10 dias" e "iPhone 15 Pro Max"). Era dado real
+  do ponto de vista do Room (editável, computado pelos calculators de `domain/`), mas
+  não era dado do usuário — a decisão da Fase 1 era deliberada ("padrão de
+  fatura importada até a Fase 4 existir"), só nunca foi revertida depois que a
+  importação de fatura (Fase 4) e a entrada manual (Fase 0/1) tornaram esse
+  substituto desnecessário. Removido por completo: `FinanceSeeder.kt` apagado, a
+  chamada em `FinanceViewModel.init` removida, e a flag `FinaiPreferences.seeded`
+  (DataStore `finai_prefs`) removida — não há mais nenhum código de produção que
+  escreva dado financeiro sem ação explícita do usuário. Uma instalação nova (ou um
+  "Apagar todos os dados") deixa Início/Agenda/Objetivos/Dívidas/Limites vazios até o
+  usuário lançar algo manualmente ou importar uma fatura.
+- **Tour guiado na primeira abertura** (`ui/components/OnboardingTour.kt`, novo):
+  overlay de tela cheia com 7 passos curtos (boas-vindas + Início, Agenda, Objetivos/
+  Dívidas, Limites, Ação rápida/FAB, Assistente), indicador de progresso, botão
+  "Pular" sempre visível e "Próximo"/"Concluir" no último passo. Estado persistido em
+  `FinaiPreferences.onboardingComplete` (a flag já existia no DataStore desde a Fase 0,
+  nunca tinha sido usada). `AppViewModel.onboardingComplete` expõe um `StateFlow<Boolean?>`
+  — `null` só enquanto o DataStore ainda não emitiu o primeiro valor real (evita
+  desenhar e esconder o tour no mesmo frame para quem já concluiu); `false` é o valor
+  real de "ainda não concluído", que cobre tanto a instalação nova quanto o pós-reset.
+  `FinaiApp.kt` desenha `OnboardingTour` por cima de tudo (mesma ideia do `Scrim` dos
+  outros overlays, bloqueando toque no que está atrás) quando o valor é `false`.
+  "Rever tour guiado" nas Configurações (`AiSettingsDialog.kt` → `DataPrivacySection`)
+  chama `AppViewModel.restartOnboarding()`, que só regrava a flag — nenhum dado é
+  tocado.
+- **"Apagar todos os dados"** nas Configurações (mesma seção "Dados e privacidade"),
+  com um `AlertDialog` de confirmação explicando que a ação é irreversível antes de
+  executar. `FinanceRepository.apagarTodosOsDados()` (novo) limpa, numa única
+  transação Room (`androidx.room.withTransaction`), as oito tabelas com dado do
+  usuário — `transacoes`, `contas`, `objetivos`, `dividas`, `orcamento_categorias`,
+  `assinaturas`, `mensagens_chat`, `notificacoes_enviadas` — via `deleteAll()` novos
+  em cada DAO. `FinanceViewModel.apagarTodosOsDados()` chama isso mais
+  `AiResponseCache.clear()` (cache de resposta de IA em memória — novo `clear()`) e
+  `FinaiNotifier.cancelAll()` (descarta notificações já entregues sobre dados que não
+  existem mais — novo `cancelAll()`), e só depois avisa `onDone`, que em `FinaiApp.kt`
+  encadeia `AiViewModel.resetMemoizedState()` (novo — descarta leitura de IA
+  memoizada por objetivo/dívida/decisões/coach, que fica indexada por id e podia
+  mostrar texto de um item já apagado por um instante), `ImportViewModel.reset()`,
+  `AppViewModel.restartOnboarding()` e navega de volta para a Início — ou seja, o
+  reset também reabre o tour, como "voltar ao estado de instalação nova" pede.
+  Deliberadamente fora do reset: chaves de provedor de IA (`AiKeyStore`,
+  `EncryptedSharedPreferences`) e a contagem de cota diária (`uso_provedor_ia`/
+  `ProviderUsageStore`) — são configuração técnica, não dado financeiro, e o pedido
+  foi explícito em não apagá-las sem necessidade.
+- A tela antes rotulada "Configurações da IA" (`FinaiDestination.AiSettings`) virou
+  "Configurações" — já não é só sobre chaves de IA.
+- **Teste novo**: `app/src/androidTest/.../data/repository/FinanceRepositoryResetTest.kt`
+  — popula as oito tabelas via `FinanceRepository`/DAO, chama `apagarTodosOsDados()` e
+  confere que todas ficam vazias. Não executado nesta sessão (sem `adb`/emulador
+  disponível no ambiente) — ver "AÇÃO MANUAL NECESSÁRIA" no relatório da sessão.
+  `NotificationDedupeStoreTest`'s `FakeDao` ganhou `deleteAll()` para continuar
+  implementando `NotificacaoEnviadaDao` depois do método novo.
+- Build (`assembleDebug`, `assembleRelease` com R8/shrink) e testes
+  (`testDebugUnitTest`, **102 testes**, mesma contagem — nenhum teste de domínio foi
+  afetado) verdes neste ambiente. Instrumentados (`connectedDebugAndroidTest`) não
+  rodados nesta sessão.
+
+**Próximo passo:** o que resta da Fase 6 depende de você — ver `RELEASE.md` §2 a §7
+(keystore, `targetSdk` exigido pela Play na data da submissão, imagens da ficha, URL da
+política de privacidade, teste em aparelho físico e teste com uma chave de IA real). A
+validação manual do tour guiado, do reset e do fluxo uninstall/reinstall (ver "AÇÃO
+MANUAL NECESSÁRIA" no relatório da sessão de 12/09/2026 acima) também depende de um
+aparelho/emulador com `adb`, que não estava disponível nesta sessão.
 
 ## Como retomar uma sessão
 
@@ -458,6 +605,12 @@ de privacidade, ficha da Play Store.
 ## Onde procurar o quê
 
 - Requisitos, arquitetura, estratégia de IA, roadmap, critérios de aceite: `planning.md`.
+- Endurecimento e lançamento (Fase 6): `RELEASE.md` (build de release, assinatura,
+  checklist da Play — tudo que depende do usuário está marcado **[VOCÊ]**),
+  `PRIVACY.md` (o que sai do aparelho vs. o que fica), `play-store/` (ficha, data
+  safety, política de privacidade), `app/proguard-rules.pro`, `util/FinaiLog.kt`
+  (único ponto de log do app), `app/schemas/` (schema do Room por versão) e
+  `androidTest/.../FinaiDatabaseMigrationTest.kt` (migração 1→4 com dados).
 - Protótipo original (referência visual/copy, não para copiar estrutura de código):
   `project/FinAI Mobile.dc.html`, `project/support.js`, `project/ref/*.png`.
 - Transcript de design (intenção por trás de cada decisão de UX): `chats/chat1.md`.

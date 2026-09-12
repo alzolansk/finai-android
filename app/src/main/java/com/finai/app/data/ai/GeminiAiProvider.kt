@@ -1,7 +1,7 @@
 package com.finai.app.data.ai
 
-import android.util.Log
 import com.finai.app.data.prefs.AiKeyStore
+import com.finai.app.util.FinaiLog
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
@@ -36,12 +36,18 @@ class GeminiAiProvider(
 
         return withContext(Dispatchers.IO) {
             try {
-                val connection = (URL("$ENDPOINT_BASE/$model:generateContent?key=$apiKey").openConnection() as HttpURLConnection).apply {
+                // Chave vai no header `x-goog-api-key`, nunca na query string
+                // (Fase 6): `HttpURLConnection` repete a URL chamada na mensagem
+                // de várias exceções de IO, então `?key=...` acabaria no logcat
+                // e em qualquer bug report do aparelho. O header é a forma
+                // documentada e equivalente de autenticar na Gemini API.
+                val connection = (URL("$ENDPOINT_BASE/$model:generateContent").openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json")
-                    connectTimeout = 15_000
-                    readTimeout = 30_000
+                    setRequestProperty("x-goog-api-key", apiKey)
+                    connectTimeout = CONNECT_TIMEOUT_MS
+                    readTimeout = READ_TIMEOUT_MS
                 }
 
                 val body = JSONObject().apply {
@@ -65,7 +71,8 @@ class GeminiAiProvider(
                 val status = connection.responseCode
                 if (status !in 200..299) {
                     val error = connection.errorStream?.bufferedReader()?.use { it.readText() }
-                    Log.w(TAG, "Gemini HTTP $status: $error")
+                    FinaiLog.w(TAG, "Gemini respondeu HTTP $status")
+                    FinaiLog.debugBody(TAG, "Corpo do erro do Gemini", error)
                     return@withContext AiResponse.Unavailable(unavailableMessageFor(status), failureKindFor(status))
                 }
 
@@ -77,10 +84,10 @@ class GeminiAiProvider(
                     AiResponse.Success(text.trim())
                 }
             } catch (e: SocketTimeoutException) {
-                Log.w(TAG, "Timeout ao chamar o Gemini", e)
+                FinaiLog.w(TAG, "Timeout ao chamar o Gemini", e)
                 AiResponse.Unavailable("O Gemini demorou demais para responder.", AiFailureKind.TIMEOUT)
             } catch (e: Exception) {
-                Log.w(TAG, "Falha ao chamar o Gemini", e)
+                FinaiLog.w(TAG, "Falha ao chamar o Gemini", e)
                 AiResponse.Unavailable("Não foi possível falar com o Gemini agora. Verifique sua conexão.", AiFailureKind.NETWORK_ERROR)
             }
         }
@@ -110,6 +117,8 @@ class GeminiAiProvider(
     companion object {
         private const val TAG = "GeminiAiProvider"
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+        private const val CONNECT_TIMEOUT_MS = 15_000
+        private const val READ_TIMEOUT_MS = 30_000
 
         /**
          * Free-tier Gemini model as of this writing (confirmed against
@@ -120,6 +129,6 @@ class GeminiAiProvider(
          * (planning.md §7.2). Nothing else in the app depends on a specific
          * model name.
          */
-        const val DEFAULT_MODEL = "gemini-3.7-flash"
+        const val DEFAULT_MODEL = "gemini-3.5-flash-lite"
     }
 }

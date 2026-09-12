@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -65,6 +66,7 @@ import com.finai.app.ui.components.FinaiBottomNav
 import com.finai.app.ui.components.FinaiSettingsTopBar
 import com.finai.app.ui.components.FinaiTopBar
 import com.finai.app.ui.components.NotificationsCard
+import com.finai.app.ui.components.OnboardingTour
 import com.finai.app.ui.components.QuickActionSheet
 import com.finai.app.ui.screens.agenda.AgendaScreen
 import com.finai.app.ui.screens.budgets.BudgetsScreen
@@ -73,6 +75,10 @@ import com.finai.app.ui.screens.goals.GoalsScreen
 import com.finai.app.ui.screens.home.HomeScreen
 import com.finai.app.ui.screens.importer.ImportScreen
 import com.finai.app.ui.theme.FinaiColors
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 
 /**
  * App root: sticky top bar + the six screens behind Navigation-Compose, the
@@ -101,6 +107,8 @@ fun FinaiApp(
     val decisions by aiViewModel.decisions.collectAsState()
     val coachInsight by aiViewModel.coachInsight.collectAsState()
     val importState by importViewModel.uiState.collectAsState()
+    val persistenceError by financeViewModel.persistenceError.collectAsState()
+    val onboardingComplete by viewModel.onboardingComplete.collectAsState()
     val financeSummary = remember(financeState) { financeState.toAiSummaryText() }
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -264,10 +272,33 @@ fun FinaiApp(
                             onClear = aiViewModel::clearProviderKey,
                             notificationsEnabled = remember { FinaiNotifier(context).hasNotificationPermission() },
                             onTestNotifications = { FinanceCheckWorker.runOnce(context) },
+                            onRestartTour = viewModel::restartOnboarding,
+                            onEraseAllData = {
+                                financeViewModel.apagarTodosOsDados {
+                                    aiViewModel.resetMemoizedState()
+                                    importViewModel.reset()
+                                    viewModel.restartOnboarding()
+                                    navigateTo(FinaiDestination.Home)
+                                }
+                            },
                         )
                     }
                 }
             }
+        }
+
+        // Fase 6: escrita no Room que falhou. Antes esta exceção derrubava o app;
+        // agora `FinanceViewModel.launchSafely` a captura, e o aviso aparece aqui —
+        // sem isso, uma falha viraria "toquei em salvar e nada aconteceu".
+        persistenceError?.let { mensagem ->
+            PersistenceErrorBanner(
+                message = mensagem,
+                onDismiss = financeViewModel::dismissPersistenceError,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 96.dp),
+            )
         }
 
         if (current != FinaiDestination.AiSettings) {
@@ -440,6 +471,15 @@ fun FinaiApp(
                 },
             )
         }
+
+        // `null` = DataStore ainda não respondeu; não desenha nada para não
+        // piscar o tour por um frame numa instalação que já o concluiu.
+        if (onboardingComplete == false) {
+            OnboardingTour(
+                onFinish = viewModel::completeOnboarding,
+                onSkip = viewModel::completeOnboarding,
+            )
+        }
     }
 }
 
@@ -495,4 +535,41 @@ private fun Scrim(onDismiss: () -> Unit) {
             .background(Color.Black.copy(alpha = 0.34f))
             .clickable(onClick = onDismiss),
     )
+}
+
+/**
+ * Aviso de falha ao gravar no banco (Fase 6). Deliberadamente discreto e
+ * dispensável com um toque: é um caminho que não deve acontecer, e quando
+ * acontece a informação útil é curta — "não salvou, tente de novo" —, não um
+ * diálogo modal que bloqueia o app inteiro.
+ */
+@Composable
+private fun PersistenceErrorBanner(
+    message: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = FinaiColors.Ink,
+        shadowElevation = 8.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .clickable(onClick = onDismiss)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                message,
+                color = Color.White,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Text("Fechar", color = FinaiColors.Emerald, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
 }

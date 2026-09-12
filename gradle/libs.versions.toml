@@ -46,6 +46,9 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+# Teste de migração instrumentado (Fase 6): abre o banco numa versão antiga
+# usando o JSON exportado e roda a migração real, no emulador/aparelho.
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
 
 # DataStore
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }

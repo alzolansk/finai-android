@@ -171,8 +171,45 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun requestText(request: AiRequest): AiText = when (val response = provider.generate(request)) {
-        is AiResponse.Success -> AiText.Ready(response.text)
-        is AiResponse.Unavailable -> AiText.Unavailable(response.reason)
+    private suspend fun requestText(request: AiRequest): AiText =
+        when (val response = provider.generate(request)) {
+            is AiResponse.Success -> AiText.Ready(response.text)
+            is AiResponse.Unavailable -> AiText.Unavailable(response.reason)
+        }
+
+    /**
+     * "Apagar todos os dados" (Configurações): descarta todo texto de IA
+     * memoizado sobre números que acabaram de deixar de existir — sem isto,
+     * uma tela reaberta antes de a próxima chamada terminar poderia mostrar
+     * por um instante a "leitura da IA" de um objetivo já apagado, porque a
+     * chave de cache é o id do objetivo, não seu conteúdo. Não cancela chaves
+     * de provedor nem cota — [com.finai.app.data.prefs.AiKeyStore] fica fora
+     * de propósito.
+     */
+    fun resetMemoizedState() {
+        goalInsightJobs.values.forEach { it.cancel() }
+        goalInsightJobs.clear()
+        goalInsightKeys.clear()
+        _goalInsights.value = emptyMap()
+
+        purchaseVerdictJob?.cancel()
+        purchaseVerdictJob = null
+        purchaseVerdictKey = null
+        _purchaseVerdict.value = null
+
+        debtNegotiationJob?.cancel()
+        debtNegotiationJob = null
+        debtNegotiationKey = null
+        _debtNegotiation.value = null
+
+        decisionsJob?.cancel()
+        decisionsJob = null
+        decisionsKey = null
+        _decisions.value = null
+
+        coachInsightJob?.cancel()
+        coachInsightJob = null
+        coachInsightKey = null
+        _coachInsight.value = null
     }
 }

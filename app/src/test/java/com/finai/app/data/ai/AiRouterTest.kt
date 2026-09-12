@@ -104,6 +104,40 @@ class AiRouterTest {
         assertTrue(result.reason.contains("Nenhum provedor"))
     }
 
+    /**
+     * Fase 6. A ordem de fallback termina nos provedores que o usuário
+     * normalmente não configura, então usar "o motivo do último que falhou"
+     * fazia a mensagem dizer "Nenhuma chave do Cerebras configurada" mesmo
+     * quando o problema real era a chave do Gemini estar inválida — escondendo
+     * justamente a única falha em que ele pode agir.
+     */
+    @Test
+    fun `mensagem final cita a falha acionável, não a do último provedor da fila`() = runTest {
+        val gemini = FakeProvider(AiResponse.Unavailable("Chave do Gemini inválida.", AiFailureKind.AUTH_ERROR))
+        val cerebras = FakeProvider(AiResponse.Unavailable("Nenhuma chave do Cerebras configurada.", AiFailureKind.NO_KEY))
+        val router = AiRouter(
+            FakeUsageTracker(),
+            listOf(ProviderId.GEMINI to gemini, ProviderId.CEREBRAS to cerebras),
+        )
+
+        val result = router.generate(request("reason-rank")) as AiResponse.Unavailable
+
+        assertTrue(result.reason.contains("Chave do Gemini inválida."))
+        assertTrue(!result.reason.contains("Cerebras"))
+    }
+
+    /** Cota estourada ganha de erro de rede: é o motivo que explica o dia inteiro sem IA. */
+    @Test
+    fun `cota estourada prevalece sobre falha de rede na mensagem final`() = runTest {
+        val gemini = FakeProvider(AiResponse.Unavailable("Sem conexão.", AiFailureKind.NETWORK_ERROR))
+        val groq = FakeProvider(AiResponse.Unavailable("Cota gratuita do Groq esgotada por hoje.", AiFailureKind.RATE_LIMITED))
+        val router = AiRouter(FakeUsageTracker(), listOf(ProviderId.GEMINI to gemini, ProviderId.GROQ to groq))
+
+        val result = router.generate(request("rank-rate-limit")) as AiResponse.Unavailable
+
+        assertTrue(result.reason.contains("Cota gratuita do Groq esgotada"))
+    }
+
     @Test
     fun `repeating the same request the same day is served from cache`() = runTest {
         val gemini = FakeProvider(AiResponse.Success("resposta cacheada"))

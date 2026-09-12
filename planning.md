@@ -176,11 +176,21 @@ Roteador com fallback entre os provedores da seção 7.2, controle local de cota
 **Fase 4 · Importação de fatura — ✅ concluída** (ver CLAUDE.md → Status atual para detalhes)
 OCR on-device (ML Kit) + parsing determinístico de valores/datas + chamada de IA só para classificar categoria de itens ambíguos e detectar duplicados/assinaturas recorrentes.
 
-**Fase 5 · Notificações proativas e coach comportamental**
+**Fase 5 · Notificações proativas e coach comportamental — ✅ concluída** (ver CLAUDE.md → Status atual para detalhes)
 Rotina diária via `WorkManager`: recalcula tudo localmente e só aciona a IA para redigir o texto da notificação quando o cálculo local indicar algo relevante (evita gerar notificação, e gastar cota, todo dia à toa).
 
-**Fase 6 · Endurecimento e lançamento**
+**Fase 6 · Endurecimento e lançamento — ⏸ pausada na validação em aparelho físico e na publicação** (ver CLAUDE.md → Status atual)
 Ofuscação e proteção das chaves de API, testes de navegação completa em aparelho físico, revisão de privacidade (o que sai do aparelho vs o que fica), preparação da ficha da Play Store.
+
+O que ficou pronto: R8/ProGuard ligados e validados em release rodando, chave de API fora da query string e fora do logcat, migrações de Room reais (o `fallbackToDestructiveMigration` saiu), permissões revisadas e documentadas, `cleartextTrafficPermitted=false`, backup automático desligado, escritas de banco e chamadas de IA sem caminho de crash, e os documentos de lançamento (`PRIVACY.md`, `RELEASE.md`, `play-store/`).
+
+**Pausa atual:** iniciar a validação ponta a ponta em aparelho físico. A publicação permanece bloqueada até essa validação e as providências externas abaixo.
+
+O que **não** pode ser concluído sem você, e está detalhado em `RELEASE.md`:
+gerar o keystore de assinatura, decidir o `targetSdk` que a Play exige na data
+da submissão (o projeto está em 34), produzir as imagens da ficha, publicar a
+política de privacidade numa URL, e testar em **aparelho físico** — toda a
+validação até aqui foi em emulador.
 
 ## 10. Critérios de aceite por fase (resumo)
 
@@ -195,3 +205,13 @@ Ofuscação e proteção das chaves de API, testes de navegação completa em ap
 - O usuário final é só você (single-user, sem conta/login) ou o app deve prever múltiplos perfis no mesmo aparelho?
 - Existe hoje algum dado real (lançamentos, dívidas, faturas) do site atual que precisa ser migrado para o app, ou o app Android começa do zero?
 - Backup dos dados locais (export/import manual de um arquivo, por exemplo) é necessário já no MVP, ou pode ficar para uma fase posterior?
+  - **Decisão provisória tomada na Fase 6, aguardando sua confirmação:** o backup
+    automático do Android ficou **desligado** (`android:allowBackup="false"`),
+    porque com ele ligado o `finai.db` inteiro — todo o histórico financeiro —
+    seria copiado para a conta Google do usuário, contrariando o §4 ("dados
+    permanecem no aparelho por padrão"). O preço é real e está assumido: **trocar
+    de aparelho hoje perde todos os dados**, já que não existe export manual.
+    Os arquivos `backup_rules.xml`/`data_extraction_rules.xml` já estão escritos
+    e completos, então religar é trocar um atributo. Se a resposta for "quero
+    backup", o caminho recomendado é implementar export/import de um arquivo
+    (controlado pelo usuário) antes de reabilitar o backup automático.

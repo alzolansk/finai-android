@@ -5,6 +5,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.finai.app.util.FinaiLog
+import java.io.IOException
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 
@@ -40,21 +42,40 @@ class ProviderUsageStore private constructor(context: Context) : UsageTracker {
     private fun callsKey(provider: ProviderId) = intPreferencesKey("calls_${provider.name.lowercase()}")
     private fun exhaustedDateKey(provider: ProviderId) = stringPreferencesKey("exhausted_date_${provider.name.lowercase()}")
 
+    // Fase 6: o DataStore lança IOException quando o arquivo está corrompido ou
+    // o disco está cheio. Esta é uma contagem de cota, não dado do usuário:
+    // perder a contagem é um custo aceitável, derrubar o app (ou a rotina de
+    // notificação, que roda com o app fechado) por causa dela não é. Em falha, o
+    // comportamento degradado é sempre o mais permissivo — tentar o provedor —
+    // porque um 429 real volta a marcar o esgotamento na chamada seguinte.
+
     override suspend fun recordAttempt(provider: ProviderId) {
-        dataStore.edit { prefs -> prefs[callsKey(provider)] = (prefs[callsKey(provider)] ?: 0) + 1 }
+        try {
+            dataStore.edit { prefs -> prefs[callsKey(provider)] = (prefs[callsKey(provider)] ?: 0) + 1 }
+        } catch (e: IOException) {
+            FinaiLog.w(TAG, "Não foi possível registrar a chamada de ${provider.displayName}", e)
+        }
     }
 
     override suspend fun markExhaustedToday(provider: ProviderId) {
-        dataStore.edit { prefs -> prefs[exhaustedDateKey(provider)] = LocalDate.now().toString() }
+        try {
+            dataStore.edit { prefs -> prefs[exhaustedDateKey(provider)] = LocalDate.now().toString() }
+        } catch (e: IOException) {
+            FinaiLog.w(TAG, "Não foi possível marcar ${provider.displayName} como esgotado", e)
+        }
     }
 
     /** True if [provider] hit its rate limit earlier today (local date) — [AiRouter] skips it without calling out. */
-    override suspend fun isExhaustedToday(provider: ProviderId): Boolean {
-        val exhaustedDate = dataStore.data.first()[exhaustedDateKey(provider)] ?: return false
-        return exhaustedDate == LocalDate.now().toString()
+    override suspend fun isExhaustedToday(provider: ProviderId): Boolean = try {
+        dataStore.data.first()[exhaustedDateKey(provider)] == LocalDate.now().toString()
+    } catch (e: IOException) {
+        FinaiLog.w(TAG, "Não foi possível ler a cota de ${provider.displayName}", e)
+        false
     }
 
     companion object {
+        private const val TAG = "ProviderUsageStore"
+
         @Volatile private var instance: ProviderUsageStore? = null
 
         fun get(context: Context): ProviderUsageStore = instance ?: synchronized(this) {

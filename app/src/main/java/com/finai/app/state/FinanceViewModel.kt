@@ -10,9 +10,9 @@ import com.finai.app.data.local.entity.DividaEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
-import com.finai.app.data.prefs.FinaiPreferences
+import com.finai.app.data.ai.AiResponseCache
+import com.finai.app.data.notifications.FinaiNotifier
 import com.finai.app.data.repository.FinanceRepository
-import com.finai.app.data.repository.FinanceSeeder
 import com.finai.app.domain.transactionsInMonth
 import com.finai.app.domain.AlertCalculator
 import com.finai.app.domain.BehaviorCoach
@@ -33,13 +33,19 @@ import com.finai.app.domain.toUiGoal
 import com.finai.app.domain.toUiSubscription
 import com.finai.app.domain.toUiTimelineEntry
 import com.finai.app.domain.toUiWeekBill
+import com.finai.app.util.FinaiLog
 import com.finai.app.util.formatBrl
 import com.finai.app.util.formatBrl0
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.Year
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -58,15 +64,33 @@ import kotlinx.coroutines.launch
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = FinanceRepository(FinaiDatabase.get(application))
-    private val prefs = FinaiPreferences(application)
 
-    init {
-        viewModelScope.launch {
-            val alreadySeeded = prefs.seeded.first()
-            if (!alreadySeeded) {
-                FinanceSeeder.seedOnce(repository, alreadySeeded = false)
-                prefs.setSeeded(true)
-            }
+    /**
+     * Última falha de escrita no Room, para a tela avisar em vez de o app
+     * simplesmente não fazer nada (Fase 6). Antes disso, toda escrita rodava
+     * num `viewModelScope.launch` sem `try`: uma exceção do SQLite (disco
+     * cheio, banco corrompido, migração recusada) virava exceção não tratada
+     * na coroutine e derrubava o processo no meio de um lançamento manual.
+     */
+    private val _persistenceError = MutableStateFlow<String?>(null)
+    val persistenceError: StateFlow<String?> = _persistenceError.asStateFlow()
+
+    fun dismissPersistenceError() { _persistenceError.value = null }
+
+    /**
+     * Roda uma escrita no Room sem deixar uma falha derrubar o app. [acao] é
+     * escrito para caber em "Não foi possível {acao}." e vai tanto para o
+     * logcat quanto para a mensagem que o usuário vê — nunca a exceção crua,
+     * que pode carregar caminho de arquivo.
+     */
+    private fun launchSafely(acao: String, block: suspend () -> Unit): Job = viewModelScope.launch {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            FinaiLog.e(TAG, "Falha ao $acao", t)
+            _persistenceError.value = "Não foi possível $acao. Nada foi alterado — tente de novo."
         }
     }
 
@@ -82,6 +106,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         Snapshot(contas, objetivos, dividas, transacoes, assinaturas)
     }.combine(repository.orcamentosDoMes(mesAtual)) { snapshot, orcamentos ->
         buildState(snapshot, orcamentos)
+    }.catch { t ->
+        // Uma exceção aqui (leitura do banco, ou um calculator diante de um dado
+        // inesperado) cancelaria o StateFlow e levaria o app junto. Em vez disso
+        // a tela fica no último estado válido e avisa — os cálculos são
+        // determinísticos e testados, então isto é rede de segurança, não
+        // caminho esperado.
+        FinaiLog.e(TAG, "Falha ao recalcular o estado financeiro", t)
+        _persistenceError.value = "Não foi possível atualizar os números agora. Reabra o app se a tela continuar desatualizada."
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FinanceUiState())
 
     private data class Snapshot(
@@ -188,7 +220,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         data: LocalDate,
         recorrente: Boolean,
     ) {
-        viewModelScope.launch {
+        launchSafely("salvar o lançamento") {
             repository.salvarTransacao(
                 TransacaoEntity(
                     data = data.toEpochMillis(),
@@ -208,65 +240,86 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         repository.salvarTransacao(entry)
     }
 
-    fun deleteTransacao(transacao: TransacaoEntity) = viewModelScope.launch { repository.excluirTransacao(transacao) }
+    fun deleteTransacao(transacao: TransacaoEntity) = launchSafely("excluir o lançamento") { repository.excluirTransacao(transacao) }
 
     // ── manual entry: contas ───────────────────────────────────
-    fun saveConta(conta: ContaEntity) = viewModelScope.launch { repository.salvarConta(conta) }
-    fun deleteConta(conta: ContaEntity) = viewModelScope.launch { repository.excluirConta(conta) }
+    fun saveConta(conta: ContaEntity) = launchSafely("salvar a conta") { repository.salvarConta(conta) }
+    fun deleteConta(conta: ContaEntity) = launchSafely("excluir a conta") { repository.excluirConta(conta) }
 
     /**
      * Marca uma conta como paga/recebida (ou desfaz). Sem isto não havia
-     * nenhuma ação na UI para uma conta sair de "pendente" — a única forma de
-     * uma conta virar `"pago"` era o [FinanceSeeder]. Fechado nesta sessão
-     * porque a Fase 5 depende disso para os eventos serem testáveis de
-     * verdade (uma conta atrasada só some dos avisos quando é paga; uma
-     * "entrada extra confirmada" só existe quando um recebimento é marcado).
+     * nenhuma ação na UI para uma conta sair de "pendente". Fechado na Fase 5
+     * porque ela depende disso para os eventos serem testáveis de verdade
+     * (uma conta atrasada só some dos avisos quando é paga; uma "entrada
+     * extra confirmada" só existe quando um recebimento é marcado).
      */
     fun marcarContaPaga(contaId: Long, pago: Boolean) {
-        viewModelScope.launch {
-            val conta = uiState.value.rawContas.firstOrNull { it.id == contaId } ?: return@launch
+        launchSafely("atualizar a conta") {
+            val conta = uiState.value.rawContas.firstOrNull { it.id == contaId } ?: return@launchSafely
             repository.salvarConta(conta.copy(status = if (pago) "pago" else "pendente"))
         }
     }
 
     // ── manual entry: objetivos ─────────────────────────────────
-    fun saveObjetivo(objetivo: ObjetivoEntity) = viewModelScope.launch { repository.salvarObjetivo(objetivo) }
-    fun deleteObjetivo(objetivo: ObjetivoEntity) = viewModelScope.launch { repository.excluirObjetivo(objetivo) }
+    fun saveObjetivo(objetivo: ObjetivoEntity) = launchSafely("salvar o objetivo") { repository.salvarObjetivo(objetivo) }
+    fun deleteObjetivo(objetivo: ObjetivoEntity) = launchSafely("excluir o objetivo") { repository.excluirObjetivo(objetivo) }
 
     fun deleteObjetivoById(id: Long) {
-        viewModelScope.launch {
+        launchSafely("excluir o objetivo") {
             uiState.value.rawObjetivos.firstOrNull { it.id == id }?.let { repository.excluirObjetivo(it) }
         }
     }
 
     fun contribuirParaObjetivo(objetivoId: Long, valorReais: Double) {
-        viewModelScope.launch {
-            val objetivo = uiState.value.rawObjetivos.firstOrNull { it.id == objetivoId } ?: return@launch
+        launchSafely("registrar a contribuição") {
+            val objetivo = uiState.value.rawObjetivos.firstOrNull { it.id == objetivoId } ?: return@launchSafely
             repository.salvarObjetivo(objetivo.copy(valorGuardadoCentavos = objetivo.valorGuardadoCentavos + Math.round(valorReais * 100)))
         }
     }
 
     // ── manual entry: dívidas ───────────────────────────────────
-    fun saveDivida(divida: DividaEntity) = viewModelScope.launch { repository.salvarDivida(divida) }
-    fun deleteDivida(divida: DividaEntity) = viewModelScope.launch { repository.excluirDivida(divida) }
+    fun saveDivida(divida: DividaEntity) = launchSafely("salvar a dívida") { repository.salvarDivida(divida) }
+    fun deleteDivida(divida: DividaEntity) = launchSafely("excluir a dívida") { repository.excluirDivida(divida) }
 
     fun deleteDividaById(id: Long) {
-        viewModelScope.launch {
+        launchSafely("excluir a dívida") {
             uiState.value.rawDividas.firstOrNull { it.id == id }?.let { repository.excluirDivida(it) }
         }
     }
 
     // ── orçamento ────────────────────────────────────────────────
     fun setBudgetLimit(categoria: String, limiteReais: Double) {
-        viewModelScope.launch {
+        launchSafely("salvar o limite da categoria") {
             repository.salvarLimiteOrcamento(OrcamentoCategoriaEntity(categoria, Math.round(limiteReais * 100), mesAtual))
         }
     }
 
     fun toggleAssinatura(nome: String, ativa: Boolean) {
-        viewModelScope.launch {
-            val assinatura = repository.assinaturas.first().firstOrNull { it.nome == nome } ?: return@launch
+        launchSafely("atualizar a assinatura") {
+            val assinatura = repository.assinaturas.first().firstOrNull { it.nome == nome } ?: return@launchSafely
             repository.atualizarAssinatura(assinatura.copy(status = if (ativa) "ativa" else "cancelada"))
         }
+    }
+
+    // ── Configurações: apagar todos os dados ────────────────────
+    /**
+     * "Apagar todos os dados" (Configurações). Limpa o Room e as duas
+     * ligações de estado derivado que não moram nele — o cache de respostas
+     * de IA em memória e as notificações já entregues na barra do sistema —
+     * e só então avisa [onDone] (que reinicia o estado de memoização da IA e
+     * volta o app para o fluxo de onboarding). Não mexe em chave de provedor
+     * nem em contagem de cota: são configuração técnica, não dado financeiro.
+     */
+    fun apagarTodosOsDados(onDone: () -> Unit = {}) {
+        launchSafely("apagar todos os dados") {
+            repository.apagarTodosOsDados()
+            AiResponseCache.clear()
+            FinaiNotifier(getApplication()).cancelAll()
+            onDone()
+        }
+    }
+
+    private companion object {
+        const val TAG = "FinanceViewModel"
     }
 }

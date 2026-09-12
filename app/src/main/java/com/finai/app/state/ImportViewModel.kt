@@ -16,7 +16,9 @@ import com.finai.app.domain.importer.ImportItem
 import com.finai.app.domain.importer.ImportPreview
 import com.finai.app.domain.importer.RecurrenceVerdict
 import com.finai.app.domain.toEpochMillis
+import com.finai.app.util.FinaiLog
 import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -57,12 +59,27 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
         importJob?.cancel()
         _uiState.value = ImportUiState(busy = true, stage = ImportStage.READING)
         importJob = viewModelScope.launch {
-            val existing = repository.transacoes.first()
-            when (val outcome = importer.import(uri, existing, onStage = ::onStage)) {
-                is ImportOutcome.Success ->
-                    _uiState.value = ImportUiState(preview = outcome.preview, busy = false, stage = null)
-                is ImportOutcome.Failure ->
-                    _uiState.value = ImportUiState(error = outcome.message, busy = false, stage = null)
+            try {
+                val existing = repository.transacoes.first()
+                when (val outcome = importer.import(uri, existing, onStage = ::onStage)) {
+                    is ImportOutcome.Success ->
+                        _uiState.value = ImportUiState(preview = outcome.preview, busy = false, stage = null)
+                    is ImportOutcome.Failure ->
+                        _uiState.value = ImportUiState(error = outcome.message, busy = false, stage = null)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                // O StatementImporter já converte o que sabe prever em
+                // ImportOutcome.Failure; isto cobre o resto (falha ao ler o Room,
+                // OutOfMemory fora do bloco de extração) sem derrubar o app com a
+                // tela de importação aberta — Fase 6.
+                FinaiLog.e(TAG, "Falha inesperada ao importar a fatura", t)
+                _uiState.value = ImportUiState(
+                    error = "Não foi possível processar esse arquivo. Tente outro formato (CSV ou PDF) ou um arquivo menor.",
+                    busy = false,
+                    stage = null,
+                )
             }
         }
     }
@@ -111,41 +128,66 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
 
         _uiState.update { it.copy(busy = true) }
         viewModelScope.launch {
-            val origem = preview.sourceName.substringBeforeLast('.').take(40)
-            val existingSubscriptions = repository.assinaturas.first()
-            var subscriptionsSaved = 0
-
-            selected.forEach { item ->
-                repository.salvarTransacao(
-                    TransacaoEntity(
-                        data = (item.entry.date ?: LocalDate.now()).toEpochMillis(),
-                        descricao = describeForStorage(item),
-                        valorCentavos = item.entry.amountCents,
-                        categoria = item.categoria,
-                        contaOrigem = origem,
-                        recorrente = item.recurrence == RecurrenceVerdict.LIKELY || item.entry.installment != null,
-                        origem = "importado",
-                    ),
-                )
-
-                if (item.recurrence == RecurrenceVerdict.LIKELY && item.entry.installment == null && !item.entry.isRefund) {
-                    val nome = item.entry.description.trim().take(40)
-                    val already = existingSubscriptions.firstOrNull { it.nome.equals(nome, ignoreCase = true) }
-                    repository.salvarAssinatura(
-                        AssinaturaEntity(
-                            id = already?.id ?: 0,
-                            nome = nome,
-                            valorCentavos = Math.abs(item.entry.amountCents),
-                            ultimoUso = item.entry.date?.toEpochMillis(),
-                            status = already?.status ?: "ativa",
-                        ),
+            try {
+                confirmImportInternal(preview, selected)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                // Fase 6: uma falha de escrita no meio da confirmação deixava o
+                // app cair com parte dos lançamentos já gravados. Agora a tela
+                // volta para a revisão com o aviso, e o usuário pode tentar de
+                // novo — reimportar o mesmo arquivo sinaliza como duplicata o que
+                // já tiver entrado, então nada é perdido nem duplicado em silêncio.
+                FinaiLog.e(TAG, "Falha ao gravar os lançamentos importados", t)
+                _uiState.update {
+                    it.copy(
+                        busy = false,
+                        error = "Não foi possível salvar os lançamentos. Confira o espaço livre do aparelho e tente de novo.",
                     )
-                    if (already == null) subscriptionsSaved++
                 }
             }
-
-            _uiState.value = ImportUiState(savedCount = selected.size, savedSubscriptions = subscriptionsSaved)
         }
+    }
+
+    private suspend fun confirmImportInternal(preview: ImportPreview, selected: List<ImportItem>) {
+        val origem = preview.sourceName.substringBeforeLast('.').take(40)
+        val existingSubscriptions = repository.assinaturas.first()
+        var subscriptionsSaved = 0
+
+        selected.forEach { item ->
+            repository.salvarTransacao(
+                TransacaoEntity(
+                    data = (item.entry.date ?: LocalDate.now()).toEpochMillis(),
+                    descricao = describeForStorage(item),
+                    valorCentavos = item.entry.amountCents,
+                    categoria = item.categoria,
+                    contaOrigem = origem,
+                    recorrente = item.recurrence == RecurrenceVerdict.LIKELY || item.entry.installment != null,
+                    origem = "importado",
+                ),
+            )
+
+            if (item.recurrence == RecurrenceVerdict.LIKELY && item.entry.installment == null && !item.entry.isRefund) {
+                val nome = item.entry.description.trim().take(40)
+                val already = existingSubscriptions.firstOrNull { it.nome.equals(nome, ignoreCase = true) }
+                repository.salvarAssinatura(
+                    AssinaturaEntity(
+                        id = already?.id ?: 0,
+                        nome = nome,
+                        valorCentavos = Math.abs(item.entry.amountCents),
+                        ultimoUso = item.entry.date?.toEpochMillis(),
+                        status = already?.status ?: "ativa",
+                    ),
+                )
+                if (already == null) subscriptionsSaved++
+            }
+        }
+
+        _uiState.value = ImportUiState(savedCount = selected.size, savedSubscriptions = subscriptionsSaved)
+    }
+
+    private companion object {
+        const val TAG = "ImportViewModel"
     }
 
     private fun describeForStorage(item: ImportItem): String {

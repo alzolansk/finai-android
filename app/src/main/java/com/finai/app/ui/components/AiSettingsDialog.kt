@@ -15,15 +15,20 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PlayCircleOutline
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +56,8 @@ fun ApiKeySettingsScreen(
     onClear: (ProviderId) -> Unit,
     notificationsEnabled: Boolean,
     onTestNotifications: () -> Unit,
+    onRestartTour: () -> Unit,
+    onEraseAllData: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -79,7 +86,91 @@ fun ApiKeySettingsScreen(
         }
         Spacer(Modifier.height(14.dp))
         NotificationsDiagnostics(notificationsEnabled, onTestNotifications)
+        Spacer(Modifier.height(20.dp))
+        Text("Dados e privacidade", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        Spacer(Modifier.height(10.dp))
+        DataPrivacySection(onRestartTour = onRestartTour, onEraseAllData = onEraseAllData)
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/**
+ * "Rever tour guiado" reabre o onboarding sem apagar nenhum dado —
+ * [com.finai.app.state.AppViewModel.restartOnboarding]. "Apagar todos os
+ * dados" exige uma confirmação explícita porque é irreversível: não há
+ * backup/export automático (planning.md §11), então o Room apagado aqui não
+ * volta.
+ */
+@Composable
+private fun DataPrivacySection(onRestartTour: () -> Unit, onEraseAllData: () -> Unit) {
+    var showEraseConfirm by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(FinaiColors.Surface, RoundedCornerShape(16.dp))
+            .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Icon(Icons.Filled.PlayCircleOutline, contentDescription = null, tint = FinaiColors.TextTertiary)
+            Column {
+                Text("Tour guiado", fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                Text("Reveja a explicação rápida das principais telas do FinAI.", color = FinaiColors.TextSecondary, fontSize = 12.sp)
+            }
+        }
+        OutlinedButton(
+            onClick = onRestartTour,
+            modifier = Modifier.padding(top = 10.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = FinaiColors.TextPrimary),
+        ) { Text("Rever tour guiado") }
+
+        Spacer(Modifier.height(16.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Icon(Icons.Filled.DeleteForever, contentDescription = null, tint = FinaiColors.RoseDark)
+            Column {
+                Text("Apagar todos os dados", fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                Text(
+                    "Remove lançamentos, contas, objetivos, dívidas, orçamentos, assinaturas, chat e notificações. " +
+                        "Suas chaves de IA não são afetadas.",
+                    color = FinaiColors.TextSecondary,
+                    fontSize = 12.sp,
+                )
+            }
+        }
+        Button(
+            onClick = { showEraseConfirm = true },
+            modifier = Modifier.padding(top = 10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.RoseSoftBg, contentColor = FinaiColors.RoseDark),
+        ) { Text("Apagar todos os dados") }
+    }
+
+    if (showEraseConfirm) {
+        AlertDialog(
+            onDismissRequest = { showEraseConfirm = false },
+            icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = FinaiColors.RoseDark) },
+            title = { Text("Apagar todos os dados?") },
+            text = {
+                Text(
+                    "Esta ação é irreversível. Todos os seus lançamentos, contas, objetivos, dívidas, orçamentos, " +
+                        "assinaturas, o histórico do chat e as notificações serão apagados permanentemente, e o app " +
+                        "voltará ao estado de uma instalação nova. Não há como desfazer.",
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showEraseConfirm = false
+                        onEraseAllData()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.RoseDark, contentColor = Color.White),
+                ) { Text("Apagar tudo") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEraseConfirm = false }) { Text("Cancelar") }
+            },
+        )
     }
 }
 

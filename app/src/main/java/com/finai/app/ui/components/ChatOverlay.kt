@@ -10,7 +10,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,7 +43,19 @@ import com.finai.app.data.model.ChatMessage
 import com.finai.app.data.model.ChatRole
 import com.finai.app.ui.theme.FinaiColors
 
-/** Full-screen assistant chat — free-form conversation, canned in Phase 0/no AI yet. */
+/**
+ * Chat do assistente em tela cheia — conversa livre sobre os números reais do
+ * usuário, com o histórico vindo do Room ([com.finai.app.data.repository.ChatRepository])
+ * e a resposta vindo do [com.finai.app.data.ai.AiRouter].
+ *
+ * Insets tratados explicitamente (corrigido na Fase 6): a Activity roda em
+ * edge-to-edge (`enableEdgeToEdge()` em `MainActivity`), e este overlay cobre a
+ * tela inteira sem passar por [FinaiTopBar], que é quem aplica
+ * `statusBarsPadding()` nas telas normais. Sem isto, o cabeçalho ficava por
+ * baixo da barra de status — o botão de fechar caía embaixo do relógio do
+ * sistema e não respondia ao toque. `imePadding` sobe a barra de digitação com
+ * o teclado, e `navigationBarsPadding` a mantém acima da barra de gestos.
+ */
 @Composable
 fun ChatOverlay(
     messages: List<ChatMessage>,
@@ -55,7 +70,9 @@ fun ChatOverlay(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(FinaiColors.EmeraldSoftBg, FinaiColors.Background))),
+            .background(Brush.verticalGradient(listOf(FinaiColors.EmeraldSoftBg, FinaiColors.Background)))
+            .statusBarsPadding()
+            .imePadding(),
     ) {
         Row(
             modifier = Modifier
@@ -112,6 +129,7 @@ fun ChatOverlay(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(FinaiColors.Surface.copy(alpha = 0.8f))
+                .navigationBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 16.dp),
         ) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {

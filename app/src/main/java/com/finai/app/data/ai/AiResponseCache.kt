@@ -31,6 +31,11 @@ object AiResponseCache {
         entries[keyFor(request)] = Entry(text, LocalDate.now())
     }
 
+    /** Usado por "Apagar todos os dados": descarta respostas em cache sobre números que não existem mais. */
+    fun clear() {
+        entries.clear()
+    }
+
     private fun keyFor(request: AiRequest): String {
         val raw = "${request.task}|${request.systemInstruction}|${request.prompt}"
         val digest = MessageDigest.getInstance("SHA-256").digest(raw.toByteArray(Charsets.UTF_8))

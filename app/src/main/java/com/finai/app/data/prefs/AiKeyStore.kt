@@ -1,10 +1,10 @@
 package com.finai.app.data.prefs
 
 import android.content.Context
-import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.finai.app.data.ai.ProviderId
+import com.finai.app.util.FinaiLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,7 +37,7 @@ class AiKeyStore private constructor(context: Context) {
         // Must never take the rest of the app down with it — Fase 1's deterministic
         // screens don't depend on this. Worst case: the AI layer behaves as if no key
         // were configured for any provider.
-        Log.e("AiKeyStore", "Não foi possível abrir o armazenamento seguro das chaves de IA", e)
+        FinaiLog.e("AiKeyStore", "Não foi possível abrir o armazenamento seguro das chaves de IA", e)
         null
     }
 

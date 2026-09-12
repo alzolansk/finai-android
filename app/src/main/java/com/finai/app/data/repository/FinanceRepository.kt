@@ -1,5 +1,6 @@
 package com.finai.app.data.repository
 
+import androidx.room.withTransaction
 import com.finai.app.data.local.FinaiDatabase
 import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
@@ -14,13 +15,15 @@ import kotlinx.coroutines.flow.Flow
  * of reaching into [FinaiDatabase] directly. No business logic lives here;
  * that's `domain/`'s job (planning.md §6).
  */
-class FinanceRepository(db: FinaiDatabase) {
+class FinanceRepository(private val db: FinaiDatabase) {
     private val transacaoDao = db.transacaoDao()
     private val contaDao = db.contaDao()
     private val objetivoDao = db.objetivoDao()
     private val dividaDao = db.dividaDao()
     private val orcamentoDao = db.orcamentoCategoriaDao()
     private val assinaturaDao = db.assinaturaDao()
+    private val mensagemChatDao = db.mensagemChatDao()
+    private val notificacaoEnviadaDao = db.notificacaoEnviadaDao()
 
     val transacoes: Flow<List<TransacaoEntity>> = transacaoDao.observeAll()
     val contas: Flow<List<ContaEntity>> = contaDao.observeAll()
@@ -50,4 +53,28 @@ class FinanceRepository(db: FinaiDatabase) {
 
     suspend fun atualizarAssinatura(assinatura: AssinaturaEntity) = assinaturaDao.update(assinatura)
     suspend fun salvarAssinatura(assinatura: AssinaturaEntity) = assinaturaDao.upsert(assinatura)
+
+    /**
+     * "Apagar todos os dados" das Configurações: limpa tudo que é dado
+     * financeiro do usuário (lançamentos, contas, objetivos, dívidas,
+     * orçamentos, assinaturas), o histórico de chat e o registro de
+     * deduplicação de notificações — deixando o Room no mesmo estado vazio de
+     * uma instalação nova. Numa transação só: ou tudo sai, ou nada sai (uma
+     * falha no meio não deve deixar o banco pela metade). Chaves de IA
+     * (`AiKeyStore`) e contagem de cota (`ProviderUsoIaEntity`/
+     * `ProviderUsageStore`) são configuração técnica, não dado financeiro —
+     * ficam de fora de propósito.
+     */
+    suspend fun apagarTodosOsDados() {
+        db.withTransaction {
+            transacaoDao.deleteAll()
+            contaDao.deleteAll()
+            objetivoDao.deleteAll()
+            dividaDao.deleteAll()
+            orcamentoDao.deleteAll()
+            assinaturaDao.deleteAll()
+            mensagemChatDao.deleteAll()
+            notificacaoEnviadaDao.deleteAll()
+        }
+    }
 }

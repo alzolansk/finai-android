@@ -23,6 +23,7 @@ class NotificationDedupeStoreTest {
         override suspend fun removerExceto(chavesAtivas: List<String>) {
             registros.keys.retainAll(chavesAtivas.toSet())
         }
+        override suspend fun deleteAll() { registros.clear() }
     }
 
     private val hoje = LocalDate.of(2026, 3, 21)

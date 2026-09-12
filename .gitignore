@@ -11,3 +11,13 @@ local.properties
 /app/build
 /app/release
 .kotlin
+
+# Assinatura de release (Fase 6) — nunca versionar keystore nem senhas.
+/keystore.properties
+*.jks
+*.keystore
+!debug.keystore
+
+# Mapping do R8: o arquivo em si é gerado pelo build, mas GUARDE uma cópia
+# de cada versão publicada fora do repo (ver RELEASE.md) — sem ele, um crash
+# reportado pela Play Console vem ilegível.

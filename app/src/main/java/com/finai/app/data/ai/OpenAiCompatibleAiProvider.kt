@@ -1,7 +1,7 @@
 package com.finai.app.data.ai
 
-import android.util.Log
 import com.finai.app.data.prefs.AiKeyStore
+import com.finai.app.util.FinaiLog
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
@@ -44,8 +44,8 @@ abstract class OpenAiCompatibleAiProvider(
                     setRequestProperty("Content-Type", "application/json")
                     setRequestProperty("Authorization", "Bearer $apiKey")
                     extraHeaders().forEach { (name, value) -> setRequestProperty(name, value) }
-                    connectTimeout = 15_000
-                    readTimeout = 30_000
+                    connectTimeout = CONNECT_TIMEOUT_MS
+                    readTimeout = READ_TIMEOUT_MS
                 }
 
                 val body = JSONObject().apply {
@@ -65,7 +65,8 @@ abstract class OpenAiCompatibleAiProvider(
                 val status = connection.responseCode
                 if (status !in 200..299) {
                     val error = connection.errorStream?.bufferedReader()?.use { it.readText() }
-                    Log.w(TAG, "${providerId.displayName} HTTP $status: $error")
+                    FinaiLog.w(TAG, "${providerId.displayName} respondeu HTTP $status")
+                    FinaiLog.debugBody(TAG, "Corpo do erro de ${providerId.displayName}", error)
                     return@withContext AiResponse.Unavailable(unavailableMessageFor(status), failureKindFor(status))
                 }
 
@@ -77,10 +78,10 @@ abstract class OpenAiCompatibleAiProvider(
                     AiResponse.Success(text.trim())
                 }
             } catch (e: SocketTimeoutException) {
-                Log.w(TAG, "Timeout ao chamar ${providerId.displayName}", e)
+                FinaiLog.w(TAG, "Timeout ao chamar ${providerId.displayName}", e)
                 AiResponse.Unavailable("${providerId.displayName} demorou demais para responder.", AiFailureKind.TIMEOUT)
             } catch (e: Exception) {
-                Log.w(TAG, "Falha ao chamar ${providerId.displayName}", e)
+                FinaiLog.w(TAG, "Falha ao chamar ${providerId.displayName}", e)
                 AiResponse.Unavailable("Não foi possível falar com o ${providerId.displayName} agora.", AiFailureKind.NETWORK_ERROR)
             }
         }
@@ -107,5 +108,7 @@ abstract class OpenAiCompatibleAiProvider(
 
     companion object {
         private const val TAG = "OpenAiCompatibleAiProvider"
+        private const val CONNECT_TIMEOUT_MS = 15_000
+        private const val READ_TIMEOUT_MS = 30_000
     }
 }

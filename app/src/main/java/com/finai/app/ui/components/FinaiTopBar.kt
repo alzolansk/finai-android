@@ -82,7 +82,7 @@ fun FinaiTopBar(
                     .clickable(onClick = onOpenAiSettings),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Settings, contentDescription = "Configurar chave da IA", tint = FinaiColors.TextTertiary)
+                Icon(Icons.Filled.Settings, contentDescription = "Configurações", tint = FinaiColors.TextTertiary)
             }
             Box(
                 modifier = Modifier

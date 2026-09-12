@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Fase 6 (endurecimento, planning.md §9/§7.4).
+
+   Todo o tráfego do app são as cinco APIs de IA da planning.md §7.2, todas
+   HTTPS. Desligar cleartext explicitamente garante que nenhuma chamada
+   (nem uma acrescentada por engano, nem uma injetada por um proxy que force
+   downgrade para http://) saia do aparelho em texto claro carregando a chave
+   de API no header — o único segredo que trafega.
+
+   `cleartextTrafficPermitted="false"` já é o padrão a partir do targetSdk 28,
+   mas declarar aqui torna a regra explícita e a mantém válida se o minSdk/
+   targetSdk mudarem.
+
+   Nenhum certificate pinning: as cinco APIs podem trocar de CA/certificado sem
+   aviso, e um pin desatualizado derrubaria a camada de IA inteira do usuário
+   sem que ele pudesse fazer nada — um risco pior do que o que o pin evita num
+   app que já não confia no dispositivo com nenhum segredo de servidor.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

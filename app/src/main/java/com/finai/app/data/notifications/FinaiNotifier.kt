@@ -29,6 +29,9 @@ class FinaiNotifier(private val context: Context) {
     fun notifyCoach(content: NotificationContent, notificationId: Int) =
         post(FinaiNotificationChannels.COACH_CHANNEL_ID, notificationId, content)
 
+    /** Usado por "Apagar todos os dados": descarta notificações já entregues sobre dados que não existem mais. */
+    fun cancelAll() = NotificationManagerCompat.from(context).cancelAll()
+
     /** True se o app tem permissão para mostrar notificações agora — usado só para diagnóstico na tela de IA. */
     fun hasNotificationPermission(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return NotificationManagerCompat.from(context).areNotificationsEnabled()

@@ -35,6 +35,9 @@ interface TransacaoDao {
 
     @Delete
     suspend fun delete(transacao: TransacaoEntity)
+
+    @Query("DELETE FROM transacoes")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -50,6 +53,9 @@ interface ContaDao {
 
     @Delete
     suspend fun delete(conta: ContaEntity)
+
+    @Query("DELETE FROM contas")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -65,6 +71,9 @@ interface ObjetivoDao {
 
     @Delete
     suspend fun delete(objetivo: ObjetivoEntity)
+
+    @Query("DELETE FROM objetivos")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -80,6 +89,9 @@ interface DividaDao {
 
     @Delete
     suspend fun delete(divida: DividaEntity)
+
+    @Query("DELETE FROM dividas")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -89,6 +101,9 @@ interface OrcamentoCategoriaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(orcamento: OrcamentoCategoriaEntity)
+
+    @Query("DELETE FROM orcamento_categorias")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -101,6 +116,9 @@ interface AssinaturaDao {
 
     @Update
     suspend fun update(assinatura: AssinaturaEntity)
+
+    @Query("DELETE FROM assinaturas")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -111,6 +129,9 @@ interface MensagemChatDao {
 
     @Insert
     suspend fun insert(mensagem: MensagemChatEntity): Long
+
+    @Query("DELETE FROM mensagens_chat")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -134,4 +155,7 @@ interface NotificacaoEnviadaDao {
     /** Remove registros de eventos que não existem mais (ex.: conta que foi paga) — evita crescer para sempre. */
     @Query("DELETE FROM notificacoes_enviadas WHERE chave NOT IN (:chavesAtivas)")
     suspend fun removerExceto(chavesAtivas: List<String>)
+
+    @Query("DELETE FROM notificacoes_enviadas")
+    suspend fun deleteAll()
 }

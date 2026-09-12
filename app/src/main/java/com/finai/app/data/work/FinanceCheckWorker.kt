@@ -1,7 +1,6 @@
 package com.finai.app.data.work
 
 import android.content.Context
-import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -21,6 +20,7 @@ import com.finai.app.domain.SavingsCapacityCalculator
 import com.finai.app.domain.SubscriptionCalculator
 import com.finai.app.domain.monthKey
 import com.finai.app.domain.monthRangeMillis
+import com.finai.app.util.FinaiLog
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.first
@@ -50,7 +50,7 @@ class FinanceCheckWorker(
             runCheck(applicationContext)
             Result.success()
         } catch (t: Throwable) {
-            Log.e(TAG, "Falha ao rodar a checagem financeira proativa", t)
+            FinaiLog.e(TAG, "Falha ao rodar a checagem financeira proativa", t)
             if (runAttemptCount < MAX_RETRIES) Result.retry() else Result.failure()
         }
     }
@@ -84,7 +84,7 @@ class FinanceCheckWorker(
         val newPattern = pattern?.takeIf { dedupe.shouldSend(it.id, today) }
 
         if (newAlerts.isEmpty() && newPattern == null) {
-            Log.i(TAG, "Nada de novo para notificar hoje — nenhuma chamada de IA, nenhuma notificação.")
+            FinaiLog.i(TAG, "Nada de novo para notificar hoje — nenhuma chamada de IA, nenhuma notificação.")
         } else {
             // Router só é criado (e só é chamado) quando existe algo para redigir — planning.md §9's
             // "evita gerar notificação, e gastar cota, todo dia à toa". No máximo 2 chamadas por

@@ -1,12 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-   FinAI's privacy principle (planning.md §4) keeps financial data on-device by
-   default. This file only matters for API 23-30 auto backup (API 31+ uses
-   data_extraction_rules.xml instead) — the one thing it must always exclude is
-   the encrypted Gemini API key (planning.md §7.4): backing it up would be
-   useless anyway, since the Android Keystore key that decrypts it never
-   leaves this device.
+   Backup automático está DESLIGADO no manifesto (android:allowBackup="false",
+   Fase 6) — nada deste app é copiado para a nuvem hoje. Este arquivo continua
+   aqui, e completo, porque é ele que decide o que seria copiado se a decisão da
+   planning.md §11 for reverter para allowBackup="true": basta mudar aquele
+   atributo, sem ter que lembrar de escrever as exclusões depois.
+
+   Vale para o backup automático das APIs 23-30 (a partir da 31 quem manda é
+   data_extraction_rules.xml).
+
+   O que nunca pode sair do aparelho:
+   - finai_ai_keys.xml: as chaves de API dos cinco provedores (planning.md §7.4).
+     Copiar seria inútil e arriscado — a chave do Android Keystore que as decifra
+     não viaja entre aparelhos, então o arquivo chegaria ilegível do outro lado.
+   - finai.db: todo o histórico financeiro (planning.md §4 — o dado fica no
+     aparelho). Se um dia houver export/import manual, é por lá que ele deve
+     viajar, com o usuário decidindo, e não por um backup automático silencioso.
+   - finai_ai_usage / DataStore: contagem de cota por provedor; sem sentido em
+     outro aparelho, e reiniciar o contador do zero é o comportamento correto.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="finai_ai_keys.xml" />
+    <exclude domain="database" path="finai.db" />
+    <exclude domain="file" path="datastore/" />
 </full-backup-content>

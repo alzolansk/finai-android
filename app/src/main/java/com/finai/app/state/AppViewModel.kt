@@ -9,12 +9,19 @@ import com.finai.app.data.ai.AiRouter
 import com.finai.app.data.fixtures.FinaiFixtures
 import com.finai.app.data.local.FinaiDatabase
 import com.finai.app.data.model.ChatRole
+import com.finai.app.data.prefs.FinaiPreferences
 import com.finai.app.data.repository.ChatRepository
 import com.finai.app.domain.AiPromptBuilder
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.finai.app.util.FinaiLog
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.catch
 
 /**
  * Holds the state behind the overlays and widgets that float above whatever
@@ -38,13 +45,32 @@ import kotlinx.coroutines.launch
  * [com.finai.app.data.ai.ProviderUsageStore]/[com.finai.app.data.ai.AiResponseCache]
  * singletons, so two instances stay consistent with each other.
  */
+
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val aiProvider: AiProvider = AiRouter(application)
     private val chatRepository = ChatRepository(FinaiDatabase.get(application))
+    private val prefs = FinaiPreferences(application)
 
     private val _uiState = MutableStateFlow(FinaiUiState())
     val uiState: StateFlow<FinaiUiState> = _uiState
+
+    /**
+     * `null` enquanto o DataStore ainda não respondeu, `false` numa instalação
+     * nova (ou depois de "Apagar todos os dados"/"Rever tour guiado") e `true`
+     * depois que o usuário concluiu ou pulou o tour. [com.finai.app.FinaiApp]
+     * só decide mostrar o overlay do tour quando o valor já não é `null`, para
+     * não desenhar e esconder o tour no mesmo frame na abertura do app.
+     */
+    val onboardingComplete: StateFlow<Boolean?> =
+        prefs.onboardingComplete
+            .map<Boolean, Boolean?> { it }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun completeOnboarding() = viewModelScope.launch { prefs.setOnboardingComplete(true) }
+
+    /** Usado tanto por "Rever tour guiado" quanto depois de "Apagar todos os dados". */
+    fun restartOnboarding() = viewModelScope.launch { prefs.setOnboardingComplete(false) }
 
     private var chatReplyJob: kotlinx.coroutines.Job? = null
 
@@ -52,9 +78,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Room é a fonte de verdade da conversa (planning.md §5): a lista da tela
         // é sempre o que está gravado, não um acumulador em memória.
         viewModelScope.launch {
-            chatRepository.mensagens.collect { mensagens ->
-                _uiState.update { it.copy(messages = mensagens) }
-            }
+            chatRepository.mensagens
+                .catch { t ->
+                    // Fase 6: sem isto, uma falha de leitura do Room cancelaria a
+                    // coroutine com exceção não tratada e derrubaria o app na
+                    // abertura. A conversa fica vazia; o resto do app segue inteiro.
+                    FinaiLog.e(TAG, "Falha ao ler o histórico do chat", t)
+                }
+                .collect { mensagens ->
+                    _uiState.update { it.copy(messages = mensagens) }
+                }
         }
     }
 
@@ -110,16 +143,36 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(chatOpen = true, addOpen = false, simOpen = false, thinking = true, draft = "")
         }
         chatReplyJob = viewModelScope.launch {
-            chatRepository.registrar(ChatRole.Me, trimmed)
-            val request = AiPromptBuilder.chat(financeSummary, historyBeforeReply, trimmed)
-            val reply = when (val response = aiProvider.generate(request)) {
-                is AiResponse.Success -> response.text
-                is AiResponse.Unavailable -> FinaiFixtures.offlineReply(trimmed, response.reason)
+            try {
+                chatRepository.registrar(ChatRole.Me, trimmed)
+                val request = AiPromptBuilder.chat(financeSummary, historyBeforeReply, trimmed)
+                val reply = when (val response = aiProvider.generate(request)) {
+                    is AiResponse.Success -> response.text
+                    is AiResponse.Unavailable -> FinaiFixtures.offlineReply(trimmed, response.reason)
+                }
+                chatRepository.registrar(ChatRole.Ai, reply)
+                _uiState.update { it.copy(thinking = false) }
+            } catch (e: CancellationException) {
+                // Cancelamento aqui só acontece quando o usuário manda outra
+                // mensagem, e essa chamada já ligou o "pensando" de novo. Desligar
+                // no caminho de cancelamento apagaria o indicador da resposta que
+                // acabou de começar — por isso este `catch` não mexe no estado.
+                throw e
+            } catch (t: Throwable) {
+                // Fase 6. Os adaptadores de IA já devolvem Unavailable em vez de
+                // lançar, então chegar aqui significa falha de escrita no Room ou
+                // algo inesperado — nos dois casos o chat tem que continuar usável
+                // em vez de derrubar o app, e sem deixar o indicador de "pensando"
+                // girando para sempre.
+                FinaiLog.e(TAG, "Falha ao responder no chat", t)
+                _uiState.update { it.copy(thinking = false) }
             }
-            chatRepository.registrar(ChatRole.Ai, reply)
-            _uiState.update { it.copy(thinking = false) }
         }
     }
 
     fun sendDraft(financeSummary: String) = sendMessage(_uiState.value.draft, financeSummary)
+
+    private companion object {
+        const val TAG = "AppViewModel"
+    }
 }

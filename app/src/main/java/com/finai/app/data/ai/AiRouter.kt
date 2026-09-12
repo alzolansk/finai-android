@@ -1,8 +1,9 @@
 package com.finai.app.data.ai
 
 import android.content.Context
-import android.util.Log
 import com.finai.app.data.prefs.AiKeyStore
+import com.finai.app.util.FinaiLog
+import kotlinx.coroutines.CancellationException
 
 /**
  * The Fase 3 fallback layer (planning.md §7.3/§9): the single [AiProvider]
@@ -30,15 +31,42 @@ class AiRouter(
 
     constructor(context: Context) : this(ProviderUsageStore.get(context), defaultAdapters(context))
 
-    override suspend fun generate(request: AiRequest): AiResponse {
+    /**
+     * Nunca lança (Fase 6). Todo chamador — inclusive o
+     * [com.finai.app.data.work.FinanceCheckWorker], que roda com o app fechado —
+     * pode tratar o resultado como "texto ou motivo", sem `try`. Os adaptadores
+     * já convertem falha de rede em [AiResponse.Unavailable]; o `catch` aqui
+     * cobre o inesperado (DataStore, OOM ao montar um prompt grande) para que a
+     * camada de linguagem falhe do jeito que a planning.md §4 manda: em silêncio
+     * e com os números locais intactos.
+     */
+    override suspend fun generate(request: AiRequest): AiResponse = try {
+        route(request)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (t: Throwable) {
+        FinaiLog.e(TAG, "Falha inesperada no roteador de IA", t)
+        AiResponse.Unavailable(
+            "Não foi possível gerar o texto explicativo agora. Os números continuam calculados normalmente.",
+            AiFailureKind.UNKNOWN,
+        )
+    }
+
+    private suspend fun route(request: AiRequest): AiResponse {
         AiResponseCache.get(request)?.let { return AiResponse.Success(it) }
 
         var anyKeyConfigured = false
-        var lastReason: String? = null
+        // O motivo mais útil entre os provedores que falharam, não o último da
+        // fila (Fase 6). Como a ordem termina nos provedores que o usuário
+        // costuma não configurar, "o último" quase sempre era "Nenhuma chave do
+        // Cerebras configurada" — escondendo que o provedor principal tinha
+        // respondido 401 ou 429, que é o que ele precisa saber para agir.
+        var bestReason: String? = null
+        var bestRank = Int.MAX_VALUE
 
         for ((providerId, adapter) in adapters) {
             if (usageStore.isExhaustedToday(providerId)) {
-                Log.i(TAG, "${providerId.displayName} pulado: cota esgotada hoje.")
+                FinaiLog.i(TAG, "${providerId.displayName} pulado: cota esgotada hoje.")
                 continue
             }
 
@@ -49,10 +77,14 @@ class AiRouter(
                     return response
                 }
                 is AiResponse.Unavailable -> {
-                    Log.i(TAG, "${providerId.displayName} indisponível (${response.kind}): ${response.reason}")
+                    FinaiLog.i(TAG, "${providerId.displayName} indisponível (${response.kind}).")
                     if (response.kind != AiFailureKind.NO_KEY) anyKeyConfigured = true
                     if (response.kind == AiFailureKind.RATE_LIMITED) usageStore.markExhaustedToday(providerId)
-                    lastReason = response.reason
+                    val rank = reasonRank(response.kind)
+                    if (rank < bestRank) {
+                        bestRank = rank
+                        bestReason = response.reason
+                    }
                 }
             }
         }
@@ -65,11 +97,25 @@ class AiRouter(
             )
         } else {
             AiResponse.Unavailable(
-                "Todos os provedores de IA configurados estão indisponíveis ou sem cota agora (${lastReason ?: "motivo desconhecido"}). " +
+                "Todos os provedores de IA configurados estão indisponíveis ou sem cota agora (${bestReason ?: "motivo desconhecido"}). " +
                     "Os números continuam calculados normalmente; o texto explicativo volta assim que algum provedor renovar a cota.",
                 AiFailureKind.UNKNOWN,
             )
         }
+    }
+
+    /**
+     * Quanto o motivo de uma falha ajuda o usuário a resolvê-la. Menor é
+     * melhor: uma chave inválida ou cota estourada é acionável; "não configurei
+     * esse provedor" é ruído quando outro provedor de fato falhou.
+     */
+    private fun reasonRank(kind: AiFailureKind): Int = when (kind) {
+        AiFailureKind.AUTH_ERROR -> 0
+        AiFailureKind.RATE_LIMITED -> 1
+        AiFailureKind.MODEL_UNAVAILABLE -> 2
+        AiFailureKind.NETWORK_ERROR, AiFailureKind.TIMEOUT -> 3
+        AiFailureKind.EMPTY_RESPONSE, AiFailureKind.UNKNOWN -> 4
+        AiFailureKind.NO_KEY -> 5
     }
 
     companion object {

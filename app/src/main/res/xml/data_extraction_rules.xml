@@ -1,14 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-   API 31+ equivalent of backup_rules.xml (cloud backup and device-to-device
-   transfer). Excludes the encrypted Gemini API key store for the same reason
-   (planning.md §7.4) — it is meaningless on another device/Keystore anyway.
+   Equivalente do backup_rules.xml para API 31+, cobrindo os dois canais
+   separadamente: backup em nuvem e transferência direta aparelho-a-aparelho.
+
+   Como o manifesto está com android:allowBackup="false" (Fase 6), nada disso
+   está ativo hoje; as regras existem para que ligar o backup seja uma mudança
+   de um atributo só, e não uma mudança que vaza dado por esquecimento.
+   Ver a justificativa completa em backup_rules.xml e no AndroidManifest.xml.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="finai_ai_keys.xml" />
+        <exclude domain="database" path="finai.db" />
+        <exclude domain="file" path="datastore/" />
     </cloud-backup>
     <device-transfer>
+        <!-- A transferência direta é mais defensável para o banco (o dado vai do
+             aparelho antigo para o novo, sem passar por servidor), mas as chaves
+             de API continuam fora: são inúteis sem o Keystore de origem. -->
         <exclude domain="sharedpref" path="finai_ai_keys.xml" />
+        <exclude domain="file" path="datastore/" />
     </device-transfer>
 </data-extraction-rules>

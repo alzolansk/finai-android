@@ -1,24 +1,80 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- AI provider calls only (Fase 2/3, planning.md §9: Gemini/Groq/OpenRouter/Mistral/Cerebras) — the only network use in the app. -->
+    <!--
+        Revisão de permissões da Fase 6 (planning.md §9). São as duas únicas do
+        app, e cada uma existe por um motivo verificável no código:
+
+        INTERNET — as cinco APIs de IA da §7.2, chamadas em data/ai/*Provider.kt.
+        Nenhum outro caminho de rede existe: o OCR (ML Kit bundled), o parsing de
+        fatura e todos os cálculos rodam no aparelho.
+
+        POST_NOTIFICATIONS — as notificações proativas da Fase 5, pedida em
+        runtime por MainActivity. Negada, o app funciona por completo; só o
+        notify() é pulado (FinaiNotifier.hasNotificationPermission).
+
+        Não há READ_EXTERNAL_STORAGE/READ_MEDIA_*: a importação de fatura usa o
+        Storage Access Framework (ActivityResultContracts.OpenDocument), em que o
+        usuário escolhe um arquivo por vez e a permissão é concedida só para
+        aquela Uri. Também não há CAMERA, RECEIVE_BOOT_COMPLETED (o WorkManager
+        se reprograma sozinho), FOREGROUND_SERVICE nem qualquer permissão de
+        localização, contatos ou telefone.
+
+        O manifest merger acrescenta mais quatro, todas vindas do WorkManager
+        (androidx.work), nenhuma pedida em runtime e nenhuma dando acesso a dado
+        do usuário — confira com
+        `aapt dump badging app/build/outputs/apk/release/*.apk`:
+
+          ACCESS_NETWORK_STATE  observador de conectividade que a biblioteca
+                                registra na inicialização
+          WAKE_LOCK             mantém a CPU acordada enquanto um Worker roda
+          RECEIVE_BOOT_COMPLETED  é como o WorkManager reprograma o trabalho
+                                periódico depois de um reboot (por isso o app
+                                não precisa do próprio receiver de boot)
+          FOREGROUND_SERVICE    só usada por trabalho expedido/em primeiro plano,
+                                que este app nunca cria (FinanceCheckWorker não
+                                chama setExpedited nem setForeground)
+
+        As três primeiras são requisito real da rotina proativa e removê-las com
+        `tools:node="remove"` a derruba com SecurityException. FOREGROUND_SERVICE
+        seria removível, mas obriga a tirar junto o SystemForegroundService da
+        biblioteca — ver RELEASE.md ("Permissão FOREGROUND_SERVICE") para o
+        trade-off e o que a Play Console pede por causa dela.
+    -->
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Notificações proativas (Fase 5, planning.md §9). Obrigatória a partir do Android 13
-         (API 33) e pedida em runtime por MainActivity; sem ela o app funciona normalmente,
-         só a notificação em si não aparece (FinaiNotifier degrada silenciosamente). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".FinaiApplication"
-        android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:theme="@style/Theme.FinAI"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:theme="@style/Theme.FinAI">
+        android:allowBackup="false">
+        <!--
+            android:allowBackup="false" — decisão de privacidade da Fase 6.
+
+            O banco `finai.db` guarda TODO o histórico financeiro do usuário. Com
+            backup habilitado, ele é copiado para a conta Google dele (criptografado
+            ponta a ponta com o PIN do aparelho, mas ainda assim fora do aparelho),
+            o que contraria o requisito da planning.md §4: "dados financeiros
+            permanecem no aparelho por padrão". A planning.md §11 deixa a estratégia
+            de backup/export como pergunta em aberto — até ela ser respondida, o
+            padrão seguro é não copiar nada para fora.
+
+            Consequência honesta, não escondida: trocar de aparelho hoje significa
+            perder os dados, porque o app ainda não tem export/import manual. Para
+            reverter, basta trocar para "true" aqui — os dois arquivos de regra
+            abaixo já excluem o armazenamento de chaves de API do backup, que é o
+            único item que jamais pode ser copiado (a chave do Keystore que o
+            decifra não viaja entre aparelhos de qualquer forma).
+        -->
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
