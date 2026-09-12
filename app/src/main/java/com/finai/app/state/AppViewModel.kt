@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.finai.app.data.fixtures.FinaiFixtures
 import com.finai.app.data.model.ChatMessage
 import com.finai.app.data.model.ChatRole
-import com.finai.app.data.model.RecommendationSurface
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,15 +51,16 @@ class AppViewModel : ViewModel() {
 
     fun toggleCoach() = _uiState.update { it.copy(showCoach = !it.showCoach) }
 
-    // ── decisions ───────────────────────────────────────────────
-    fun pickSurface(surface: RecommendationSurface) = _uiState.update { it.copy(surface = surface) }
-
-    fun dismissDecision(id: String) =
-        _uiState.update { it.copy(dismissedDecisionIds = it.dismissedDecisionIds + id) }
-
     // ── agenda ──────────────────────────────────────────────────
-    fun prevMonth() = _uiState.update { it.copy(monthIndex = (it.monthIndex + 11) % 12) }
-    fun nextMonth() = _uiState.update { it.copy(monthIndex = (it.monthIndex + 1) % 12) }
+    fun prevMonth() = _uiState.update {
+        if (it.monthIndex == 0) it.copy(monthIndex = 11, agendaYear = it.agendaYear - 1)
+        else it.copy(monthIndex = it.monthIndex - 1)
+    }
+
+    fun nextMonth() = _uiState.update {
+        if (it.monthIndex == 11) it.copy(monthIndex = 0, agendaYear = it.agendaYear + 1)
+        else it.copy(monthIndex = it.monthIndex + 1)
+    }
 
     // ── buy simulator ───────────────────────────────────────────
     fun setSimAmount(amount: Double) = _uiState.update { it.copy(simAmount = amount) }

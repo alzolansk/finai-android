@@ -26,30 +26,52 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finai.app.data.fixtures.FinaiFixtures
+import com.finai.app.data.model.Goal
+import com.finai.app.data.model.SimEffect
 import com.finai.app.data.model.SimVerdict
 import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.util.formatBrl0
+import kotlin.math.ceil
 
-/** "Posso comprar?" bottom sheet content — presets, verdict, and the effect on slack/goals/reserve. */
+/** "Posso comprar?" bottom sheet content — presets, verdict, and the effect on slack/goals. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BuySimulatorContent(
     amount: Double,
+    monthlyCapacity: Double,
+    goals: List<Goal>,
     onPickPreset: (Double) -> Unit,
     onDecideLater: () -> Unit,
     onAsk: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val free = FinaiFixtures.monthlyCapacity
+    val free = monthlyCapacity
     val verdict = when {
         amount <= free -> SimVerdict.Fits
         amount <= free * 2 -> SimVerdict.FitsButCosts
         else -> SimVerdict.DoesNotFit
     }
+    val topGoal = goals.firstOrNull()
+    val delayMonths = if (free > 0) ceil((amount / free)).toInt().coerceAtLeast(0) else 0
     val explain = when (verdict) {
-        SimVerdict.Fits -> "O valor sai da folga do mês. Nenhum objetivo é adiado e a reserva continua intacta."
-        SimVerdict.FitsButCosts -> "Você cobre à vista, mas o aporte de dezembro para Portugal fica de fora. A viagem passa de julho para agosto."
-        SimVerdict.DoesNotFit -> "O valor supera sua capacidade de poupança em dois meses. Comprar agora significaria usar o rotativo a 13,9% ao mês — o custo real sobe para ${formatBrl0(Math.round(amount * 1.31))}."
+        SimVerdict.Fits -> "O valor sai da folga do mês. Nenhum objetivo precisa ser adiado."
+        SimVerdict.FitsButCosts -> topGoal?.let {
+            "Você cobre à vista, mas compromete o aporte deste mês para \"${it.name}\". A meta pode atrasar."
+        } ?: "Você cobre à vista, mas compromete toda a folga deste mês."
+        SimVerdict.DoesNotFit -> "O valor supera sua capacidade de poupança de ${formatBrl0(free)}/mês" +
+            (if (delayMonths > 1) " — levaria cerca de $delayMonths meses de poupança para cobrir à vista." else ".")
+    }
+    val effects = buildList {
+        add(SimEffect("Folga do mês", "depois da compra", formatBrl0(free - amount), if (free - amount >= 0) FinaiColors.EmeraldDark else Color(0xFFE11D48)))
+        topGoal?.let { goal ->
+            add(
+                SimEffect(
+                    goal.name, if (verdict == SimVerdict.Fits) "aporte deste mês mantido" else "aporte deste mês em risco",
+                    if (verdict == SimVerdict.Fits) "Mantido" else "Em risco",
+                    if (verdict == SimVerdict.Fits) FinaiColors.EmeraldDark else Color(0xFFB45309),
+                ),
+            )
+        }
     }
 
     Column(modifier = modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)) {
@@ -129,7 +151,7 @@ fun BuySimulatorContent(
         }
 
         Column(modifier = Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            FinaiFixtures.simEffects(amount).forEach { effect ->
+            effects.forEach { effect ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

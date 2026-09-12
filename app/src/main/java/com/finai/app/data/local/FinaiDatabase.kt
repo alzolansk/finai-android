@@ -37,7 +37,7 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
         MensagemChatEntity::class,
         UsoProvedorIaEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class FinaiDatabase : RoomDatabase() {
@@ -58,7 +58,11 @@ abstract class FinaiDatabase : RoomDatabase() {
                 context.applicationContext,
                 FinaiDatabase::class.java,
                 "finai.db",
-            ).build().also { instance = it }
+            )
+                // Pre-launch app, no real user data to preserve yet (planning.md §11) —
+                // destructive migration is fine until Fase 6 (endurecimento e lançamento).
+                .fallbackToDestructiveMigration()
+                .build().also { instance = it }
         }
     }
 }

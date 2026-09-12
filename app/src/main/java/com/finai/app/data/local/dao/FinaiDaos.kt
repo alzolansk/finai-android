@@ -1,9 +1,11 @@
 package com.finai.app.data.local.dao
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
@@ -15,9 +17,8 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Minimal CRUD per entity — enough to prove the Room wiring compiles and
- * runs. Phase 1 adds the real queries each screen needs (safe-to-spend,
- * debt ordering, budget progress, ...) per planning.md §6.
+ * Phase 1 real CRUD per entity, backing the manual-entry flows and the
+ * deterministic calculators in `domain/` — see planning.md §6 and §9 (Fase 1).
  */
 
 @Dao
@@ -25,8 +26,14 @@ interface TransacaoDao {
     @Query("SELECT * FROM transacoes ORDER BY data DESC")
     fun observeAll(): Flow<List<TransacaoEntity>>
 
+    @Query("SELECT * FROM transacoes WHERE data BETWEEN :startMillis AND :endMillis ORDER BY data DESC")
+    fun observeBetween(startMillis: Long, endMillis: Long): Flow<List<TransacaoEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(transacao: TransacaoEntity): Long
+
+    @Delete
+    suspend fun delete(transacao: TransacaoEntity)
 }
 
 @Dao
@@ -36,6 +43,12 @@ interface ContaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(conta: ContaEntity): Long
+
+    @Update
+    suspend fun update(conta: ContaEntity)
+
+    @Delete
+    suspend fun delete(conta: ContaEntity)
 }
 
 @Dao
@@ -45,6 +58,12 @@ interface ObjetivoDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(objetivo: ObjetivoEntity): Long
+
+    @Update
+    suspend fun update(objetivo: ObjetivoEntity)
+
+    @Delete
+    suspend fun delete(objetivo: ObjetivoEntity)
 }
 
 @Dao
@@ -54,6 +73,12 @@ interface DividaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(divida: DividaEntity): Long
+
+    @Update
+    suspend fun update(divida: DividaEntity)
+
+    @Delete
+    suspend fun delete(divida: DividaEntity)
 }
 
 @Dao
@@ -67,11 +92,14 @@ interface OrcamentoCategoriaDao {
 
 @Dao
 interface AssinaturaDao {
-    @Query("SELECT * FROM assinaturas WHERE status = 'ativa'")
-    fun observeActive(): Flow<List<AssinaturaEntity>>
+    @Query("SELECT * FROM assinaturas ORDER BY nome ASC")
+    fun observeAll(): Flow<List<AssinaturaEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(assinatura: AssinaturaEntity): Long
+
+    @Update
+    suspend fun update(assinatura: AssinaturaEntity)
 }
 
 @Dao

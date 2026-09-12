@@ -8,9 +8,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,7 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.finai.app.data.fixtures.FinaiFixtures
 import com.finai.app.data.model.Goal
 import com.finai.app.ui.components.PillTag
 import com.finai.app.ui.components.ProgressTrack
@@ -30,19 +33,37 @@ import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.util.formatBrl0
 
 @Composable
-fun GoalsScreen(onBoost: (Goal) -> Unit, onSimulate: () -> Unit) {
+fun GoalsScreen(
+    goals: List<Goal>,
+    monthlyCapacityLabel: String,
+    onNewGoal: () -> Unit,
+    onContribute: (Goal) -> Unit,
+    onDelete: (Goal) -> Unit,
+    onSimulate: () -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = ScreenContentPadding,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Column {
-                Text("Objetivos", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-                Text(
-                    "Compras, viagens e reservas em andamento", fontSize = 13.sp, color = FinaiColors.TextTertiary,
-                    modifier = Modifier.padding(top = 3.dp),
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Objetivos", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+                    Text(
+                        "Compras, viagens e reservas em andamento", fontSize = 13.sp, color = FinaiColors.TextTertiary,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(FinaiColors.Ink)
+                        .clickable(onClick = onNewGoal)
+                        .padding(10.dp),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Novo objetivo", tint = Color.White, modifier = Modifier.size(18.dp))
+                }
             }
         }
 
@@ -56,22 +77,32 @@ fun GoalsScreen(onBoost: (Goal) -> Unit, onSimulate: () -> Unit) {
             ) {
                 Text("CAPACIDADE DE POUPANÇA", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextOnDarkFaint)
                 Row(modifier = Modifier.padding(top = 6.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(formatBrl0(FinaiFixtures.monthlyCapacity), fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    Text(monthlyCapacityLabel, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                     Text("por mês", fontSize = 12.sp, color = FinaiColors.TextOnDarkMuted)
                 }
                 Text(
-                    FinaiFixtures.capacityNote, fontSize = 12.sp, lineHeight = 18.sp, color = FinaiColors.TextOnDarkMuted,
+                    "Renda recorrente menos contas fixas recorrentes e parcelas de dívida cadastradas.",
+                    fontSize = 12.sp, lineHeight = 18.sp, color = FinaiColors.TextOnDarkMuted,
                     modifier = Modifier.padding(top = 8.dp),
                 )
             }
         }
 
-        items(FinaiFixtures.goals) { goal -> GoalCard(goal, onBoost, onSimulate) }
+        if (goals.isEmpty()) {
+            item {
+                Text(
+                    "Nenhum objetivo cadastrado ainda. Toque em \"+\" para criar o primeiro.",
+                    fontSize = 13.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(vertical = 12.dp),
+                )
+            }
+        }
+
+        items(goals) { goal -> GoalCard(goal, onContribute, onDelete, onSimulate) }
     }
 }
 
 @Composable
-private fun GoalCard(goal: Goal, onBoost: (Goal) -> Unit, onSimulate: () -> Unit) {
+private fun GoalCard(goal: Goal, onContribute: (Goal) -> Unit, onDelete: (Goal) -> Unit, onSimulate: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -95,6 +126,7 @@ private fun GoalCard(goal: Goal, onBoost: (Goal) -> Unit, onSimulate: () -> Unit
             Text("de ${formatBrl0(goal.target)}", fontSize = 12.sp, color = FinaiColors.TextMuted)
         }
         ProgressTrack(progress = goal.progress, fillColor = FinaiColors.Emerald, height = 8.dp, modifier = Modifier.padding(top = 9.dp))
+        Text(goal.note, fontSize = 11.5.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 8.dp))
         Column(
             modifier = Modifier
                 .padding(top = 12.dp)
@@ -113,7 +145,7 @@ private fun GoalCard(goal: Goal, onBoost: (Goal) -> Unit, onSimulate: () -> Unit
                     .weight(1f)
                     .clip(RoundedCornerShape(12.dp))
                     .background(FinaiColors.Ink)
-                    .clickable { onBoost(goal) }
+                    .clickable { onContribute(goal) }
                     .padding(10.dp),
             ) {
                 Text(goal.action, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
@@ -126,6 +158,15 @@ private fun GoalCard(goal: Goal, onBoost: (Goal) -> Unit, onSimulate: () -> Unit
                     .padding(horizontal = 13.dp, vertical = 10.dp),
             ) {
                 Text("Simular", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary)
+            }
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(12.dp))
+                    .clickable { onDelete(goal) }
+                    .padding(horizontal = 13.dp, vertical = 10.dp),
+            ) {
+                Text("Excluir", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFE11D48))
             }
         }
     }

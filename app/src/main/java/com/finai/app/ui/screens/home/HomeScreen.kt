@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,12 +32,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.finai.app.data.fixtures.FinaiFixtures
-import com.finai.app.data.model.Decision
 import com.finai.app.data.model.Goal
-import com.finai.app.data.model.RecommendationSurface
+import com.finai.app.data.model.TimelineEntry
 import com.finai.app.data.model.WeekBill
-import com.finai.app.ui.components.PillTag
+import com.finai.app.domain.SafeToSpendResult
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
@@ -46,14 +43,20 @@ import com.finai.app.util.formatBrl0
 
 @Composable
 fun HomeScreen(
-    surface: RecommendationSurface,
-    decisions: List<Decision>,
+    greeting: String,
+    subGreeting: String,
+    goals: List<Goal>,
+    safeToday: SafeToSpendResult?,
+    safeTodayLabel: String,
+    safeNote: String,
+    week: List<WeekBill>,
+    timeline: List<TimelineEntry>,
+    timelineNote: String,
     showCoach: Boolean,
-    onPickSurface: (RecommendationSurface) -> Unit,
-    onDismissDecision: (String) -> Unit,
-    onAcceptDecision: (Decision) -> Unit,
-    onAskDecision: (Decision) -> Unit,
+    coachTitle: String,
+    coachBody: String,
     onOpenGoals: () -> Unit,
+    onNewGoal: () -> Unit,
     onOpenSimulator: () -> Unit,
     onOpenBudgets: () -> Unit,
     onOpenAgenda: () -> Unit,
@@ -66,41 +69,32 @@ fun HomeScreen(
     ) {
         item {
             Column {
-                Text(FinaiFixtures.greeting, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+                Text(greeting, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
                 Text(
-                    FinaiFixtures.subGreeting, fontSize = 13.sp, color = FinaiColors.TextTertiary,
+                    subGreeting, fontSize = 13.sp, color = FinaiColors.TextTertiary,
                     modifier = Modifier.padding(top = 3.dp),
                 )
             }
         }
 
-        item { GoalsCarousel(onOpenGoals) }
+        item { GoalsCarousel(goals, onOpenGoals, onNewGoal) }
 
-        item { SafeToSpendCard(onOpenSimulator, onOpenBudgets) }
+        item { SafeToSpendCard(safeToday, safeTodayLabel, safeNote, onOpenSimulator, onOpenBudgets) }
 
-        item {
-            DecisionsSection(
-                surface = surface,
-                decisions = decisions,
-                onPickSurface = onPickSurface,
-                onDismiss = onDismissDecision,
-                onAccept = onAcceptDecision,
-                onAsk = onAskDecision,
-            )
-        }
+        item { DecisionsPendingCard() }
 
-        item { TimelineSection() }
+        item { TimelineSection(timeline, timelineNote) }
 
-        item { NextWeekSection(onOpenAgenda) }
+        item { NextWeekSection(week, onOpenAgenda) }
 
         if (showCoach) {
-            item { CoachCard(onOpenChat) }
+            item { CoachCard(coachTitle, coachBody, onOpenChat) }
         }
     }
 }
 
 @Composable
-private fun GoalsCarousel(onOpenGoals: () -> Unit) {
+private fun GoalsCarousel(goals: List<Goal>, onOpenGoals: () -> Unit, onNewGoal: () -> Unit) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -115,8 +109,8 @@ private fun GoalsCarousel(onOpenGoals: () -> Unit) {
         }
         Spacer(Modifier.height(10.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(FinaiFixtures.goals.take(2)) { goal -> GoalTeaserCard(goal, onOpenGoals) }
-            item { NewGoalCard(onOpenGoals) }
+            items(goals.take(2)) { goal -> GoalTeaserCard(goal, onOpenGoals) }
+            item { NewGoalCard(onNewGoal) }
         }
     }
 }
@@ -137,7 +131,7 @@ private fun GoalTeaserCard(goal: Goal, onClick: () -> Unit) {
                 goal.kind.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold,
                 color = FinaiColors.TextMuted,
             )
-            PillTag(goal.badge.label, goal.badge.bg, goal.badge.fg)
+            com.finai.app.ui.components.PillTag(goal.badge.label, goal.badge.bg, goal.badge.fg)
         }
         Text(
             goal.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
@@ -184,7 +178,15 @@ private fun NewGoalCard(onClick: () -> Unit) {
 }
 
 @Composable
-private fun SafeToSpendCard(onOpenSimulator: () -> Unit, onOpenBudgets: () -> Unit) {
+private fun SafeToSpendCard(
+    safeToday: SafeToSpendResult?,
+    safeTodayLabel: String,
+    safeNote: String,
+    onOpenSimulator: () -> Unit,
+    onOpenBudgets: () -> Unit,
+) {
+    val dayLeftLabel = safeToday?.daysRemaining?.toString() ?: "—"
+    val dayProgressFraction = safeToday?.monthProgressFraction ?: 0f
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -197,11 +199,11 @@ private fun SafeToSpendCard(onOpenSimulator: () -> Unit, onOpenBudgets: () -> Un
                 Column(modifier = Modifier.weight(1f)) {
                     Text("PODE GASTAR HOJE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextOnDarkFaint)
                     Text(
-                        FinaiFixtures.safeToday, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold,
+                        safeTodayLabel, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold,
                         color = Color.White, modifier = Modifier.padding(top = 6.dp),
                     )
                     Text(
-                        FinaiFixtures.safeNote, fontSize = 12.sp, lineHeight = 17.sp,
+                        safeNote, fontSize = 12.sp, lineHeight = 17.sp,
                         color = FinaiColors.TextOnDarkMuted, modifier = Modifier.padding(top = 7.dp),
                     )
                 }
@@ -212,8 +214,8 @@ private fun SafeToSpendCard(onOpenSimulator: () -> Unit, onOpenBudgets: () -> Un
                         .background(
                             Brush.sweepGradient(
                                 0f to FinaiColors.Emerald,
-                                FinaiFixtures.dayProgressFraction to FinaiColors.Emerald,
-                                FinaiFixtures.dayProgressFraction to Color.White.copy(alpha = 0.13f),
+                                dayProgressFraction to FinaiColors.Emerald,
+                                dayProgressFraction to Color.White.copy(alpha = 0.13f),
                                 1f to Color.White.copy(alpha = 0.13f),
                             ),
                         ),
@@ -224,7 +226,7 @@ private fun SafeToSpendCard(onOpenSimulator: () -> Unit, onOpenBudgets: () -> Un
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(FinaiFixtures.dayLeftLabel, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            Text(dayLeftLabel, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                             Text("DIAS", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextOnDarkFaint)
                         }
                     }
@@ -263,193 +265,45 @@ private fun SafeToSpendCard(onOpenSimulator: () -> Unit, onOpenBudgets: () -> Un
     }
 }
 
+/**
+ * "Decisões para você" needs IA reasoning over the user's real numbers
+ * (planning.md §6) — out of scope for Fase 1, which has no AI call anywhere.
+ * This is an honest placeholder, not a fabricated recommendation.
+ */
 @Composable
-private fun DecisionsSection(
-    surface: RecommendationSurface,
-    decisions: List<Decision>,
-    onPickSurface: (RecommendationSurface) -> Unit,
-    onDismiss: (String) -> Unit,
-    onAccept: (Decision) -> Unit,
-    onAsk: (Decision) -> Unit,
-) {
-    Column {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Text("Decisões para você", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-                Text(
-                    "${decisions.size} sugestões · você aprova cada uma", fontSize = 11.sp, color = FinaiColors.TextMuted,
-                    modifier = Modifier.padding(top = 1.dp),
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(99.dp))
-                    .background(FinaiColors.SurfaceMuted)
-                    .padding(3.dp),
-            ) {
-                RecommendationSurface.entries.forEach { s ->
-                    val selected = s == surface
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(99.dp))
-                            .background(if (selected) FinaiColors.Ink else Color.Transparent)
-                            .clickable { onPickSurface(s) }
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                    ) {
-                        Text(
-                            s.label, fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
-                            color = if (selected) Color.White else FinaiColors.TextTertiary,
-                        )
-                    }
-                }
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        when (surface) {
-            RecommendationSurface.Cards -> LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(decisions) { d -> DecisionCard(d, onAccept, onDismiss) }
-            }
-            RecommendationSurface.Feed -> Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
-                    .background(FinaiColors.Surface),
-            ) {
-                decisions.forEachIndexed { index, d ->
-                    if (index > 0) androidx.compose.material3.HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp)
-                    DecisionFeedRow(d, onAccept)
-                }
-            }
-            RecommendationSurface.Chat -> Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
-                    .background(Brush.verticalGradient(listOf(FinaiColors.EmeraldSoftBg, FinaiColors.Surface)))
-                    .padding(16.dp),
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(FinaiColors.Surface)
-                            .border(1.dp, FinaiColors.EmeraldSoftBorder, RoundedCornerShape(9.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = FinaiColors.EmeraldDark, modifier = Modifier.size(14.dp))
-                    }
-                    Text(FinaiFixtures.chatPitch, fontSize = 13.sp, lineHeight = 20.sp, color = FinaiColors.TextBody)
-                }
-                Column(modifier = Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    decisions.forEach { d ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(13.dp))
-                                .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(13.dp))
-                                .background(FinaiColors.Surface)
-                                .clickable { onAsk(d) }
-                                .padding(horizontal = 13.dp, vertical = 11.dp),
-                        ) {
-                            Text(d.question, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextBody)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DecisionCard(decision: Decision, onAccept: (Decision) -> Unit, onDismiss: (String) -> Unit) {
+private fun DecisionsPendingCard() {
     Column(
         modifier = Modifier
-            .width(272.dp)
+            .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
             .background(FinaiColors.Surface)
             .padding(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(
-                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)).background(FinaiColors.EmeraldSoftBg),
+                modifier = Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(FinaiColors.SurfaceMuted),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = FinaiColors.EmeraldDark, modifier = Modifier.size(12.dp))
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = FinaiColors.TextMuted, modifier = Modifier.size(14.dp))
             }
-            Text(decision.tag.uppercase(), fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted)
-        }
-        Text(
-            decision.title, fontSize = 15.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
-            modifier = Modifier.padding(top = 10.dp),
-        )
-        Text(
-            decision.why, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary,
-            modifier = Modifier.padding(top = 7.dp),
-        )
-        Column(
-            modifier = Modifier
-                .padding(top = 12.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(13.dp))
-                .background(FinaiColors.SurfaceSunken)
-                .border(1.dp, FinaiColors.BorderFaint, RoundedCornerShape(13.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-        ) {
-            Text("IMPACTO", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
-            Text(decision.impact, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark, modifier = Modifier.padding(top = 3.dp))
-        }
-        Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(FinaiColors.Ink)
-                    .clickable { onAccept(decision) }
-                    .padding(10.dp),
-            ) {
-                Text(decision.cta, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(12.dp))
-                    .clickable { onDismiss(decision.id) }
-                    .padding(horizontal = 13.dp, vertical = 10.dp),
-            ) {
-                Text("Depois", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary)
+            Column {
+                Text("Decisões para você", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                Text(
+                    "Sugestões automáticas chegam na Fase 2, com a integração de IA.",
+                    fontSize = 11.5.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 1.dp),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun DecisionFeedRow(decision: Decision, onAccept: (Decision) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onAccept(decision) }
-            .padding(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Box(modifier = Modifier.padding(top = 6.dp).size(8.dp).clip(CircleShape).background(decision.dotColor))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(decision.title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-            Text(decision.why, fontSize = 11.5.sp, lineHeight = 16.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 3.dp))
-            Text(decision.impact, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark, modifier = Modifier.padding(top = 7.dp))
-        }
-        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = FinaiColors.BorderSubtle, modifier = Modifier.padding(top = 4.dp).size(15.dp))
-    }
-}
-
-@Composable
-private fun TimelineSection() {
+private fun TimelineSection(timeline: List<TimelineEntry>, timelineNote: String) {
     Column {
         Text("Linha do tempo do ano", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
         Text(
-            "Entradas extras previstas e o que elas destravam", fontSize = 11.sp, color = FinaiColors.TextMuted,
+            "Entradas extras cadastradas como conta a receber", fontSize = 11.sp, color = FinaiColors.TextMuted,
             modifier = Modifier.padding(top = 3.dp, bottom = 12.dp),
         )
         Column(
@@ -460,44 +314,46 @@ private fun TimelineSection() {
                 .background(FinaiColors.Surface)
                 .padding(vertical = 16.dp),
         ) {
-            LazyRow(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                items(FinaiFixtures.timeline) { t ->
-                    Column(modifier = Modifier.width(96.dp)) {
-                        Text(t.month.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted)
-                        Box(
-                            modifier = Modifier
-                                .padding(vertical = 10.dp)
-                                .fillMaxWidth()
-                                .height(2.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(t.tone.line),
-                        )
-                        Text(t.amount, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = t.tone.color)
-                        Text(t.label, fontSize = 10.5.sp, lineHeight = 14.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 3.dp))
+            if (timeline.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    items(timeline) { t ->
+                        Column(modifier = Modifier.width(96.dp)) {
+                            Text(t.month.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted)
+                            Box(
+                                modifier = Modifier
+                                    .padding(vertical = 10.dp)
+                                    .fillMaxWidth()
+                                    .height(2.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(t.tone.line),
+                            )
+                            Text(t.amount, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = t.tone.color)
+                            Text(t.label, fontSize = 10.5.sp, lineHeight = 14.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 3.dp))
+                        }
                     }
                 }
             }
             Box(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
-                    .padding(top = 14.dp)
+                    .padding(top = if (timeline.isNotEmpty()) 14.dp else 0.dp)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(FinaiColors.SurfaceSunken)
                     .border(1.dp, FinaiColors.BorderFaint, RoundedCornerShape(14.dp))
                     .padding(12.dp),
             ) {
-                Text(FinaiFixtures.timelineNote, fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextBody)
+                Text(timelineNote, fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextBody)
             }
         }
     }
 }
 
 @Composable
-private fun NextWeekSection(onOpenAgenda: () -> Unit) {
+private fun NextWeekSection(week: List<WeekBill>, onOpenAgenda: () -> Unit) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
             Text("Próximos 7 dias", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
@@ -507,16 +363,23 @@ private fun NextWeekSection(onOpenAgenda: () -> Unit) {
             )
         }
         Spacer(Modifier.height(10.dp))
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
-                .background(FinaiColors.Surface),
-        ) {
-            FinaiFixtures.week.forEachIndexed { index, w ->
-                if (index > 0) androidx.compose.material3.HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp)
-                WeekBillRow(w)
+        if (week.isEmpty()) {
+            Text(
+                "Nenhuma conta nos próximos 7 dias.", fontSize = 12.sp, color = FinaiColors.TextMuted,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
+                    .background(FinaiColors.Surface),
+            ) {
+                week.forEachIndexed { index, w ->
+                    if (index > 0) androidx.compose.material3.HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp)
+                    WeekBillRow(w)
+                }
             }
         }
     }
@@ -549,7 +412,7 @@ private fun WeekBillRow(w: WeekBill) {
 }
 
 @Composable
-private fun CoachCard(onOpenChat: () -> Unit) {
+private fun CoachCard(title: String, body: String, onOpenChat: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -557,13 +420,13 @@ private fun CoachCard(onOpenChat: () -> Unit) {
             .background(Brush.linearGradient(listOf(FinaiColors.IndigoDeepStart, FinaiColors.IndigoDeepEnd)))
             .padding(16.dp),
     ) {
-        Text("PADRÃO DE COMPORTAMENTO", fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White.copy(alpha = 0.55f))
+        Text("PADRÃO DE GASTO DO MÊS", fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White.copy(alpha = 0.55f))
         Text(
-            FinaiFixtures.coachTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White,
+            title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White,
             lineHeight = 20.sp, modifier = Modifier.padding(top = 7.dp),
         )
         Text(
-            FinaiFixtures.coachBody, fontSize = 12.5.sp, lineHeight = 18.sp, color = Color.White.copy(alpha = 0.72f),
+            body, fontSize = 12.5.sp, lineHeight = 18.sp, color = Color.White.copy(alpha = 0.72f),
             modifier = Modifier.padding(top = 7.dp),
         )
         Box(

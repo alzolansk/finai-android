@@ -14,7 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
@@ -23,11 +23,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.finai.app.data.fixtures.FinaiFixtures
 import com.finai.app.data.model.Bill
+import com.finai.app.domain.MONTH_NAMES_PT
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.util.formatBrl0
@@ -35,8 +36,15 @@ import com.finai.app.util.formatBrl0
 @Composable
 fun AgendaScreen(
     monthIndex: Int,
+    year: Int,
     onPrevMonth: () -> Unit,
     onNextMonth: () -> Unit,
+    bills: List<Bill>,
+    toPayCents: Long,
+    toPayCount: Int,
+    toGetCents: Long,
+    toGetCount: Int,
+    onNewConta: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
@@ -44,12 +52,23 @@ fun AgendaScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Column {
-                Text("Agenda", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-                Text(
-                    "Pagamentos e recebimentos do mês", fontSize = 13.sp, color = FinaiColors.TextTertiary,
-                    modifier = Modifier.padding(top = 3.dp),
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Agenda", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+                    Text(
+                        "Pagamentos e recebimentos do mês", fontSize = 13.sp, color = FinaiColors.TextTertiary,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(FinaiColors.Ink)
+                        .clickable(onClick = onNewConta)
+                        .padding(10.dp),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Nova conta", tint = Color.White, modifier = Modifier.size(18.dp))
+                }
             }
         }
 
@@ -69,7 +88,7 @@ fun AgendaScreen(
                     modifier = Modifier.clickable(onClick = onPrevMonth),
                 )
                 Text(
-                    "${FinaiFixtures.months[monthIndex]} de 2025", fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    "${MONTH_NAMES_PT[monthIndex]} de $year", fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     color = FinaiColors.TextPrimary,
                 )
                 Icon(
@@ -82,42 +101,31 @@ fun AgendaScreen(
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SummaryTile(
-                    label = "Contas a pagar", value = formatBrl0(FinaiFixtures.toPayTotalCents),
-                    note = FinaiFixtures.toPayCount, valueColor = FinaiColors.TextPrimary, modifier = Modifier.weight(1f),
+                    label = "Contas a pagar", value = formatBrl0(toPayCents / 100.0),
+                    note = "$toPayCount conta(s)", valueColor = FinaiColors.TextPrimary, modifier = Modifier.weight(1f),
                 )
                 SummaryTile(
-                    label = "Recebimentos", value = "+ " + formatBrl0(FinaiFixtures.toGetTotalCents),
-                    note = FinaiFixtures.toGetCount, valueColor = FinaiColors.EmeraldDark, modifier = Modifier.weight(1f),
+                    label = "Recebimentos", value = "+ " + formatBrl0(toGetCents / 100.0),
+                    note = "$toGetCount entrada(s)", valueColor = FinaiColors.EmeraldDark, modifier = Modifier.weight(1f),
                 )
             }
         }
 
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(FinaiColors.EmeraldSoftBg)
-                    .border(1.dp, FinaiColors.EmeraldSoftBorder, RoundedCornerShape(18.dp))
-                    .padding(13.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Box(
-                    modifier = Modifier.size(24.dp).clip(RoundedCornerShape(8.dp)).background(FinaiColors.Surface),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = FinaiColors.EmeraldDark, modifier = Modifier.size(13.dp))
-                }
-                Text(FinaiFixtures.agendaTip, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.EmeraldDeep)
+        if (bills.isEmpty()) {
+            item {
+                Text(
+                    "Nenhuma conta cadastrada para este mês.", fontSize = 13.sp, color = FinaiColors.TextMuted,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
             }
         }
 
-        items(FinaiFixtures.bills) { bill -> BillRow(bill) }
+        items(bills) { bill -> BillRow(bill) }
     }
 }
 
 @Composable
-private fun SummaryTile(label: String, value: String, note: String, valueColor: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
+private fun SummaryTile(label: String, value: String, note: String, valueColor: Color, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))

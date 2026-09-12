@@ -48,8 +48,9 @@ data class ObjetivoEntity(
 data class DividaEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val nome: String,
+    val valorOriginalCentavos: Long,
     val valorAbertoCentavos: Long,
-    val taxaJurosMensalBasisPoints: Int,
+    val taxaJurosMensalBasisPoints: Int, // 1% a.m. = 100 bp
     val parcelasRestantes: Int,
     val valorParcelaCentavos: Long,
 )

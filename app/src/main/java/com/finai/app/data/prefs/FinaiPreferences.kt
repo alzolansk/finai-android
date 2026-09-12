@@ -19,6 +19,7 @@ private val Context.dataStore by preferencesDataStore(name = "finai_prefs")
 class FinaiPreferences(private val context: Context) {
     private object Keys {
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
+        val SEEDED = booleanPreferencesKey("seeded_starter_data")
     }
 
     val onboardingComplete: Flow<Boolean> =
@@ -26,5 +27,12 @@ class FinaiPreferences(private val context: Context) {
 
     suspend fun setOnboardingComplete(complete: Boolean) {
         context.dataStore.edit { it[Keys.ONBOARDING_COMPLETE] = complete }
+    }
+
+    /** True once [com.finai.app.data.repository.FinanceSeeder] has inserted the starter dataset. */
+    val seeded: Flow<Boolean> = context.dataStore.data.map { it[Keys.SEEDED] ?: false }
+
+    suspend fun setSeeded(seeded: Boolean) {
+        context.dataStore.edit { it[Keys.SEEDED] = seeded }
     }
 }

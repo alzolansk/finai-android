@@ -11,8 +11,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,27 +27,53 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.finai.app.data.fixtures.FinaiFixtures
 import com.finai.app.data.model.Debt
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
-import com.finai.app.util.formatBrl0
+
+private val genericNegotiationSteps = listOf(
+    "Diga há quanto tempo você é cliente e se está em dia com os pagamentos.",
+    "Peça o parcelamento do saldo devedor citando a taxa atual e pedindo uma taxa menor.",
+    "Se recusarem, ofereça uma entrada à vista e peça o saldo restante em parcelas sem juros.",
+    "Peça o número do protocolo e a proposta por escrito antes de aceitar.",
+)
 
 @Composable
-fun DebtsScreen(onRehearseCall: () -> Unit) {
+fun DebtsScreen(
+    debts: List<Debt>,
+    totalOpenLabel: String,
+    monthlyInterestLabel: String,
+    debtFreeLabel: String,
+    strategyNote: String,
+    negotiationTitle: String,
+    onNewDebt: () -> Unit,
+    onDeleteDebt: (Debt) -> Unit,
+    onRehearseCall: () -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = ScreenContentPadding,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Column {
-                Text("Dívidas", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-                Text(
-                    "Estratégia de quitação e negociação", fontSize = 13.sp, color = FinaiColors.TextTertiary,
-                    modifier = Modifier.padding(top = 3.dp),
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Dívidas", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+                    Text(
+                        "Estratégia de quitação e negociação", fontSize = 13.sp, color = FinaiColors.TextTertiary,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(FinaiColors.Ink)
+                        .clickable(onClick = onNewDebt)
+                        .padding(10.dp),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Nova dívida", tint = Color.White, modifier = Modifier.size(18.dp))
+                }
             }
         }
 
@@ -58,38 +87,47 @@ fun DebtsScreen(onRehearseCall: () -> Unit) {
             ) {
                 Text("TOTAL EM ABERTO", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color.White.copy(alpha = 0.55f))
                 Text(
-                    formatBrl0(FinaiFixtures.debtTotalCents), fontSize = 32.sp, fontWeight = FontWeight.ExtraBold,
+                    totalOpenLabel, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold,
                     color = Color.White, modifier = Modifier.padding(top = 5.dp),
                 )
                 Row(modifier = Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     Column {
                         Text("Juros por mês", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.55f))
-                        Text(formatBrl0(FinaiFixtures.debtInterestCents), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 2.dp))
+                        Text(monthlyInterestLabel, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 2.dp))
                     }
                     Column {
                         Text("Livre em", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.55f))
-                        Text(FinaiFixtures.debtFreeLabel, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 2.dp))
+                        Text(debtFreeLabel, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 2.dp))
                     }
                 }
             }
         }
 
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
-                    .background(FinaiColors.Surface)
-                    .padding(16.dp),
-            ) {
-                Text("Ordem sugerida de ataque", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        if (debts.isEmpty()) {
+            item {
                 Text(
-                    FinaiFixtures.debtStrategyNote, fontSize = 11.5.sp, color = FinaiColors.TextMuted,
-                    modifier = Modifier.padding(top = 2.dp, bottom = 14.dp),
+                    "Nenhuma dívida cadastrada. Toque em \"+\" para adicionar.",
+                    fontSize = 13.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(vertical = 8.dp),
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    FinaiFixtures.debts.forEach { debt -> DebtRow(debt) }
+            }
+        } else {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
+                        .background(FinaiColors.Surface)
+                        .padding(16.dp),
+                ) {
+                    Text("Ordem sugerida de ataque", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                    Text(
+                        strategyNote, fontSize = 11.5.sp, color = FinaiColors.TextMuted,
+                        modifier = Modifier.padding(top = 2.dp, bottom = 14.dp),
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        debts.forEach { debt -> DebtRow(debt, onDeleteDebt) }
+                    }
                 }
             }
         }
@@ -105,19 +143,19 @@ fun DebtsScreen(onRehearseCall: () -> Unit) {
             ) {
                 Text("ROTEIRO DE NEGOCIAÇÃO", fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.Indigo)
                 Text(
-                    FinaiFixtures.negotiationTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
+                    negotiationTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
                     modifier = Modifier.padding(top = 6.dp),
                 )
                 Column(modifier = Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    FinaiFixtures.negotiationSteps.forEach { step ->
+                    genericNegotiationSteps.forEachIndexed { index, text ->
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Box(
                                 modifier = Modifier.padding(top = 1.dp).size(18.dp).clip(CircleShape).background(FinaiColors.Indigo),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text(step.n.toString(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                                Text((index + 1).toString(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                             }
-                            Text(step.text, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
+                            Text(text, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
                         }
                     }
                 }
@@ -141,7 +179,7 @@ fun DebtsScreen(onRehearseCall: () -> Unit) {
 }
 
 @Composable
-private fun DebtRow(debt: Debt) {
+private fun DebtRow(debt: Debt, onDelete: (Debt) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(
             modifier = Modifier.size(26.dp).clip(RoundedCornerShape(9.dp)).background(FinaiColors.SurfaceMuted),
@@ -157,6 +195,10 @@ private fun DebtRow(debt: Debt) {
         Column(horizontalAlignment = Alignment.End) {
             Text(debt.amount, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
             Text(debt.rate, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = debt.rateColor, modifier = Modifier.padding(top = 2.dp))
+            Text(
+                "Excluir", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE11D48),
+                modifier = Modifier.padding(top = 4.dp).clickable { onDelete(debt) },
+            )
         }
     }
 }

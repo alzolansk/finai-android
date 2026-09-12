@@ -7,30 +7,52 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 ## Status atual
 
-**Fase 0 (Fundamentos) — concluída.** Ver `planning.md` §9 para a lista de fases.
+**Fase 0 (Fundamentos) e Fase 1 (MVP sem IA) — concluídas.** Ver `planning.md` §9
+para a lista de fases.
 
-- Projeto Gradle criado do zero: Kotlin 1.9.22, AGP 8.3.1, Compose (BOM 2024.02.01),
-  Navigation-Compose 2.7.7, Room 2.6.1 (KSP), DataStore 1.1.1.
-- `applicationId`/namespace: `com.finai.app`. `minSdk` 26, `compileSdk`/`targetSdk` 34.
-- As 6 telas do protótipo (Início, Agenda, Objetivos, Dívidas, Limites, Importar)
-  estão navegáveis com dados fixos em `data/fixtures/FinaiFixtures.kt` — os mesmos
-  números e textos do protótipo (`project/FinAI Mobile.dc.html` + `support.js`).
-- Overlays (FAB, simulador "Posso comprar?", chat, notificações) funcionam com
-  estado em memória via `state/AppViewModel.kt` — **um único ViewModel para tudo,
-  de propósito**, espelhando o `state` único do protótipo. Isso é um atalho
-  deliberado da Fase 0, não a arquitetura final.
-- Room e DataStore estão configurados e compilam (`data/local/`, `data/prefs/`)
-  mas **nenhuma tela usa isso ainda** — é scaffolding para a Fase 1.
-- Build validado de ponta a ponta via `./gradlew assembleDebug` (linha de comando,
-  sem device conectado neste ambiente — ainda não visto rodando num aparelho/emulador
-  de verdade).
-- Fonte: Roboto (padrão do sistema) com os mesmos tamanhos/pesos do protótipo, não
-  o Inter real — trade-off deliberado da Fase 0 pra não travar em bundlar `.ttf`.
+Fase 0: projeto Gradle (Kotlin 1.9.22, AGP 8.3.1, Compose BOM 2024.02.01,
+Navigation-Compose 2.7.7, Room 2.6.1/KSP, DataStore 1.1.1), `applicationId`/namespace
+`com.finai.app`, `minSdk` 26/`compileSdk`+`targetSdk` 34, fonte Roboto do sistema.
 
-**Próximo passo:** Fase 1 (MVP sem IA) — entrada manual de lançamentos/contas/objetivos/
-dívidas, e os cálculos determinísticos reais (saldo seguro, progresso de metas,
-capacidade de poupança, juros e ordem de dívidas, progresso de orçamento) substituindo
-`FinaiFixtures`. Ver planning.md §6 e §9.
+Fase 1 — o que mudou:
+- **Room é a fonte de verdade.** `data/repository/FinanceRepository.kt` envolve os
+  DAOs (agora com update/delete reais); `data/repository/FinanceSeeder.kt` insere um
+  dataset inicial realista uma única vez (`FinaiPreferences.seeded`), do jeito que uma
+  importação de fatura faria — não há mais tela vazia num install novo, mas também
+  não há dado fixo/mock disfarçado de real: tudo que aparece na tela é lido do banco.
+- **Cálculo determinístico em `domain/`** (planning.md §6): `SafeToSpendCalculator`,
+  `SavingsCapacityCalculator`, `GoalCalculator`, `DebtCalculator` (juros + projeção de
+  quitação por amortização), `BudgetCalculator`, `SubscriptionCalculator`. Sem nenhuma
+  chamada de IA. Cobertos por testes de unidade em `app/src/test/java/.../domain/`
+  (`./gradlew testDebugUnitTest`).
+- **`state/FinanceViewModel.kt`** (novo, `AndroidViewModel`) — combina os Flows do
+  Room, roda os calculators e expõe `FinanceUiState` (goals/debts/budgets/bills já no
+  formato que a UI espera) mais as funções de CRUD (`addTransacao`, `saveConta`,
+  `saveObjetivo`, `contribuirParaObjetivo`, `saveDivida`, `setBudgetLimit`,
+  `toggleAssinatura`, deletes). **Decisão de arquitetura:** ficou um ViewModel só para
+  todos os dados financeiros, não um por tela — com um banco local só e nenhuma
+  paginação/lifecycle por tela ainda, dividir mais viraria wrapper fino repetido em
+  cima dos mesmos Flows. `state/AppViewModel.kt` continua existindo só para estado de
+  overlay (chat, sheets, cursor do mês da Agenda) — não mexe em dado persistido.
+- **Entrada manual real**: diálogos em `ui/components/EntryDialogs.kt`
+  (`AddTransactionDialog`, `AddGoalDialog`, `AddContaDialog`, `AddDividaDialog`,
+  `ContributionDialog`, `BudgetLimitDialog`) — Material3 `AlertDialog` simples, sem o
+  visual bespoke do resto do app (ver "Pendências" no PR/relatório da sessão).
+  Objetivos e dívidas têm exclusão pela própria tela; lançamentos aparecem e podem ser
+  excluídos na tela Limites.
+- **Textos que dependem de IA viraram placeholder honesto, não dado inventado**: a
+  seção "Decisões para você" (Início), a "leitura da IA" de cada objetivo, o roteiro
+  de negociação e o chat deixam claro que a Fase 2 ainda não chegou, em vez de mostrar
+  texto fixo do protótipo como se fosse análise real em cima dos números reais agora
+  na tela. "Linha do tempo do ano" e "Próximos 7 dias", por outro lado, viraram reais
+  (lidos de `ContaEntity`), porque são só filtragem de dado, não geração de linguagem.
+- `data/fixtures/FinaiFixtures.kt` ficou só com o que é genuinamente Fase 2/4/5
+  (chat canned, import simulado, notificações) ou config de UI sem dado pessoal
+  (rótulos do menu do FAB, presets do simulador).
+- Build (`./gradlew assembleDebug`) e testes (`./gradlew testDebugUnitTest`) verdes
+  neste ambiente; **não rodado ainda num aparelho/emulador real** — ver pendências.
+
+**Próximo passo:** Fase 2 (camada de IA com um provedor) — ver planning.md §9.
 
 ## Como retomar uma sessão
 
@@ -72,4 +94,6 @@ capacidade de poupança, juros e ordem de dívidas, progresso de orçamento) sub
   `project/FinAI Mobile.dc.html`, `project/support.js`, `project/ref/*.png`.
 - Transcript de design (intenção por trás de cada decisão de UX): `chats/chat1.md`.
 - Design tokens já extraídos: `app/src/main/java/com/finai/app/ui/theme/`.
-- Dados de exemplo (a substituir por dados reais na Fase 1): `data/fixtures/FinaiFixtures.kt`.
+- Cálculo real (Fase 1): `app/src/main/java/com/finai/app/domain/`.
+- Dado real (Room): `data/local/`, `data/repository/`. O que resta de fixture
+  (Fase 2/4/5 e config de UI sem dado pessoal): `data/fixtures/FinaiFixtures.kt`.

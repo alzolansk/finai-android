@@ -31,23 +31,6 @@ data class Goal(
     val progress: Float get() = (saved / target).toFloat().coerceIn(0f, 1f)
 }
 
-data class Decision(
-    val id: String,
-    val tag: String,
-    val dotColor: Color,
-    val title: String,
-    val why: String,
-    val impact: String,
-    val cta: String,
-    val question: String,
-)
-
-enum class RecommendationSurface(val label: String) {
-    Cards("Cartões"),
-    Feed("Feed"),
-    Chat("Chat"),
-}
-
 enum class TimelineTone(val color: Color, val line: Color) {
     Positive(Color(0xFF059669), Color(0xFF10B981)),
     Neutral(Color(0xFFA1A1AA), Color(0xFFE4E4E7)),
@@ -96,6 +79,7 @@ data class Bill(
 )
 
 data class Debt(
+    val id: Long,
     val rank: Int,
     val name: String,
     val meta: String,

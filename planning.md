@@ -92,7 +92,7 @@ Requisitos extraídos tela a tela do protótipo, com a lógica de cada `onClick`
 - **Resiliência a indisponibilidade de IA:** se todos os provedores de IA estiverem sem cota ou fora do ar, o app continua funcional (números e regras locais seguem calculados), só o texto explicativo da IA fica indisponível com uma mensagem clara.
 - **Custo zero de operação:** nenhuma dependência paga obrigatória; tudo com camada gratuita.
 - **Acessibilidade básica:** contraste adequado, áreas de toque grandes o suficiente (já refletido no protótipo), suporte a fonte do sistema.
-
+- **Zero-cost hard limit:** o aplicativo não deve depender de nenhum recurso pago nem realizar fallback automático para tiers pagos. Todas as integrações devem operar exclusivamente em planos/modelos gratuitos. Ao esgotar todas as cotas gratuitas, funcionalidades determinísticas continuam disponíveis e recursos de IA entram em degradação graciosa até a renovação das cotas.
 ## 5. Arquitetura técnica proposta
 
 - **UI:** Jetpack Compose, Material 3, seguindo a linguagem visual do protótipo (fundo `#fafafa`, cartões brancos, cartão escuro `#18181b`, verde `#10b981`, ilha de navegação escura flutuante).
