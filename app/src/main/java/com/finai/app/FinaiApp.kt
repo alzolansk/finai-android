@@ -44,6 +44,7 @@ import com.finai.app.navigation.FinaiDestination
 import com.finai.app.state.AiViewModel
 import com.finai.app.state.AppViewModel
 import com.finai.app.state.FinanceViewModel
+import com.finai.app.state.ImportViewModel
 import com.finai.app.state.toAiSummaryText
 import com.finai.app.ui.components.AddContaDialog
 import com.finai.app.ui.components.AddDividaDialog
@@ -83,6 +84,7 @@ fun FinaiApp(
     viewModel: AppViewModel = viewModel(),
     financeViewModel: FinanceViewModel = viewModel(),
     aiViewModel: AiViewModel = viewModel(),
+    importViewModel: ImportViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val financeState by financeViewModel.uiState.collectAsState()
@@ -91,6 +93,7 @@ fun FinaiApp(
     val purchaseVerdict by aiViewModel.purchaseVerdict.collectAsState()
     val debtNegotiation by aiViewModel.debtNegotiation.collectAsState()
     val decisions by aiViewModel.decisions.collectAsState()
+    val importState by importViewModel.uiState.collectAsState()
     val financeSummary = remember(financeState) { financeState.toAiSummaryText() }
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -227,10 +230,16 @@ fun FinaiApp(
                     }
                     composable(FinaiDestination.Import.route) {
                         ImportScreen(
-                            importStage = uiState.importStage,
-                            onRunImport = {
-                                if (uiState.importStage == 2) navigateTo(FinaiDestination.Agenda)
-                                else viewModel.runImportStep()
+                            state = importState,
+                            onPickDocument = importViewModel::importDocument,
+                            onToggleItem = importViewModel::toggleItem,
+                            onSetCategory = importViewModel::setCategory,
+                            onSetAllSelected = importViewModel::setAllSelected,
+                            onConfirm = importViewModel::confirmImport,
+                            onReset = importViewModel::reset,
+                            onOpenAgenda = {
+                                importViewModel.reset()
+                                navigateTo(FinaiDestination.Agenda)
                             },
                         )
                     }

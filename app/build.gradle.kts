@@ -37,6 +37,12 @@ android {
     buildFeatures {
         compose = true
     }
+    sourceSets {
+        // As faturas de exemplo em /samples servem para dois publicos: o usuario
+        // testando no aparelho e o teste instrumentado, que importa exatamente
+        // esses arquivos em vez de uma copia que poderia divergir deles.
+        getByName("androidTest") { assets.srcDir(rootProject.file("samples")) }
+    }
     testOptions {
         // AiRouter/etc. log via android.util.Log, which throws in a plain
         // JVM unit test unless stubbed methods return a default instead.
@@ -83,6 +89,11 @@ dependencies {
 
     // Encrypted storage for the Gemini API key (planning.md §7.4) — Android Keystore-backed
     implementation(libs.androidx.security.crypto)
+
+    // OCR on-device da importacao de fatura (Fase 4, planning.md §5) — modelo
+    // latino empacotado no APK: roda offline, sem cota e sem enviar o arquivo
+    // para fora do aparelho (planning.md §4).
+    implementation(libs.mlkit.text.recognition)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

@@ -109,8 +109,6 @@ data class Subscription(
     val cta: String,
 )
 
-data class ImportStepItem(val text: String, val done: Boolean)
-
 data class QuickAction(
     val mark: String,
     val tint: Color,

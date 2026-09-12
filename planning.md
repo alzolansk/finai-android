@@ -173,7 +173,7 @@ Integração com Gemini para: chat do assistente, "leitura da IA" dos objetivos,
 **Fase 3 · Multi-provedor e resiliência — ✅ concluída** (ver CLAUDE.md → Status atual para detalhes)
 Roteador com fallback entre os provedores da seção 7.2, controle local de cota diária por provedor, cache de respostas repetidas, e o comportamento de degradação graciosa quando todos os provedores estourarem a cota do dia.
 
-**Fase 4 · Importação de fatura**
+**Fase 4 · Importação de fatura — ✅ concluída** (ver CLAUDE.md → Status atual para detalhes)
 OCR on-device (ML Kit) + parsing determinístico de valores/datas + chamada de IA só para classificar categoria de itens ambíguos e detectar duplicados/assinaturas recorrentes.
 
 **Fase 5 · Notificações proativas e coach comportamental**

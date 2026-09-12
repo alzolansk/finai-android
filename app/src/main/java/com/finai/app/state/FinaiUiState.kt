@@ -24,6 +24,5 @@ data class FinaiUiState(
     val simAmount: Double = FinaiFixtures.defaultSimAmount,
     val draft: String = "",
     val thinking: Boolean = false,
-    val importStage: Int = 0,
     val messages: List<ChatMessage> = FinaiFixtures.initialMessages,
 )

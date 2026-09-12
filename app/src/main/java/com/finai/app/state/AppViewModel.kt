@@ -10,7 +10,6 @@ import com.finai.app.data.fixtures.FinaiFixtures
 import com.finai.app.data.model.ChatMessage
 import com.finai.app.data.model.ChatRole
 import com.finai.app.domain.AiPromptBuilder
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -20,7 +19,9 @@ import kotlinx.coroutines.launch
  * Holds the state behind the overlays and widgets that float above whatever
  * screen is on-screen (quick-action sheet, buy simulator, chat, notifications)
  * plus the couple of bits of screen-local state simple enough not to warrant
- * their own ViewModel yet (agenda month cursor, import stage).
+ * their own ViewModel yet (agenda month cursor). A importação de fatura tem o
+ * seu próprio [ImportViewModel] desde a Fase 4, porque ali há trabalho real
+ * (OCR, parsing, persistência) em vez de estado de overlay.
  *
  * One shared ViewModel for now is a deliberate Phase 0 shortcut — it mirrors
  * the prototype's single `state` object exactly. Split per screen (as
@@ -44,7 +45,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<FinaiUiState> = _uiState
 
     private var chatReplyJob: kotlinx.coroutines.Job? = null
-    private var importJob: kotlinx.coroutines.Job? = null
 
     // ── overlays ────────────────────────────────────────────────
     fun toggleAddMenu() = _uiState.update { it.copy(addOpen = !it.addOpen) }
@@ -80,23 +80,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── buy simulator ───────────────────────────────────────────
     fun setSimAmount(amount: Double) = _uiState.update { it.copy(simAmount = amount) }
-
-    // ── import flow (simulated stages — real OCR/parsing lands in Phase 4) ──
-    fun runImportStep() {
-        val stage = _uiState.value.importStage
-        if (stage == 2) return // caller should navigate to Agenda instead
-        _uiState.update { it.copy(importStage = 1) }
-        importJob?.cancel()
-        importJob = viewModelScope.launch {
-            delay(1400)
-            _uiState.update { it.copy(importStage = 2) }
-        }
-    }
-
-    fun resetImport() {
-        importJob?.cancel()
-        _uiState.update { it.copy(importStage = 0) }
-    }
 
     // ── chat ────────────────────────────────────────────────────
     fun onDraftChange(text: String) = _uiState.update { it.copy(draft = text) }

@@ -16,7 +16,22 @@ interface AiProvider {
 }
 
 /** What kind of language the request is for — carried through for prompt building and cache keys. */
-enum class AiTask { CHAT, GOAL_INSIGHT, PURCHASE_VERDICT, DECISIONS, DEBT_NEGOTIATION }
+enum class AiTask {
+    CHAT,
+    GOAL_INSIGHT,
+    PURCHASE_VERDICT,
+    DECISIONS,
+    DEBT_NEGOTIATION,
+
+    /** Fase 4: categoria de lançamento importado que a regra local não reconheceu. */
+    IMPORT_CATEGORY,
+
+    /** Fase 4: se um lançamento importado é assinatura/recorrência, quando a regra local ficou na dúvida. */
+    IMPORT_RECURRENCE,
+
+    /** Fase 4: se um lançamento importado é repetição de outro, quando a regra local ficou na dúvida. */
+    IMPORT_DUPLICATE,
+}
 
 /**
  * [prompt] holds only aggregated numbers/labels already computed locally and

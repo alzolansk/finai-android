@@ -16,6 +16,7 @@ room = "2.6.1"
 datastore = "1.1.1"
 coroutines = "1.7.3"
 securityCrypto = "1.1.0-alpha06"
+mlkitTextRecognition = "16.0.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -50,6 +51,11 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 
 # Security (encrypted storage for AI provider keys — planning.md §7.4)
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+
+# ML Kit Text Recognition (OCR on-device da Fase 4 — planning.md §5)
+# Variante "bundled": o modelo latino vai dentro do APK, então o OCR funciona
+# offline e sem depender do Google Play Services baixar nada na primeira vez.
+mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 
 # Coroutines
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }

@@ -8,8 +8,8 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 ## Status atual
 
 **Fase 0 (Fundamentos), Fase 1 (MVP sem IA), Fase 2 (camada de IA com um
-provedor) e Fase 3 (multi-provedor e resiliência) — concluídas.** Ver
-`planning.md` §9 para a lista de fases.
+provedor), Fase 3 (multi-provedor e resiliência) e Fase 4 (importação de
+fatura) — concluídas.** Ver `planning.md` §9 para a lista de fases.
 
 Fase 0: projeto Gradle (Kotlin 1.9.22, AGP 8.3.1, Compose BOM 2024.02.01,
 Navigation-Compose 2.7.7, Room 2.6.1/KSP, DataStore 1.1.1), `applicationId`/namespace
@@ -150,7 +150,82 @@ Fase 3 — o que mudou:
   (nem Gemini, que já vinha pendente da Fase 2) — ver "AÇÃO MANUAL NECESSÁRIA" no
   relatório da sessão para como configurar e verificar cada uma.
 
-**Próximo passo:** Fase 4 (importação de fatura) — ver planning.md §9.
+Fase 4 — o que mudou:
+- **Cinco camadas separadas, nenhuma delas dentro de Composable ou ViewModel**:
+  seleção/IO (`data/importer/StatementImporter.kt` — o único lugar que conhece
+  `Uri`/`ContentResolver`), extração de texto (`data/importer/DocumentTextExtractor.kt`:
+  `PdfTextExtractor`, `ImageTextExtractor`, `SpreadsheetTextExtractor` + `OcrEngine`),
+  parsing determinístico (`domain/importer/`), decisão/classificação
+  (`domain/importer/ImportAnalyzer.kt`) e persistência (`state/ImportViewModel.kt` →
+  `FinanceRepository`). Room continua sendo a fonte de verdade: importação só grava
+  `TransacaoEntity(origem = "importado")` e, para recorrência confirmada,
+  `AssinaturaEntity` — nenhum schema novo, nenhuma migração.
+- **OCR on-device com ML Kit** (`com.google.mlkit:text-recognition:16.0.1`, variante
+  *bundled*: o modelo latino vai no APK, então funciona offline e sem Play Services
+  baixar nada). `OcrEngine.toReadingOrderLines` reagrupa os blocos do ML Kit por
+  proximidade vertical e ordena por x — sem isso, uma tabela de fatura vira três
+  colunas soltas e nenhum lançamento é reconhecido.
+- **PDF via `PdfRenderer` + OCR, não via biblioteca de PDF.** O Android não expõe
+  leitura da camada de texto de um PDF; rasterizar a 3x e passar no OCR cobre PDF
+  digital e escaneado com o mesmo caminho e sem somar vários MB ao APK. Custo: é mais
+  lento e depende do render (teto de 20 páginas por importação). PDF com senha falha
+  com mensagem explicando que é preciso remover a senha.
+- **Planilha sem dependência externa**: `CsvReader` (detecta `;`/`,`/tab, trata aspas,
+  cai para ISO-8859-1 quando não é UTF-8 válido) e `XlsxReader` (o .xlsx é um ZIP de
+  XML — `java.util.zip` + varredura de tags, com `sharedStrings` e data em número de
+  série do Excel). **.xls binário antigo não é suportado** de propósito: exigiria
+  Apache POI (>10 MB) para um formato que o Excel já exporta como .xlsx/.csv.
+- **Parsing determinístico** (`BrazilianStatementFormats`, `StatementTextParser`,
+  `SpreadsheetStatementParser`): datas (`12/03`, `12/03/26`, `2026-03-12`, `12 MAR`,
+  `15 de janeiro`, número de série do Excel), moeda brasileira (`R$ 1.234,56`,
+  `89,90-`, `(35,90)`, `123,00 CR`, `1234.56` de planilha exportada), parcelas
+  (`03/10`, `PARC 3/10`, `PARCELA 2 DE 6`), descrição quebrada em várias linhas
+  (linha com data inicia o bloco, linhas sem data são continuação), estorno como valor
+  negativo, compra internacional usando o valor em R$ e não o em USD, e descarte de
+  linha de cabeçalho/total/rodapé. Planilha de banco com gasto negativo tem o sinal
+  invertido no arquivo inteiro, para bater com a convenção do app (gasto positivo).
+- **IA só no que a regra local não resolveu** (planning.md §6): `MerchantClassifier`
+  (tabela de estabelecimentos brasileiros), `DuplicateDetector` (mesma data + mesmo
+  valor + mesmo estabelecimento = `LIKELY`; valor igual com data/descrição próximas =
+  `POSSIBLE`) e `RecurrenceDetector` (assinatura conhecida ou mesma cobrança em 2+
+  meses = `LIKELY`) rodam primeiro. Só os `POSSIBLE`/sem categoria vão para
+  `data/ai/ImportAiAssistant.kt`, que usa o **mesmo `AiRouter` da Fase 3** (nada de
+  integração paralela), em **no máximo 3 chamadas por importação** (uma por tipo de
+  pergunta, em lote de até 25 itens) em vez de uma por lançamento.
+- **O arquivo nunca sai do aparelho.** O que vai no prompt é `"3. mercado sao joao —
+  R$ 189,90 em 12/03"`: estabelecimento normalizado por
+  `MerchantClassifier.normalizeMerchant` (tira prefixo de adquirente, sufixo de razão
+  social e **qualquer sequência de 4+ dígitos**, que é o que carregaria final de cartão
+  ou código de loja), valor e dia/mês. Nem nome de arquivo, nem linha original, nem
+  imagem. Há teste que falha se isso regredir (`ImportAnalyzerTest`).
+- **Sem IA o fluxo continua inteiro**: item ambíguo fica com "Outros" + selo "a
+  revisar" (honesto, não chutado), duplicata/recorrência mantêm o veredito local, e a
+  tela mostra o motivo da IA estar indisponível. Exceção na camada de IA é capturada —
+  importação nunca cai por causa dela.
+- **Tela de revisão real** (`ui/screens/importer/ImportScreen.kt`, reescrita): seletor
+  PDF/Planilha/Foto via SAF (`ActivityResultContracts.OpenDocument`, sem permissão
+  nova no manifesto), etapas visíveis do processamento, lista revisável com checkbox
+  por item, troca de categoria por menu, selos de duplicata/assinatura/parcela/estorno
+  e barra de confirmação com total. Duplicata provável entra **desmarcada**. O estágio
+  simulado da Fase 0 (`FinaiFixtures.importSteps/importTitle/...`, `importStage` no
+  `AppViewModel`) foi removido.
+- **Testes**: 31 testes de unidade novos em `app/src/test/java/.../domain/importer/`
+  (formatos, parser de texto, parser de planilha incluindo .xlsx montado em memória,
+  classificação, duplicata, recorrência e o pipeline completo com fake de `AiProvider`
+  — com IA, sem IA, offline e com exceção). Mais **11 testes instrumentados** em
+  `app/src/androidTest/.../data/importer/`, que rodam OCR de verdade no emulador
+  (`./gradlew connectedDebugAndroidTest`) sobre as faturas de exemplo em `samples/`.
+- **`samples/`** tem a mesma fatura em .csv, .xlsx, .pdf e .png (ver `samples/README.md`)
+  — serve tanto para testar à mão no aparelho quanto como asset do teste instrumentado
+  (`app/build.gradle.kts` aponta os assets de `androidTest` para essa pasta).
+- Build (`assembleDebug`), `testDebugUnitTest` (66 testes) e `connectedDebugAndroidTest`
+  (11 testes, Pixel 6 API 34) verdes. Fluxo conferido à mão no emulador: escolher
+  arquivo → revisar → salvar → reimportar o mesmo arquivo e ver as 6 duplicatas
+  sinalizadas. **Não testado com uma chave de IA real** (nenhum provedor foi
+  configurado nesta sessão) nem com uma fatura real de banco.
+
+**Próximo passo:** Fase 5 (notificações proativas e coach comportamental) — ver
+planning.md §9.
 
 ## Como retomar uma sessão
 
@@ -202,8 +277,13 @@ Fase 3 — o que mudou:
 - Transcript de design (intenção por trás de cada decisão de UX): `chats/chat1.md`.
 - Design tokens já extraídos: `app/src/main/java/com/finai/app/ui/theme/`.
 - Cálculo real (Fase 1): `app/src/main/java/com/finai/app/domain/`.
+- Importação de fatura (Fase 4): `domain/importer/` (parsing, classificação,
+  duplicata, recorrência — Kotlin puro, testável na JVM), `data/importer/`
+  (Uri/OCR/PDF/planilha), `data/ai/ImportAiAssistant.kt` (o único ponto de IA da
+  importação), `state/ImportViewModel.kt`, `ui/screens/importer/ImportScreen.kt`.
+  Faturas de exemplo para teste manual e instrumentado: `samples/`.
 - Dado real (Room): `data/local/`, `data/repository/`. O que resta de fixture
-  (Fase 4/5 e config de UI sem dado pessoal): `data/fixtures/FinaiFixtures.kt`.
+  (Fase 5 e config de UI sem dado pessoal): `data/fixtures/FinaiFixtures.kt`.
 - Camada de IA (Fase 2/3): `data/ai/` — `AiProvider` (interface),
   `GeminiAiProvider`/`OpenAiCompatibleAiProvider`+4 subclasses (adaptadores),
   `AiRouter` (fallback), `ProviderUsageStore` (cota diária),

@@ -110,6 +110,60 @@ object AiPromptBuilder {
         return AiRequest(AiTask.DECISIONS, "$SYSTEM_BASE Você escreve as sugestões da seção \"Decisões para você\" da tela inicial.", prompt)
     }
 
+    // ── Fase 4 · importação de fatura ────────────────────────────────────
+    // Os três prompts abaixo recebem SÓ o que o parsing local já extraiu e
+    // normalizou: nome do estabelecimento sem código de loja/final de cartão
+    // (ver MerchantClassifier.normalizeMerchant), valor e dia/mês. O arquivo
+    // original — PDF, planilha ou foto — nunca sai do aparelho (planning.md §4).
+
+    /** [lines] já vem numerado e normalizado pelo chamador ([com.finai.app.data.ai.ImportAiAssistant]). */
+    fun importCategories(lines: List<String>, categories: List<String>): AiRequest {
+        val prompt = buildString {
+            appendLine("Classifique cada lançamento de cartão abaixo em UMA destas categorias: ${categories.joinToString(", ")}.")
+            appendLine("Responda uma linha por item, no formato \"numero | categoria\", sem explicação e sem texto extra.")
+            appendLine("Se não der para saber, responda \"Outros\".")
+            appendLine()
+            lines.forEach { appendLine(it) }
+        }
+        return AiRequest(
+            AiTask.IMPORT_CATEGORY,
+            "$SYSTEM_BASE Você classifica lançamentos de fatura de cartão em categorias de orçamento. " +
+                "Responda apenas as linhas pedidas, nada mais.",
+            prompt,
+        )
+    }
+
+    fun importRecurrences(lines: List<String>): AiRequest {
+        val prompt = buildString {
+            appendLine("Para cada lançamento abaixo, diga se ele parece uma assinatura/cobrança recorrente mensal.")
+            appendLine("Responda uma linha por item, no formato \"numero | sim\" ou \"numero | nao\", sem explicação.")
+            appendLine("Compra avulsa, parcela de compra e conta variável não são assinatura.")
+            appendLine()
+            lines.forEach { appendLine(it) }
+        }
+        return AiRequest(
+            AiTask.IMPORT_RECURRENCE,
+            "$SYSTEM_BASE Você identifica assinaturas recorrentes em lançamentos de fatura. Responda apenas as linhas pedidas.",
+            prompt,
+        )
+    }
+
+    fun importDuplicates(lines: List<String>): AiRequest {
+        val prompt = buildString {
+            appendLine("Cada item abaixo traz um lançamento novo e um lançamento já registrado com o mesmo valor.")
+            appendLine("Diga se os dois são a MESMA compra lançada duas vezes.")
+            appendLine("Responda uma linha por item, no formato \"numero | sim\" ou \"numero | nao\", sem explicação.")
+            appendLine("Compras iguais em dias diferentes no mesmo estabelecimento podem ser compras distintas.")
+            appendLine()
+            lines.forEach { appendLine(it) }
+        }
+        return AiRequest(
+            AiTask.IMPORT_DUPLICATE,
+            "$SYSTEM_BASE Você decide se dois lançamentos de fatura são a mesma compra duplicada. Responda apenas as linhas pedidas.",
+            prompt,
+        )
+    }
+
     fun chat(financeSummary: String, history: List<ChatMessage>, question: String): AiRequest {
         val historyText = history.takeLast(8).joinToString("\n") { m ->
             (if (m.role == ChatRole.Me) "Usuário" else "FinAI") + ": " + m.text
