@@ -164,13 +164,13 @@ Esta foi a opção escolhida, então os riscos abaixo entram como itens de harde
 **Fase 0 · Fundamentos — ✅ concluída** (ver CLAUDE.md → Status atual para detalhes)
 Projeto Android configurado (Compose, Navigation, Room, DataStore), design system com os tokens de cor/tipografia extraídos do protótipo, todas as telas navegáveis com dados fixos de exemplo (iguais ao protótipo), sem lógica real ainda.
 
-**Fase 1 · MVP sem IA**
+**Fase 1 · MVP sem IA — ✅ concluída** (ver CLAUDE.md → Status atual para detalhes)
 Entrada manual de lançamentos, contas, objetivos e dívidas. Todos os cálculos determinísticos funcionando de verdade: saldo seguro do dia, progresso de metas, capacidade de poupança, juros e ordem de dívidas, progresso de orçamento. O app já entrega valor sem depender de nenhuma cota de IA.
 
-**Fase 2 · Camada de IA com um provedor**
+**Fase 2 · Camada de IA com um provedor — ✅ concluída** (ver CLAUDE.md → Status atual para detalhes)
 Integração com Gemini para: chat do assistente, "leitura da IA" dos objetivos, veredito do simulador, texto das decisões sugeridas, roteiro de negociação de dívida. Adaptador de IA já desenhado por trás de uma interface única, mesmo usando só um provedor por enquanto.
 
-**Fase 3 · Multi-provedor e resiliência**
+**Fase 3 · Multi-provedor e resiliência — ✅ concluída** (ver CLAUDE.md → Status atual para detalhes)
 Roteador com fallback entre os provedores da seção 7.2, controle local de cota diária por provedor, cache de respostas repetidas, e o comportamento de degradação graciosa quando todos os provedores estourarem a cota do dia.
 
 **Fase 4 · Importação de fatura**

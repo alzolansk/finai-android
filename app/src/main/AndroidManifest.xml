@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Gemini calls (Fase 2, planning.md §9) — the only network use in the app. -->
+    <!-- AI provider calls only (Fase 2/3, planning.md §9: Gemini/Groq/OpenRouter/Mistral/Cerebras) — the only network use in the app. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application

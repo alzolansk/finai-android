@@ -6,8 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.finai.app.data.ai.AiProvider
 import com.finai.app.data.ai.AiRequest
 import com.finai.app.data.ai.AiResponse
+import com.finai.app.data.ai.AiRouter
 import com.finai.app.data.ai.AiText
-import com.finai.app.data.ai.GeminiAiProvider
+import com.finai.app.data.ai.ProviderId
 import com.finai.app.data.model.Budget
 import com.finai.app.data.model.Debt
 import com.finai.app.data.model.Goal
@@ -19,19 +20,20 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * The app's AI layer (planning.md §9 Fase 2): every screen that needs
+ * The app's AI layer (planning.md §9 Fase 2/3): every screen that needs
  * language generated over numbers [FinanceViewModel] already computed —
  * goal insight, purchase-simulator verdict, debt negotiation script, home
  * "Decisões para você" — goes through [AiProvider] here, never straight to
- * Gemini. [GeminiAiProvider] is the only implementation for now; Fase 3's
- * router replaces the single `provider` val with several behind the same
- * interface, and nothing above this class should need to change then.
+ * any specific provider. [AiRouter] is the single implementation used: it
+ * tries the five free-tier providers from planning.md §7.2 in order, with
+ * per-provider daily-quota tracking and response caching, and only reports
+ * unavailability once all of them have failed.
  *
  * Each `ensureX` call is memoized by a cache key built from the inputs that
  * would change the answer, so a recomposition or a Room re-emit that doesn't
@@ -40,14 +42,17 @@ import kotlinx.coroutines.launch
 class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     private val keyStore = AiKeyStore.get(application)
-    private val provider: AiProvider = GeminiAiProvider(keyStore)
+    private val provider: AiProvider = AiRouter(application)
 
-    val hasApiKey: StateFlow<Boolean> = keyStore.apiKey
-        .map { !it.isNullOrBlank() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), !keyStore.apiKey.value.isNullOrBlank())
+    /** Which providers currently have a key configured — drives the settings dialog's per-row status. */
+    val configuredProviders: StateFlow<Set<ProviderId>> = combine(
+        ProviderId.entries.map { id -> keyStore.keyFlow(id) },
+    ) { keys ->
+        ProviderId.entries.filterIndexed { i, _ -> !keys[i].isNullOrBlank() }.toSet()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
-    fun setApiKey(key: String) = keyStore.setGeminiApiKey(key)
-    fun clearApiKey() = keyStore.clearGeminiApiKey()
+    fun setProviderKey(id: ProviderId, key: String) = keyStore.setKey(id, key)
+    fun clearProviderKey(id: ProviderId) = keyStore.clearKey(id)
 
     // ── objetivos: "leitura da IA" por objetivo ─────────────────────────
     private val _goalInsights = MutableStateFlow<Map<String, AiText>>(emptyMap())

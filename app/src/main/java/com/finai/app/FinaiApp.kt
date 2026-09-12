@@ -49,12 +49,13 @@ import com.finai.app.ui.components.AddContaDialog
 import com.finai.app.ui.components.AddDividaDialog
 import com.finai.app.ui.components.AddGoalDialog
 import com.finai.app.ui.components.AddTransactionDialog
-import com.finai.app.ui.components.ApiKeySettingsDialog
+import com.finai.app.ui.components.ApiKeySettingsScreen
 import com.finai.app.ui.components.BudgetLimitDialog
 import com.finai.app.ui.components.BuySimulatorContent
 import com.finai.app.ui.components.ChatOverlay
 import com.finai.app.ui.components.ContributionDialog
 import com.finai.app.ui.components.FinaiBottomNav
+import com.finai.app.ui.components.FinaiSettingsTopBar
 import com.finai.app.ui.components.FinaiTopBar
 import com.finai.app.ui.components.NotificationsCard
 import com.finai.app.ui.components.QuickActionSheet
@@ -85,7 +86,7 @@ fun FinaiApp(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val financeState by financeViewModel.uiState.collectAsState()
-    val hasAiKey by aiViewModel.hasApiKey.collectAsState()
+    val configuredAiProviders by aiViewModel.configuredProviders.collectAsState()
     val goalInsights by aiViewModel.goalInsights.collectAsState()
     val purchaseVerdict by aiViewModel.purchaseVerdict.collectAsState()
     val debtNegotiation by aiViewModel.debtNegotiation.collectAsState()
@@ -109,7 +110,6 @@ fun FinaiApp(
     var showAddDivida by remember { mutableStateOf(false) }
     var contributionTarget by remember { mutableStateOf<Goal?>(null) }
     var budgetLimitTarget by remember { mutableStateOf<String?>(null) }
-    var showAiSettings by remember { mutableStateOf(false) }
 
     val agenda = remember(financeState.rawContas, uiState.monthIndex, uiState.agendaYear) {
         agendaDataFor(financeState.rawContas, uiState.monthIndex, uiState.agendaYear)
@@ -117,13 +117,20 @@ fun FinaiApp(
 
     Box(modifier = Modifier.fillMaxSize().background(FinaiColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            FinaiTopBar(
-                screenLabel = current.screenLabel,
-                notifCount = FinaiFixtures.notifCount,
-                onOpenNotifications = viewModel::openNotifications,
-                onOpenChat = viewModel::openChat,
-                onOpenAiSettings = { showAiSettings = true },
-            )
+            if (current == FinaiDestination.AiSettings) {
+                FinaiSettingsTopBar(
+                    title = current.screenLabel,
+                    onNavigateBack = { navController.navigateUp() },
+                )
+            } else {
+                FinaiTopBar(
+                    screenLabel = current.screenLabel,
+                    notifCount = FinaiFixtures.notifCount,
+                    onOpenNotifications = viewModel::openNotifications,
+                    onOpenChat = viewModel::openChat,
+                    onOpenAiSettings = { navController.navigate(FinaiDestination.AiSettings.route) { launchSingleTop = true } },
+                )
+            }
             Box(modifier = Modifier.weight(1f)) {
                 NavHost(navController = navController, startDestination = FinaiDestination.Home.route) {
                     composable(FinaiDestination.Home.route) {
@@ -227,20 +234,29 @@ fun FinaiApp(
                             },
                         )
                     }
+                    composable(FinaiDestination.AiSettings.route) {
+                        ApiKeySettingsScreen(
+                            configuredProviders = configuredAiProviders,
+                            onSave = aiViewModel::setProviderKey,
+                            onClear = aiViewModel::clearProviderKey,
+                        )
+                    }
                 }
             }
         }
 
-        FinaiBottomNav(
-            current = current,
-            addOpen = uiState.addOpen,
-            onSelect = ::navigateTo,
-            onToggleAdd = viewModel::toggleAddMenu,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 12.dp)
-                .padding(bottom = 14.dp),
-        )
+        if (current != FinaiDestination.AiSettings) {
+            FinaiBottomNav(
+                current = current,
+                addOpen = uiState.addOpen,
+                onSelect = ::navigateTo,
+                onToggleAdd = viewModel::toggleAddMenu,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 14.dp),
+            )
+        }
 
         if (uiState.addOpen) {
             Scrim(onDismiss = viewModel::closeAddMenu)
@@ -306,15 +322,6 @@ fun FinaiApp(
                 onSend = { viewModel.sendDraft(financeSummary) },
                 onSuggestion = { text -> viewModel.sendMessage(text, financeSummary) },
                 onClose = viewModel::closeChat,
-            )
-        }
-
-        if (showAiSettings) {
-            ApiKeySettingsDialog(
-                hasKey = hasAiKey,
-                onDismiss = { showAiSettings = false },
-                onSave = aiViewModel::setApiKey,
-                onClear = aiViewModel::clearApiKey,
             )
         }
 

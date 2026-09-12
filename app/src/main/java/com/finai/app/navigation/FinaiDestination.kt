@@ -7,6 +7,7 @@ package com.finai.app.navigation
  * prototype's `screen` state / `screens` label map in support.js.
  */
 enum class FinaiDestination(val route: String, val screenLabel: String) {
+    AiSettings("configuracoes-ia", "Configurações da IA"),
     Home("home", "Controle inteligente"),
     Agenda("agenda", "Agenda do mês"),
     Goals("metas", "Objetivos"),

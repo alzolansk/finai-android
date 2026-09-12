@@ -4,17 +4,18 @@ package com.finai.app.data.ai
  * The one seam between the app and any external language model —
  * planning.md §7.3's `enviarPrompt(tarefa, contexto): Resposta`, named in
  * English to match the rest of `domain`/`state`. ViewModels depend on this
- * interface only, never on a concrete provider; [GeminiAiProvider] is the
- * first implementation (Fase 2 — planning.md §9). Fase 3 adds a router that
- * tries several [AiProvider]s behind this same interface, with per-provider
- * quota tracking and fallback — nothing above this interface should need to
- * change then.
+ * interface only, never on a concrete provider. Every per-provider adapter
+ * ([GeminiAiProvider], [GroqAiProvider], [OpenRouterAiProvider],
+ * [MistralAiProvider], [CerebrasAiProvider]) implements it, and so does
+ * [AiRouter] — the Fase 3 fallback/quota/cache layer that every ViewModel
+ * actually depends on. Nothing above this interface needs to know a router
+ * or multiple providers exist.
  */
 interface AiProvider {
     suspend fun generate(request: AiRequest): AiResponse
 }
 
-/** What kind of language the request is for — carried through for future per-task routing/telemetry (Fase 3). */
+/** What kind of language the request is for — carried through for prompt building and cache keys. */
 enum class AiTask { CHAT, GOAL_INSIGHT, PURCHASE_VERDICT, DECISIONS, DEBT_NEGOTIATION }
 
 /**
@@ -29,11 +30,52 @@ data class AiRequest(
     val prompt: String,
 )
 
+/**
+ * Why a provider call didn't produce text — [AiRouter] uses this to decide
+ * whether to fall back to the next provider and, for [RATE_LIMITED], whether
+ * to mark that provider exhausted for the rest of the day (planning.md §7.3)
+ * so later requests skip it without spending a network call.
+ */
+enum class AiFailureKind {
+    /** No API key configured for this provider yet. */
+    NO_KEY,
+
+    /** Invalid/revoked key or key lacking permission for the model (HTTP 401/403, or Gemini's 400 "invalid key"). */
+    AUTH_ERROR,
+
+    /** Free-tier quota/rate limit hit (HTTP 429). */
+    RATE_LIMITED,
+
+    /** The configured model id doesn't exist or was retired (HTTP 404, or an unknown-model 400). */
+    MODEL_UNAVAILABLE,
+
+    /** The request timed out before the provider responded. */
+    TIMEOUT,
+
+    /** Any other network-level failure (DNS, connection reset, no connectivity). */
+    NETWORK_ERROR,
+
+    /** The provider responded 2xx but with no usable text. */
+    EMPTY_RESPONSE,
+
+    /** Anything else (unexpected HTTP status, malformed payload). */
+    UNKNOWN,
+}
+
 sealed interface AiResponse {
     data class Success(val text: String) : AiResponse
 
-    /** No key configured, network/HTTP failure, or the provider's free quota ran out — [reason] is user-facing pt-BR text. */
-    data class Unavailable(val reason: String) : AiResponse
+    /** [reason] is user-facing pt-BR text; [kind] is what [AiRouter] uses to decide fallback/exhaustion. */
+    data class Unavailable(val reason: String, val kind: AiFailureKind = AiFailureKind.UNKNOWN) : AiResponse
+}
+
+/** The five free-tier providers from planning.md §7.2, in the §7.3 fallback order. */
+enum class ProviderId(val displayName: String) {
+    GEMINI("Gemini"),
+    GROQ("Groq"),
+    OPENROUTER("OpenRouter"),
+    MISTRAL("Mistral"),
+    CEREBRAS("Cerebras"),
 }
 
 /** UI-friendly mirror of [AiResponse] plus the "not requested yet" state, for screens rendering AI text inline. */

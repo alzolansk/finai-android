@@ -3,23 +3,24 @@ package com.finai.app.data.ai
 import android.util.Log
 import com.finai.app.data.prefs.AiKeyStore
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * First (and, for Fase 2, only) [AiProvider]: calls the Gemini API's
- * `generateContent` REST endpoint directly from the app, with no backend in
- * between (planning.md §1/§7.2). Uses plain `HttpURLConnection`/`org.json`
- * (already part of the Android SDK) rather than adding a networking
- * dependency for a single endpoint — Fase 3's router can swap this for
- * Retrofit/Ktor if a multi-provider client benefits from it.
+ * Calls the Gemini API's `generateContent` REST endpoint directly from the
+ * app, with no backend in between (planning.md §1/§7.2). Uses plain
+ * `HttpURLConnection`/`org.json` (already part of the Android SDK) rather
+ * than adding a networking dependency — [AiRouter] is the only caller that
+ * matters across all five adapters, so a shared client wasn't worth pulling
+ * in for Fase 3 either.
  *
- * Only talks to Gemini; the fallback across providers from planning.md §7.3
- * is explicitly Fase 3 scope, not implemented here.
+ * The only adapter with a bespoke request/response shape (Gemini's
+ * `system_instruction`/`contents`, not OpenAI-style `messages`) — the other
+ * four providers share [OpenAiCompatibleAiProvider] instead.
  */
 class GeminiAiProvider(
     private val keyStore: AiKeyStore,
@@ -27,9 +28,10 @@ class GeminiAiProvider(
 ) : AiProvider {
 
     override suspend fun generate(request: AiRequest): AiResponse {
-        val apiKey = keyStore.apiKey.first()?.takeIf { it.isNotBlank() }
+        val apiKey = keyStore.currentKey(ProviderId.GEMINI)?.takeIf { it.isNotBlank() }
             ?: return AiResponse.Unavailable(
                 "Nenhuma chave do Gemini configurada ainda. Toque no ícone de engrenagem no topo para adicionar a sua.",
+                AiFailureKind.NO_KEY,
             )
 
         return withContext(Dispatchers.IO) {
@@ -64,16 +66,22 @@ class GeminiAiProvider(
                 if (status !in 200..299) {
                     val error = connection.errorStream?.bufferedReader()?.use { it.readText() }
                     Log.w(TAG, "Gemini HTTP $status: $error")
-                    return@withContext AiResponse.Unavailable(unavailableMessageFor(status))
+                    return@withContext AiResponse.Unavailable(unavailableMessageFor(status), failureKindFor(status))
                 }
 
                 val payload = connection.inputStream.bufferedReader().use { it.readText() }
                 val text = extractText(payload)
-                if (text.isNullOrBlank()) AiResponse.Unavailable("O Gemini não retornou texto para esta solicitação.")
-                else AiResponse.Success(text.trim())
+                if (text.isNullOrBlank()) {
+                    AiResponse.Unavailable("O Gemini não retornou texto para esta solicitação.", AiFailureKind.EMPTY_RESPONSE)
+                } else {
+                    AiResponse.Success(text.trim())
+                }
+            } catch (e: SocketTimeoutException) {
+                Log.w(TAG, "Timeout ao chamar o Gemini", e)
+                AiResponse.Unavailable("O Gemini demorou demais para responder.", AiFailureKind.TIMEOUT)
             } catch (e: Exception) {
                 Log.w(TAG, "Falha ao chamar o Gemini", e)
-                AiResponse.Unavailable("Não foi possível falar com a IA agora. Verifique sua conexão e tente de novo.")
+                AiResponse.Unavailable("Não foi possível falar com o Gemini agora. Verifique sua conexão.", AiFailureKind.NETWORK_ERROR)
             }
         }
     }
@@ -88,8 +96,15 @@ class GeminiAiProvider(
         400 -> "Chave do Gemini inválida ou requisição rejeitada. Confira a chave nas configurações."
         403 -> "Chave do Gemini sem permissão para este modelo."
         404 -> "Modelo do Gemini configurado (\"$model\") não encontrado — pode ter sido descontinuado. Atualize DEFAULT_MODEL em GeminiAiProvider.kt."
-        429 -> "Cota gratuita do Gemini esgotada por hoje. Tente novamente amanhã."
+        429 -> "Cota gratuita do Gemini esgotada por hoje."
         else -> "O Gemini está indisponível agora (HTTP $status)."
+    }
+
+    private fun failureKindFor(status: Int): AiFailureKind = when (status) {
+        400, 401, 403 -> AiFailureKind.AUTH_ERROR
+        404 -> AiFailureKind.MODEL_UNAVAILABLE
+        429 -> AiFailureKind.RATE_LIMITED
+        else -> AiFailureKind.UNKNOWN
     }
 
     companion object {
@@ -97,9 +112,13 @@ class GeminiAiProvider(
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
         /**
-         * Free-tier-eligible Gemini model as of this writing (planning.md
-         * §7.2). If Google retires it, change only this constant — nothing
-         * else in the app depends on a specific model name.
+         * Free-tier Gemini model as of this writing (confirmed against
+         * https://ai.google.dev/gemini-api/docs/pricing — 2026-09-11: 10 RPM /
+         * 250 RPD on the free tier). If Google retires it or moves it behind
+         * billing, change only this constant — check the pricing page above
+         * first, since names and free-tier status change without notice
+         * (planning.md §7.2). Nothing else in the app depends on a specific
+         * model name.
          */
         const val DEFAULT_MODEL = "gemini-3.7-flash"
     }

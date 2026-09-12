@@ -8,11 +8,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 /**
- * DataStore-backed app preferences. Phase 0 only proves the wiring with one
- * flag; from Phase 2 on this is also where AI provider keys go — always via
- * EncryptedSharedPreferences/Android Keystore, never in plain DataStore
- * (planning.md §7.4), and per-provider daily call counters for the router
- * from planning.md §7.3.
+ * DataStore-backed app preferences — onboarding/seed flags only. AI provider
+ * keys never live here: they go through
+ * [com.finai.app.data.prefs.AiKeyStore] (EncryptedSharedPreferences/Android
+ * Keystore, planning.md §7.4). Per-provider daily call counters for the
+ * router (planning.md §7.3) live in their own DataStore file,
+ * [com.finai.app.data.ai.ProviderUsageStore], kept separate so a schema
+ * change there can't collide with these flags.
  */
 private val Context.dataStore by preferencesDataStore(name = "finai_prefs")
 

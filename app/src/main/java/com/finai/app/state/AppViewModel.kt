@@ -5,11 +5,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.finai.app.data.ai.AiProvider
 import com.finai.app.data.ai.AiResponse
-import com.finai.app.data.ai.GeminiAiProvider
+import com.finai.app.data.ai.AiRouter
 import com.finai.app.data.fixtures.FinaiFixtures
 import com.finai.app.data.model.ChatMessage
 import com.finai.app.data.model.ChatRole
-import com.finai.app.data.prefs.AiKeyStore
 import com.finai.app.domain.AiPromptBuilder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,15 +27,18 @@ import kotlinx.coroutines.launch
  * planning.md §5's MVVM pattern calls for) once Phase 1 gives each screen its
  * own Room-backed data to own.
  *
- * Owns the chat's real AI call (Fase 2, planning.md §9) through the
+ * Owns the chat's real AI call (Fase 2/3, planning.md §9) through the
  * [AiProvider] abstraction — [AiViewModel] owns every other AI touchpoint
  * (goal insight, purchase verdict, debt negotiation, decisions); chat stays
  * here because the rest of its state (open/closed, draft, message list)
- * already lives in this ViewModel.
+ * already lives in this ViewModel. Uses its own [AiRouter] instance — the
+ * router is stateless glue over the shared [com.finai.app.data.ai.AiKeyStore]/
+ * [com.finai.app.data.ai.ProviderUsageStore]/[com.finai.app.data.ai.AiResponseCache]
+ * singletons, so two instances stay consistent with each other.
  */
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val aiProvider: AiProvider = GeminiAiProvider(AiKeyStore.get(application))
+    private val aiProvider: AiProvider = AiRouter(application)
 
     private val _uiState = MutableStateFlow(FinaiUiState())
     val uiState: StateFlow<FinaiUiState> = _uiState
