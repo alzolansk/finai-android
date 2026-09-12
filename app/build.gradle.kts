@@ -76,6 +76,9 @@ dependencies {
     // DataStore (preferences — scaffolded in Phase 0, used from Phase 2 for AI provider keys/quotas)
     implementation(libs.androidx.datastore.preferences)
 
+    // Encrypted storage for the Gemini API key (planning.md §7.4) — Android Keystore-backed
+    implementation(libs.androidx.security.crypto)
+
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
 

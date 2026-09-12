@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.finai.app.data.ai.AiText
 import com.finai.app.data.model.Goal
 import com.finai.app.ui.components.PillTag
 import com.finai.app.ui.components.ProgressTrack
@@ -36,6 +37,7 @@ import com.finai.app.util.formatBrl0
 fun GoalsScreen(
     goals: List<Goal>,
     monthlyCapacityLabel: String,
+    goalInsights: Map<String, AiText>,
     onNewGoal: () -> Unit,
     onContribute: (Goal) -> Unit,
     onDelete: (Goal) -> Unit,
@@ -97,12 +99,12 @@ fun GoalsScreen(
             }
         }
 
-        items(goals) { goal -> GoalCard(goal, onContribute, onDelete, onSimulate) }
+        items(goals) { goal -> GoalCard(goal, goalInsights[goal.id], onContribute, onDelete, onSimulate) }
     }
 }
 
 @Composable
-private fun GoalCard(goal: Goal, onContribute: (Goal) -> Unit, onDelete: (Goal) -> Unit, onSimulate: () -> Unit) {
+private fun GoalCard(goal: Goal, insight: AiText?, onContribute: (Goal) -> Unit, onDelete: (Goal) -> Unit, onSimulate: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -137,7 +139,12 @@ private fun GoalCard(goal: Goal, onContribute: (Goal) -> Unit, onDelete: (Goal) 
                 .padding(12.dp),
         ) {
             Text("LEITURA DA IA", fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted)
-            Text(goal.analysis, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody, modifier = Modifier.padding(top = 5.dp))
+            val insightText = when (insight) {
+                is AiText.Ready -> insight.text
+                is AiText.Unavailable -> insight.reason
+                AiText.Loading, null -> "Analisando este objetivo com IA..."
+            }
+            Text(insightText, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody, modifier = Modifier.padding(top = 5.dp))
         }
         Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             androidx.compose.foundation.layout.Box(

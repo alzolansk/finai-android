@@ -18,6 +18,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.finai.app.data.ai.AiText
 import com.finai.app.data.fixtures.FinaiFixtures
 import com.finai.app.data.model.Goal
 import com.finai.app.data.model.SimEffect
@@ -40,6 +42,15 @@ fun BuySimulatorContent(
     amount: Double,
     monthlyCapacity: Double,
     goals: List<Goal>,
+    aiExplain: AiText?,
+    onEnsureExplain: (
+        amountLabel: String,
+        verdictLabel: String,
+        monthlyCapacityLabel: String,
+        slackAfterLabel: String,
+        topGoalName: String?,
+        topGoalAffected: Boolean,
+    ) -> Unit,
     onPickPreset: (Double) -> Unit,
     onDecideLater: () -> Unit,
     onAsk: () -> Unit,
@@ -53,13 +64,20 @@ fun BuySimulatorContent(
     }
     val topGoal = goals.firstOrNull()
     val delayMonths = if (free > 0) ceil((amount / free)).toInt().coerceAtLeast(0) else 0
-    val explain = when (verdict) {
+    // Deterministic explanation (planning.md §6) — shown immediately and kept as the fallback
+    // while the AI text below is loading or unavailable (planning.md §4's resiliência requirement).
+    val fallbackExplain = when (verdict) {
         SimVerdict.Fits -> "O valor sai da folga do mês. Nenhum objetivo precisa ser adiado."
         SimVerdict.FitsButCosts -> topGoal?.let {
             "Você cobre à vista, mas compromete o aporte deste mês para \"${it.name}\". A meta pode atrasar."
         } ?: "Você cobre à vista, mas compromete toda a folga deste mês."
         SimVerdict.DoesNotFit -> "O valor supera sua capacidade de poupança de ${formatBrl0(free)}/mês" +
             (if (delayMonths > 1) " — levaria cerca de $delayMonths meses de poupança para cobrir à vista." else ".")
+    }
+    val explain = (aiExplain as? AiText.Ready)?.text ?: fallbackExplain
+    val topGoalAffected = topGoal != null && verdict != SimVerdict.Fits
+    LaunchedEffect(amount, free, verdict, topGoal?.name) {
+        onEnsureExplain(formatBrl0(amount), verdict.label, formatBrl0(free), formatBrl0(free - amount), topGoal?.name, topGoalAffected)
     }
     val effects = buildList {
         add(SimEffect("Folga do mês", "depois da compra", formatBrl0(free - amount), if (free - amount >= 0) FinaiColors.EmeraldDark else Color(0xFFE11D48)))

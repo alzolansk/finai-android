@@ -55,7 +55,6 @@ fun GoalPlan.toUiGoal(): Goal {
         eta = etaLabel,
         badge = badge,
         note = note,
-        analysis = "A leitura da IA sobre este objetivo chega na Fase 2 (planning.md §9).",
         action = "Registrar aporte",
     )
 }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,12 +41,15 @@ import com.finai.app.domain.toEpochMillis
 import com.finai.app.domain.toLocalDate
 import com.finai.app.domain.toUiBill
 import com.finai.app.navigation.FinaiDestination
+import com.finai.app.state.AiViewModel
 import com.finai.app.state.AppViewModel
 import com.finai.app.state.FinanceViewModel
+import com.finai.app.state.toAiSummaryText
 import com.finai.app.ui.components.AddContaDialog
 import com.finai.app.ui.components.AddDividaDialog
 import com.finai.app.ui.components.AddGoalDialog
 import com.finai.app.ui.components.AddTransactionDialog
+import com.finai.app.ui.components.ApiKeySettingsDialog
 import com.finai.app.ui.components.BudgetLimitDialog
 import com.finai.app.ui.components.BuySimulatorContent
 import com.finai.app.ui.components.ChatOverlay
@@ -66,16 +70,27 @@ import com.finai.app.ui.theme.FinaiColors
  * App root: sticky top bar + the six screens behind Navigation-Compose, the
  * floating bottom nav, the manual-entry dialogs, and the four overlays
  * (quick actions, buy simulator, notifications, chat) that can appear above
- * any of them. [FinanceViewModel] now owns every real, Room-backed number
- * (planning.md §9 Fase 1); [AppViewModel] keeps owning overlay-only state.
+ * any of them. [FinanceViewModel] owns every real, Room-backed number
+ * (planning.md §9 Fase 1); [AppViewModel] owns overlay-only state and the
+ * chat's AI call; [AiViewModel] owns every other AI-generated text (goal
+ * insight, purchase verdict, debt negotiation, home decisions — Fase 2).
+ * This composable only wires "ensure this AI text" calls to the screens that
+ * need them via `LaunchedEffect`; it holds no AI logic itself.
  */
 @Composable
 fun FinaiApp(
     viewModel: AppViewModel = viewModel(),
     financeViewModel: FinanceViewModel = viewModel(),
+    aiViewModel: AiViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val financeState by financeViewModel.uiState.collectAsState()
+    val hasAiKey by aiViewModel.hasApiKey.collectAsState()
+    val goalInsights by aiViewModel.goalInsights.collectAsState()
+    val purchaseVerdict by aiViewModel.purchaseVerdict.collectAsState()
+    val debtNegotiation by aiViewModel.debtNegotiation.collectAsState()
+    val decisions by aiViewModel.decisions.collectAsState()
+    val financeSummary = remember(financeState) { financeState.toAiSummaryText() }
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val current = FinaiDestination.fromRoute(backStackEntry?.destination?.route)
@@ -94,6 +109,7 @@ fun FinaiApp(
     var showAddDivida by remember { mutableStateOf(false) }
     var contributionTarget by remember { mutableStateOf<Goal?>(null) }
     var budgetLimitTarget by remember { mutableStateOf<String?>(null) }
+    var showAiSettings by remember { mutableStateOf(false) }
 
     val agenda = remember(financeState.rawContas, uiState.monthIndex, uiState.agendaYear) {
         agendaDataFor(financeState.rawContas, uiState.monthIndex, uiState.agendaYear)
@@ -106,10 +122,20 @@ fun FinaiApp(
                 notifCount = FinaiFixtures.notifCount,
                 onOpenNotifications = viewModel::openNotifications,
                 onOpenChat = viewModel::openChat,
+                onOpenAiSettings = { showAiSettings = true },
             )
             Box(modifier = Modifier.weight(1f)) {
                 NavHost(navController = navController, startDestination = FinaiDestination.Home.route) {
                     composable(FinaiDestination.Home.route) {
+                        LaunchedEffect(financeState.debts, financeState.budgets, financeState.subscriptions, financeState.goals, financeState.safeNote) {
+                            aiViewModel.ensureDecisions(
+                                topDebt = financeState.debts.firstOrNull(),
+                                budgets = financeState.budgets,
+                                subscriptions = financeState.subscriptions,
+                                goals = financeState.goals,
+                                safeNote = financeState.safeNote,
+                            )
+                        }
                         HomeScreen(
                             greeting = financeState.greeting,
                             subGreeting = financeState.subGreeting,
@@ -123,6 +149,7 @@ fun FinaiApp(
                             showCoach = uiState.showCoach,
                             coachTitle = financeState.coachTitle,
                             coachBody = financeState.coachBody,
+                            decisions = decisions,
                             onOpenGoals = { navigateTo(FinaiDestination.Goals) },
                             onNewGoal = { showAddGoal = true },
                             onOpenSimulator = viewModel::openSimulator,
@@ -146,9 +173,15 @@ fun FinaiApp(
                         )
                     }
                     composable(FinaiDestination.Goals.route) {
+                        LaunchedEffect(financeState.goals, financeState.monthlyCapacityLabel) {
+                            financeState.goals.forEach { goal ->
+                                aiViewModel.ensureGoalInsight(goal, financeState.monthlyCapacityLabel, financeState.goals.size - 1)
+                            }
+                        }
                         GoalsScreen(
                             goals = financeState.goals,
                             monthlyCapacityLabel = financeState.monthlyCapacityLabel,
+                            goalInsights = goalInsights,
                             onNewGoal = { showAddGoal = true },
                             onContribute = { goal -> contributionTarget = goal },
                             onDelete = { goal -> financeViewModel.deleteObjetivoById(goal.id.toLong()) },
@@ -156,6 +189,9 @@ fun FinaiApp(
                         )
                     }
                     composable(FinaiDestination.Debts.route) {
+                        LaunchedEffect(financeState.debts) {
+                            aiViewModel.ensureDebtNegotiation(financeState.debts)
+                        }
                         DebtsScreen(
                             debts = financeState.debts,
                             totalOpenLabel = financeState.debtTotalLabel,
@@ -163,6 +199,7 @@ fun FinaiApp(
                             debtFreeLabel = financeState.debtFreeLabel,
                             strategyNote = financeState.debtStrategyNote,
                             negotiationTitle = financeState.negotiationTitle,
+                            negotiationScript = debtNegotiation,
                             onNewDebt = { showAddDivida = true },
                             onDeleteDebt = { debt -> financeViewModel.deleteDividaById(debt.id) },
                             onRehearseCall = viewModel::openChat,
@@ -238,6 +275,10 @@ fun FinaiApp(
                     amount = uiState.simAmount,
                     monthlyCapacity = financeState.monthlyCapacityCents / 100.0,
                     goals = financeState.goals,
+                    aiExplain = purchaseVerdict,
+                    onEnsureExplain = { amountLabel, verdictLabel, capacityLabel, slackLabel, topGoalName, topGoalAffected ->
+                        aiViewModel.ensurePurchaseVerdict(amountLabel, verdictLabel, capacityLabel, slackLabel, topGoalName, topGoalAffected)
+                    },
                     onPickPreset = viewModel::setSimAmount,
                     onDecideLater = viewModel::closeSimulator,
                     onAsk = viewModel::openChat,
@@ -262,9 +303,18 @@ fun FinaiApp(
                 thinking = uiState.thinking,
                 draft = uiState.draft,
                 onDraftChange = viewModel::onDraftChange,
-                onSend = viewModel::sendDraft,
-                onSuggestion = viewModel::sendMessage,
+                onSend = { viewModel.sendDraft(financeSummary) },
+                onSuggestion = { text -> viewModel.sendMessage(text, financeSummary) },
                 onClose = viewModel::closeChat,
+            )
+        }
+
+        if (showAiSettings) {
+            ApiKeySettingsDialog(
+                hasKey = hasAiKey,
+                onDismiss = { showAiSettings = false },
+                onSave = aiViewModel::setApiKey,
+                onClear = aiViewModel::clearApiKey,
             )
         }
 

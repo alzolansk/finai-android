@@ -17,9 +17,10 @@ import com.finai.app.domain.SafeToSpendResult
 /**
  * Real, Room-backed financial state — everything a screen needs that used to
  * come from `FinaiFixtures`. Built by [FinanceViewModel] from the
- * calculators in `domain/`. Text fields that would require IA to write
- * (personalized "why"/"leitura" prose) are plain, honest placeholders that
- * say so, per planning.md §6/§9 — Fase 1 has no AI call anywhere.
+ * calculators in `domain/` — still no AI call in this ViewModel (planning.md
+ * §6): the personalized "why"/"leitura" prose that used to be a Fase 1
+ * placeholder is now requested from [AiViewModel] by the screens that show
+ * it, keyed off these same numbers.
  */
 data class FinanceUiState(
     val loading: Boolean = true,
@@ -63,3 +64,23 @@ data class FinanceUiState(
     val budgets: List<Budget> = emptyList(),
     val subscriptions: List<Subscription> = emptyList(),
 )
+
+/**
+ * Minimal-context summary sent to the AI for free-form chat (planning.md
+ * §4/§6/§9 Fase 2) — aggregated numbers/labels already on screen, never raw
+ * transactions or account nicknames.
+ */
+fun FinanceUiState.toAiSummaryText(): String = buildString {
+    appendLine("Pode gastar hoje: $safeTodayLabel. $safeNote")
+    appendLine("Capacidade de poupança mensal: $monthlyCapacityLabel.")
+    if (debts.isNotEmpty()) {
+        appendLine("Dívidas: total em aberto $debtTotalLabel, juros $debtInterestLabel/mês, livre em $debtFreeLabel.")
+    }
+    if (goals.isNotEmpty()) {
+        appendLine("Objetivos ativos: " + goals.joinToString { "${it.name} (${(it.progress * 100).toInt()}%, ${it.badge.label})" } + ".")
+    }
+    val over = budgets.filter { it.spent > it.limit }
+    if (over.isNotEmpty()) {
+        appendLine("Categorias de orçamento estouradas: " + over.joinToString { it.name } + ".")
+    }
+}

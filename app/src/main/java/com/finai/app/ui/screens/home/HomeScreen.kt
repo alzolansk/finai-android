@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.finai.app.data.ai.AiText
 import com.finai.app.data.model.Goal
 import com.finai.app.data.model.TimelineEntry
 import com.finai.app.data.model.WeekBill
@@ -55,6 +56,7 @@ fun HomeScreen(
     showCoach: Boolean,
     coachTitle: String,
     coachBody: String,
+    decisions: AiText?,
     onOpenGoals: () -> Unit,
     onNewGoal: () -> Unit,
     onOpenSimulator: () -> Unit,
@@ -81,7 +83,7 @@ fun HomeScreen(
 
         item { SafeToSpendCard(safeToday, safeTodayLabel, safeNote, onOpenSimulator, onOpenBudgets) }
 
-        item { DecisionsPendingCard() }
+        item { DecisionsCard(decisions) }
 
         item { TimelineSection(timeline, timelineNote) }
 
@@ -266,12 +268,14 @@ private fun SafeToSpendCard(
 }
 
 /**
- * "Decisões para você" needs IA reasoning over the user's real numbers
- * (planning.md §6) — out of scope for Fase 1, which has no AI call anywhere.
- * This is an honest placeholder, not a fabricated recommendation.
+ * "Decisões para você" — short, AI-written suggestions over numbers already
+ * computed locally (dívida de maior custo, orçamento estourado, assinatura
+ * parada, objetivo a reavaliar; planning.md §6/§9 Fase 2). [decisions] is
+ * requested by [com.finai.app.state.AiViewModel.ensureDecisions]; this
+ * composable only renders whatever state it's in.
  */
 @Composable
-private fun DecisionsPendingCard() {
+private fun DecisionsCard(decisions: AiText?) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -287,12 +291,30 @@ private fun DecisionsPendingCard() {
             ) {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = FinaiColors.TextMuted, modifier = Modifier.size(14.dp))
             }
-            Column {
-                Text("Decisões para você", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-                Text(
-                    "Sugestões automáticas chegam na Fase 2, com a integração de IA.",
-                    fontSize = 11.5.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 1.dp),
-                )
+            Text("Decisões para você", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        }
+        when (decisions) {
+            null, AiText.Loading -> Text(
+                "Analisando seus números para sugerir decisões...",
+                fontSize = 11.5.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 10.dp),
+            )
+            is AiText.Unavailable -> Text(
+                decisions.reason, fontSize = 11.5.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 10.dp),
+            )
+            is AiText.Ready -> {
+                val lines = decisions.text.lines().map { it.trim().trimStart('-', '•', '*', ' ') }.filter { it.isNotBlank() }
+                Column(modifier = Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (lines.isEmpty()) {
+                        Text(decisions.text, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
+                    } else {
+                        lines.forEach { line ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("•", fontSize = 12.5.sp, color = FinaiColors.EmeraldDark)
+                                Text(line, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
+                            }
+                        }
+                    }
+                }
             }
         }
     }

@@ -9,7 +9,9 @@ import java.time.LocalDate
  * simulator draft amount, the agenda month cursor. Real financial data
  * (goals, bills, debts, budgets) lives in [FinanceViewModel]/[FinanceUiState]
  * as of Fase 1; this is what's left of the Fase 0 single-state-object that
- * has nothing to do with persistence (planning.md §9).
+ * has nothing to do with persistence (planning.md §9). The chat message list
+ * itself lives here too, though [AppViewModel] now fills it with real Gemini
+ * replies (Fase 2) instead of canned text.
  */
 data class FinaiUiState(
     val addOpen: Boolean = false,

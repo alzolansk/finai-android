@@ -1,10 +1,16 @@
 package com.finai.app.state
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.finai.app.data.ai.AiProvider
+import com.finai.app.data.ai.AiResponse
+import com.finai.app.data.ai.GeminiAiProvider
 import com.finai.app.data.fixtures.FinaiFixtures
 import com.finai.app.data.model.ChatMessage
 import com.finai.app.data.model.ChatRole
+import com.finai.app.data.prefs.AiKeyStore
+import com.finai.app.domain.AiPromptBuilder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,8 +27,16 @@ import kotlinx.coroutines.launch
  * the prototype's single `state` object exactly. Split per screen (as
  * planning.md §5's MVVM pattern calls for) once Phase 1 gives each screen its
  * own Room-backed data to own.
+ *
+ * Owns the chat's real AI call (Fase 2, planning.md §9) through the
+ * [AiProvider] abstraction — [AiViewModel] owns every other AI touchpoint
+ * (goal insight, purchase verdict, debt negotiation, decisions); chat stays
+ * here because the rest of its state (open/closed, draft, message list)
+ * already lives in this ViewModel.
  */
-class AppViewModel : ViewModel() {
+class AppViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val aiProvider: AiProvider = GeminiAiProvider(AiKeyStore.get(application))
 
     private val _uiState = MutableStateFlow(FinaiUiState())
     val uiState: StateFlow<FinaiUiState> = _uiState
@@ -85,10 +99,12 @@ class AppViewModel : ViewModel() {
     // ── chat ────────────────────────────────────────────────────
     fun onDraftChange(text: String) = _uiState.update { it.copy(draft = text) }
 
-    fun sendMessage(text: String) {
+    /** [financeSummary] is the minimal aggregated context — see [com.finai.app.state.toAiSummaryText]. */
+    fun sendMessage(text: String, financeSummary: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         chatReplyJob?.cancel()
+        val historyBeforeReply = _uiState.value.messages
         _uiState.update {
             it.copy(
                 chatOpen = true,
@@ -100,15 +116,19 @@ class AppViewModel : ViewModel() {
             )
         }
         chatReplyJob = viewModelScope.launch {
-            delay(1100)
+            val request = AiPromptBuilder.chat(financeSummary, historyBeforeReply, trimmed)
+            val reply = when (val response = aiProvider.generate(request)) {
+                is AiResponse.Success -> response.text
+                is AiResponse.Unavailable -> FinaiFixtures.offlineReply(trimmed, response.reason)
+            }
             _uiState.update {
                 it.copy(
                     thinking = false,
-                    messages = it.messages + ChatMessage(ChatRole.Ai, FinaiFixtures.canned(trimmed)),
+                    messages = it.messages + ChatMessage(ChatRole.Ai, reply),
                 )
             }
         }
     }
 
-    fun sendDraft() = sendMessage(_uiState.value.draft)
+    fun sendDraft(financeSummary: String) = sendMessage(_uiState.value.draft, financeSummary)
 }

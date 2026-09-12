@@ -7,8 +7,8 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 ## Status atual
 
-**Fase 0 (Fundamentos) e Fase 1 (MVP sem IA) — concluídas.** Ver `planning.md` §9
-para a lista de fases.
+**Fase 0 (Fundamentos), Fase 1 (MVP sem IA) e Fase 2 (camada de IA com um
+provedor) — concluídas.** Ver `planning.md` §9 para a lista de fases.
 
 Fase 0: projeto Gradle (Kotlin 1.9.22, AGP 8.3.1, Compose BOM 2024.02.01,
 Navigation-Compose 2.7.7, Room 2.6.1/KSP, DataStore 1.1.1), `applicationId`/namespace
@@ -52,7 +52,47 @@ Fase 1 — o que mudou:
 - Build (`./gradlew assembleDebug`) e testes (`./gradlew testDebugUnitTest`) verdes
   neste ambiente; **não rodado ainda num aparelho/emulador real** — ver pendências.
 
-**Próximo passo:** Fase 2 (camada de IA com um provedor) — ver planning.md §9.
+Fase 2 — o que mudou:
+- **Uma única abstração de IA**: `data/ai/AiProvider.kt` (`interface AiProvider`,
+  `AiRequest`, `AiResponse`, `AiText`). `data/ai/GeminiAiProvider.kt` é a única
+  implementação — chama o endpoint REST `generateContent` do Gemini direto do app via
+  `HttpURLConnection`/`org.json` (sem Retrofit/Ktor: um único provedor não justificava a
+  dependência; reavaliar se a Fase 3 trouxer um cliente HTTP compartilhado entre
+  provedores). Nenhum ViewModel importa Gemini fora do construtor deles mesmos —
+  dependem do tipo `AiProvider`. Modelo padrão em `GeminiAiProvider.DEFAULT_MODEL`
+  (`gemini-2.5-flash`); trocar só essa constante se o modelo for descontinuado.
+- **Chave guardada com `EncryptedSharedPreferences`/Android Keystore**
+  (`data/prefs/AiKeyStore.kt`, singleton via `.get(context)` como `FinaiDatabase.get`),
+  nunca em texto puro (planning.md §7.4). Configurada pelo usuário no diálogo atrás do
+  ícone de engrenagem na topbar (`ui/components/AiSettingsDialog.kt`) — não há chave
+  nenhuma no repositório. `backup_rules.xml`/`data_extraction_rules.xml` excluem esse
+  arquivo do backup/transferência (a chave do Keystore que o decifra não viaja entre
+  aparelhos mesmo).
+- **`state/AiViewModel.kt`** (novo) é o único lugar que fala com o `AiProvider` para os
+  quatro pontos ligados a `FinanceViewModel`: leitura da IA por objetivo, veredito do
+  simulador, roteiro de negociação de dívida, "Decisões para você". Cada `ensureX` é
+  memoizado por uma cache key derivada dos números de entrada, pra não regastar cota a
+  cada recomposição. `FinaiApp.kt` dispara os `ensureX` via `LaunchedEffect` por tela e
+  passa o resultado (`AiText`: `Loading`/`Ready`/`Unavailable`) pra baixo — nenhuma tela
+  fala com IA diretamente.
+- **Chat continua em `AppViewModel`** (agora `AndroidViewModel`, com seu próprio
+  `GeminiAiProvider`): `sendMessage`/`sendDraft` passam a receber o resumo financeiro
+  mínimo (`FinanceUiState.toAiSummaryText()`) e chamam o Gemini de verdade; sem chave ou
+  com erro, cai em `FinaiFixtures.offlineReply` (dica local + o motivo da
+  indisponibilidade), não trava o chat.
+- **Prompts centralizados em `domain/AiPromptBuilder.kt`** — recebem só números/labels já
+  computados (Goal/Debt/Budget/Subscription, nunca entidade Room crua), nunca nome
+  completo/CPF/conta (planning.md §4); é o único lugar que decide o que vai no prompt.
+- **Sem fallback entre provedores, sem controle de cota, sem cache de resposta entre
+  dias** — deliberadamente fora do escopo da Fase 2 (planning.md §9 reserva isso pra
+  Fase 3); a resiliência aqui é só "sem chave/erro → texto explicativo indisponível,
+  números continuam reais" (planning.md §4).
+- Build e testes (`testDebugUnitTest`, inalterados — calculators de domínio continuam
+  sem IA) verdes neste ambiente. Fluxo de IA **não testado em aparelho real nem com uma
+  chave Gemini de verdade** nesta sessão — ver "AÇÃO MANUAL NECESSÁRIA" no relatório da
+  sessão.
+
+**Próximo passo:** Fase 3 (multi-provedor e resiliência) — ver planning.md §9.
 
 ## Como retomar uma sessão
 
@@ -81,11 +121,14 @@ Fase 1 — o que mudou:
   de IA para números que dá pra calcular em Kotlin puro. Isso é o que faz o app
   caber no free tier — não regrida nisso "pra simplificar".
 - **Privacidade por padrão** (planning.md §4): nenhum dado financeiro sai do
-  aparelho sem necessidade; ao integrar IA (Fase 2+), minimize o que entra no
-  prompt e nunca envie documento original, nome completo, CPF ou nº de conta.
+  aparelho sem necessidade; toda chamada de IA (`domain/AiPromptBuilder.kt`)
+  minimiza o que entra no prompt e nunca envia documento original, nome
+  completo, CPF ou nº de conta.
 - **Sem chave de API em texto puro** — nunca commitar chave em código-fonte ou
-  em `local.properties`/`gradle.properties` versionado. Quando a Fase 2 chegar,
-  usar `EncryptedSharedPreferences`/Android Keystore (planning.md §7.4).
+  em `local.properties`/`gradle.properties` versionado. Desde a Fase 2, a chave
+  do Gemini fica em `EncryptedSharedPreferences`/Android Keystore
+  (`data/prefs/AiKeyStore.kt`, planning.md §7.4), configurada pelo usuário via
+  diálogo — nunca hardcoded.
 
 ## Onde procurar o quê
 
@@ -96,4 +139,8 @@ Fase 1 — o que mudou:
 - Design tokens já extraídos: `app/src/main/java/com/finai/app/ui/theme/`.
 - Cálculo real (Fase 1): `app/src/main/java/com/finai/app/domain/`.
 - Dado real (Room): `data/local/`, `data/repository/`. O que resta de fixture
-  (Fase 2/4/5 e config de UI sem dado pessoal): `data/fixtures/FinaiFixtures.kt`.
+  (Fase 4/5 e config de UI sem dado pessoal): `data/fixtures/FinaiFixtures.kt`.
+- Camada de IA (Fase 2): `data/ai/` (abstração + `GeminiAiProvider`),
+  `data/prefs/AiKeyStore.kt` (chave), `domain/AiPromptBuilder.kt` (prompts),
+  `state/AiViewModel.kt` (goal insight/veredito/negociação/decisões) e o chat
+  em `state/AppViewModel.kt`.

@@ -25,7 +25,6 @@ data class Goal(
     val eta: String,
     val badge: GoalBadge,
     val note: String,
-    val analysis: String,
     val action: String,
 ) {
     val progress: Float get() = (saved / target).toFloat().coerceIn(0f, 1f)

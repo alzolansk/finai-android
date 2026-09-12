@@ -27,11 +27,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.finai.app.data.ai.AiText
 import com.finai.app.data.model.Debt
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
 
+/** Fallback shown while the AI script is loading/unavailable, or once no debt is cadastrada. */
 private val genericNegotiationSteps = listOf(
     "Diga há quanto tempo você é cliente e se está em dia com os pagamentos.",
     "Peça o parcelamento do saldo devedor citando a taxa atual e pedindo uma taxa menor.",
@@ -47,6 +49,7 @@ fun DebtsScreen(
     debtFreeLabel: String,
     strategyNote: String,
     negotiationTitle: String,
+    negotiationScript: AiText?,
     onNewDebt: () -> Unit,
     onDeleteDebt: (Debt) -> Unit,
     onRehearseCall: () -> Unit,
@@ -146,8 +149,23 @@ fun DebtsScreen(
                     negotiationTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
                     modifier = Modifier.padding(top = 6.dp),
                 )
+                val steps = when (negotiationScript) {
+                    is AiText.Ready -> negotiationScript.text.lines()
+                        .map { it.trim().trimStart('-', '•', '*', ' ').replace(Regex("^\\d+[.):-]\\s*"), "") }
+                        .filter { it.isNotBlank() }
+                        .ifEmpty { genericNegotiationSteps }
+                    else -> genericNegotiationSteps
+                }
+                val statusNote = when (negotiationScript) {
+                    AiText.Loading -> "Gerando um roteiro específico para essa dívida com IA..."
+                    is AiText.Unavailable -> negotiationScript.reason
+                    else -> null
+                }
+                statusNote?.let {
+                    Text(it, fontSize = 11.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 4.dp))
+                }
                 Column(modifier = Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    genericNegotiationSteps.forEachIndexed { index, text ->
+                    steps.forEachIndexed { index, text ->
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Box(
                                 modifier = Modifier.padding(top = 1.dp).size(18.dp).clip(CircleShape).background(FinaiColors.Indigo),

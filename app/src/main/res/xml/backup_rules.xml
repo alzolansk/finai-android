@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-   Placeholder backup rules. FinAI's privacy principle (see planning.md §4) keeps
-   financial data on-device by default — revisit this file before enabling any
-   cloud backup so transaction/debt/goal data is excluded unless the user opts in.
+   FinAI's privacy principle (planning.md §4) keeps financial data on-device by
+   default. This file only matters for API 23-30 auto backup (API 31+ uses
+   data_extraction_rules.xml instead) — the one thing it must always exclude is
+   the encrypted Gemini API key (planning.md §7.4): backing it up would be
+   useless anyway, since the Android Keystore key that decrypts it never
+   leaves this device.
 -->
 <full-backup-content>
+    <exclude domain="sharedpref" path="finai_ai_keys.xml" />
 </full-backup-content>
