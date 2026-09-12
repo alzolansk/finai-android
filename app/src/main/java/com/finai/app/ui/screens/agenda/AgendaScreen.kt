@@ -27,8 +27,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.data.model.Bill
+import com.finai.app.data.model.BillStatus
 import com.finai.app.domain.MONTH_NAMES_PT
+import com.finai.app.domain.toLocalDate
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.util.formatBrl0
@@ -44,7 +47,10 @@ fun AgendaScreen(
     toPayCount: Int,
     toGetCents: Long,
     toGetCount: Int,
+    transactions: List<TransacaoEntity>,
     onNewConta: () -> Unit,
+    onToggleContaPaga: (id: Long, pago: Boolean) -> Unit,
+    onDeleteTransaction: (TransacaoEntity) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
@@ -120,7 +126,25 @@ fun AgendaScreen(
             }
         }
 
-        items(bills) { bill -> BillRow(bill) }
+        items(bills, key = { "conta-" + it.id }) { bill -> BillRow(bill, onToggleContaPaga) }
+
+        item {
+            Text(
+                "Lançamentos deste mês", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+
+        if (transactions.isEmpty()) {
+            item {
+                Text(
+                    "Nenhum gasto lançado ou importado este mês.", fontSize = 13.sp, color = FinaiColors.TextMuted,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+            }
+        } else {
+            items(transactions, key = { "transacao-" + it.id }) { transacao -> TransacaoRow(transacao, onDeleteTransaction) }
+        }
     }
 }
 
@@ -139,14 +163,21 @@ private fun SummaryTile(label: String, value: String, note: String, valueColor: 
     }
 }
 
+/**
+ * Tocar numa conta a pagar alterna paga/pendente — a única ação que existia
+ * antes era criar/excluir contas; sem isto uma conta atrasada nunca saía dos
+ * avisos e a Fase 5 não tinha como ser testada de verdade (planning.md §9/§10).
+ */
 @Composable
-private fun BillRow(bill: Bill) {
+private fun BillRow(bill: Bill, onTogglePaga: (id: Long, pago: Boolean) -> Unit) {
+    val estaPaga = bill.status == BillStatus.Paid
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(16.dp))
             .background(FinaiColors.Surface)
+            .clickable { onTogglePaga(bill.id, !estaPaga) }
             .padding(horizontal = 14.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -172,6 +203,51 @@ private fun BillRow(bill: Bill) {
             ) {
                 Text(bill.status.label, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = bill.status.fg)
             }
+            Text(
+                if (estaPaga) "Toque para reabrir" else "Toque para marcar como paga",
+                fontSize = 9.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 3.dp),
+            )
         }
+    }
+}
+
+/**
+ * Gasto já realizado (manual ou importado) — diferente de [BillRow], que é um
+ * compromisso futuro (planning.md §8: `Transacao` vs `Conta` são entidades
+ * distintas). Não tem toggle de pago porque já é dinheiro gasto; só exclusão,
+ * espelhando a ação que já existe na tela Limites.
+ */
+@Composable
+private fun TransacaoRow(transacao: TransacaoEntity, onDelete: (TransacaoEntity) -> Unit) {
+    val d = transacao.data.toLocalDate()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, FinaiColors.BorderFaint, RoundedCornerShape(16.dp))
+            .background(FinaiColors.Surface)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(transacao.descricao, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+            Text(
+                ("${if (transacao.tipo == "Transferencia") "Transferência" else transacao.tipo} · ${transacao.categoria}" +
+                    (if (transacao.recorrente) " · recorrente" else "") + " · %02d/%02d").format(d.dayOfMonth, d.monthValue) +
+                    if (transacao.origem == "importado") " · importado" else "",
+                fontSize = 11.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 1.dp),
+            )
+        }
+        Text(com.finai.app.util.formatBrl(transacao.valorCentavos / 100.0), fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = when (transacao.tipo) {
+                "Receita" -> Color(0xFF059669)
+                "Transferencia" -> Color(0xFF4F46E5)
+                else -> FinaiColors.TextPrimary
+            })
+        Text(
+            "Excluir", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE11D48),
+            modifier = Modifier.clickable { onDelete(transacao) },
+        )
     }
 }

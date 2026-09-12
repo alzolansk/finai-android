@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
@@ -19,14 +17,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.finai.app.data.model.Categorias
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
 /**
  * Plain Material3 [AlertDialog] forms for the manual-entry flows Fase 1
- * requires (planning.md §9) — lançamentos, contas, objetivos, dívidas.
+ * requires (planning.md §9) — contas, objetivos, dívidas.
  * Deliberately unstyled against the rest of the app's bespoke bottom-sheet
  * look; the goal here is correct, real CRUD, not a pixel-perfect form.
  */
@@ -40,53 +37,6 @@ private fun parseDateOrNull(text: String): LocalDate? = try {
 }
 
 private fun parseAmountOrNull(text: String): Double? = text.replace(",", ".").toDoubleOrNull()
-
-@Composable
-fun AddTransactionDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (descricao: String, valor: Double, categoria: String, contaOrigem: String, data: LocalDate, recorrente: Boolean) -> Unit,
-) {
-    var descricao by remember { mutableStateOf("") }
-    var valor by remember { mutableStateOf("") }
-    var categoria by remember { mutableStateOf(Categorias.all.first()) }
-    var contaOrigem by remember { mutableStateOf("") }
-    var dataTexto by remember { mutableStateOf(LocalDate.now().format(dateFormatter)) }
-    var recorrente by remember { mutableStateOf(false) }
-    val valorOk = parseAmountOrNull(valor) != null
-    val dataOk = parseDateOrNull(dataTexto) != null
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Lançar gasto") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(descricao, { descricao = it }, label = { Text("Descrição") }, singleLine = true)
-                OutlinedTextField(valor, { valor = it }, label = { Text("Valor (R$)") }, singleLine = true, isError = valor.isNotEmpty() && !valorOk)
-                OutlinedTextField(contaOrigem, { contaOrigem = it }, label = { Text("Conta/cartão de origem") }, singleLine = true)
-                OutlinedTextField(dataTexto, { dataTexto = it }, label = { Text("Data (dd/mm/aaaa)") }, singleLine = true, isError = !dataOk)
-                Text("Categoria")
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(Categorias.all) { cat ->
-                        FilterChip(selected = cat == categoria, onClick = { categoria = cat }, label = { Text(cat) })
-                    }
-                }
-                Row {
-                    Checkbox(checked = recorrente, onCheckedChange = { recorrente = it })
-                    Text("Recorrente", modifier = Modifier.fillMaxWidth())
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = descricao.isNotBlank() && valorOk && dataOk,
-                onClick = {
-                    onConfirm(descricao.trim(), parseAmountOrNull(valor)!!, categoria, contaOrigem.trim(), parseDateOrNull(dataTexto)!!, recorrente)
-                },
-            ) { Text("Salvar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
-    )
-}
 
 @Composable
 fun AddGoalDialog(

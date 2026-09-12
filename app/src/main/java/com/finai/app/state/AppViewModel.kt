@@ -7,8 +7,9 @@ import com.finai.app.data.ai.AiProvider
 import com.finai.app.data.ai.AiResponse
 import com.finai.app.data.ai.AiRouter
 import com.finai.app.data.fixtures.FinaiFixtures
-import com.finai.app.data.model.ChatMessage
+import com.finai.app.data.local.FinaiDatabase
 import com.finai.app.data.model.ChatRole
+import com.finai.app.data.repository.ChatRepository
 import com.finai.app.domain.AiPromptBuilder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,11 +41,22 @@ import kotlinx.coroutines.launch
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val aiProvider: AiProvider = AiRouter(application)
+    private val chatRepository = ChatRepository(FinaiDatabase.get(application))
 
     private val _uiState = MutableStateFlow(FinaiUiState())
     val uiState: StateFlow<FinaiUiState> = _uiState
 
     private var chatReplyJob: kotlinx.coroutines.Job? = null
+
+    init {
+        // Room é a fonte de verdade da conversa (planning.md §5): a lista da tela
+        // é sempre o que está gravado, não um acumulador em memória.
+        viewModelScope.launch {
+            chatRepository.mensagens.collect { mensagens ->
+                _uiState.update { it.copy(messages = mensagens) }
+            }
+        }
+    }
 
     // ── overlays ────────────────────────────────────────────────
     fun toggleAddMenu() = _uiState.update { it.copy(addOpen = !it.addOpen) }
@@ -68,6 +80,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleCoach() = _uiState.update { it.copy(showCoach = !it.showCoach) }
 
     // ── agenda ──────────────────────────────────────────────────
+    fun showAgendaDate(date: java.time.LocalDate) = _uiState.update {
+        it.copy(monthIndex = date.monthValue - 1, agendaYear = date.year)
+    }
+
     fun prevMonth() = _uiState.update {
         if (it.monthIndex == 0) it.copy(monthIndex = 11, agendaYear = it.agendaYear - 1)
         else it.copy(monthIndex = it.monthIndex - 1)
@@ -91,27 +107,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         chatReplyJob?.cancel()
         val historyBeforeReply = _uiState.value.messages
         _uiState.update {
-            it.copy(
-                chatOpen = true,
-                addOpen = false,
-                simOpen = false,
-                thinking = true,
-                draft = "",
-                messages = it.messages + ChatMessage(ChatRole.Me, trimmed),
-            )
+            it.copy(chatOpen = true, addOpen = false, simOpen = false, thinking = true, draft = "")
         }
         chatReplyJob = viewModelScope.launch {
+            chatRepository.registrar(ChatRole.Me, trimmed)
             val request = AiPromptBuilder.chat(financeSummary, historyBeforeReply, trimmed)
             val reply = when (val response = aiProvider.generate(request)) {
                 is AiResponse.Success -> response.text
                 is AiResponse.Unavailable -> FinaiFixtures.offlineReply(trimmed, response.reason)
             }
-            _uiState.update {
-                it.copy(
-                    thinking = false,
-                    messages = it.messages + ChatMessage(ChatRole.Ai, reply),
-                )
-            }
+            chatRepository.registrar(ChatRole.Ai, reply)
+            _uiState.update { it.copy(thinking = false) }
         }
     }
 

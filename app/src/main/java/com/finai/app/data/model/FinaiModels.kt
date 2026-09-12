@@ -3,11 +3,12 @@ package com.finai.app.data.model
 import androidx.compose.ui.graphics.Color
 
 /**
- * Fixed-shape UI models for the Phase 0 prototype screens. These mirror the
- * plain objects built by `renderVals()` in the Claude Design prototype
- * (project/FinAI Mobile.dc.html) — one class per `sc-for` list. No business
- * logic lives here yet; real computation (goal progress, debt ordering,
- * safe-to-spend, ...) arrives in Phase 1 per planning.md §6.
+ * Fixed-shape UI models the Compose screens render. They mirror the plain
+ * objects built by `renderVals()` in the Claude Design prototype
+ * (project/FinAI Mobile.dc.html) — one class per `sc-for` list — but every
+ * instance is now produced from Room data by `domain/UiMappers.kt`, never
+ * from a fixture. No business logic lives here: that's `domain/`'s job
+ * (planning.md §6).
  */
 
 enum class GoalBadge(val label: String, val bg: Color, val fg: Color) {
@@ -65,9 +66,11 @@ enum class BillStatus(val label: String, val bg: Color, val fg: Color) {
     Pending("Pendente", Color(0xFFFFFBEB), Color(0xFFB45309)),
     DueToday("Vence hoje", Color(0xFFFFF1F2), Color(0xFFE11D48)),
     Paid("Pago", Color(0xFFECFDF5), Color(0xFF059669)),
+    Expected("Previsto", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
 }
 
 data class Bill(
+    val id: Long,
     val name: String,
     val meta: String,
     val amount: String,
@@ -89,8 +92,6 @@ data class Debt(
     val barColor: Color,
 )
 
-data class NegotiationStep(val n: Int, val text: String)
-
 data class Budget(
     val name: String,
     val spent: Double,
@@ -110,8 +111,9 @@ data class Subscription(
 )
 
 data class QuickAction(
-    val mark: String,
-    val tint: Color,
+    val icon: String,
+    val tintFrom: Color,
+    val tintTo: Color,
     val ink: Color,
     val title: String,
     val sub: String,
@@ -120,8 +122,6 @@ data class QuickAction(
 enum class ChatRole { Me, Ai }
 
 data class ChatMessage(val role: ChatRole, val text: String)
-
-data class NotificationItem(val dotColor: Color, val title: String, val body: String)
 
 data class SimEffect(val label: String, val detail: String, val delta: String, val color: Color)
 

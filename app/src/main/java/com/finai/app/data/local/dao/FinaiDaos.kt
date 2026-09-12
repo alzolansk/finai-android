@@ -10,6 +10,7 @@ import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
 import com.finai.app.data.local.entity.MensagemChatEntity
+import com.finai.app.data.local.entity.NotificacaoEnviadaEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
@@ -104,7 +105,8 @@ interface AssinaturaDao {
 
 @Dao
 interface MensagemChatDao {
-    @Query("SELECT * FROM mensagens_chat ORDER BY timestamp ASC")
+    // id desempata mensagens gravadas no mesmo milissegundo (pergunta + resposta rápida da IA).
+    @Query("SELECT * FROM mensagens_chat ORDER BY timestamp ASC, id ASC")
     fun observeAll(): Flow<List<MensagemChatEntity>>
 
     @Insert
@@ -118,4 +120,18 @@ interface UsoProvedorIaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(uso: UsoProvedorIaEntity)
+}
+
+/** Backing store da deduplicação de notificações da Fase 5 — ver [NotificacaoEnviadaEntity]. */
+@Dao
+interface NotificacaoEnviadaDao {
+    @Query("SELECT * FROM notificacoes_enviadas WHERE chave = :chave")
+    suspend fun find(chave: String): NotificacaoEnviadaEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(registro: NotificacaoEnviadaEntity)
+
+    /** Remove registros de eventos que não existem mais (ex.: conta que foi paga) — evita crescer para sempre. */
+    @Query("DELETE FROM notificacoes_enviadas WHERE chave NOT IN (:chavesAtivas)")
+    suspend fun removerExceto(chavesAtivas: List<String>)
 }

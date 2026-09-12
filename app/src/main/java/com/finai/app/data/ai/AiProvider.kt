@@ -31,6 +31,12 @@ enum class AiTask {
 
     /** Fase 4: se um lançamento importado é repetição de outro, quando a regra local ficou na dúvida. */
     IMPORT_DUPLICATE,
+
+    /** Fase 5: texto final de uma notificação proativa sobre evento(s) já detectado(s) localmente ([com.finai.app.domain.FinanceAlert]). */
+    PROACTIVE_ALERT,
+
+    /** Fase 5: explicação em linguagem natural de um padrão de comportamento já detectado localmente ([com.finai.app.domain.BehaviorPattern]). */
+    BEHAVIOR_COACH,
 }
 
 /**

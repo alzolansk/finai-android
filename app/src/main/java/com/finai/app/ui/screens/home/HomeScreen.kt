@@ -36,6 +36,7 @@ import com.finai.app.data.ai.AiText
 import com.finai.app.data.model.Goal
 import com.finai.app.data.model.TimelineEntry
 import com.finai.app.data.model.WeekBill
+import com.finai.app.domain.BehaviorPattern
 import com.finai.app.domain.SafeToSpendResult
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
@@ -54,8 +55,8 @@ fun HomeScreen(
     timeline: List<TimelineEntry>,
     timelineNote: String,
     showCoach: Boolean,
-    coachTitle: String,
-    coachBody: String,
+    behaviorPattern: BehaviorPattern?,
+    coachInsight: AiText?,
     decisions: AiText?,
     onOpenGoals: () -> Unit,
     onNewGoal: () -> Unit,
@@ -89,8 +90,8 @@ fun HomeScreen(
 
         item { NextWeekSection(week, onOpenAgenda) }
 
-        if (showCoach) {
-            item { CoachCard(coachTitle, coachBody, onOpenChat) }
+        if (showCoach && behaviorPattern != null) {
+            item { CoachCard(behaviorPattern, coachInsight, onOpenChat) }
         }
     }
 }
@@ -433,8 +434,17 @@ private fun WeekBillRow(w: WeekBill) {
     }
 }
 
+/**
+ * "Coach de comportamento" (planning.md §3.1/§9 Fase 5). [pattern] já foi
+ * decidido por [com.finai.app.domain.BehaviorCoach] — 100% local; [insight]
+ * é só a IA reescrevendo [pattern.detail] em linguagem mais natural, com o
+ * texto determinístico como fallback imediato (mesma convenção do
+ * simulador em `BuySimulatorSheet.kt`), nunca "carregando" para um dado que
+ * já está pronto para mostrar.
+ */
 @Composable
-private fun CoachCard(title: String, body: String, onOpenChat: () -> Unit) {
+private fun CoachCard(pattern: BehaviorPattern, insight: AiText?, onOpenChat: () -> Unit) {
+    val body = (insight as? AiText.Ready)?.text ?: pattern.detail
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -444,7 +454,7 @@ private fun CoachCard(title: String, body: String, onOpenChat: () -> Unit) {
     ) {
         Text("PADRÃO DE GASTO DO MÊS", fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White.copy(alpha = 0.55f))
         Text(
-            title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White,
+            pattern.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White,
             lineHeight = 20.sp, modifier = Modifier.padding(top = 7.dp),
         )
         Text(

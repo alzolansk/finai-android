@@ -1,38 +1,26 @@
 package com.finai.app.data.fixtures
 
 import androidx.compose.ui.graphics.Color
-import com.finai.app.data.model.ChatMessage
-import com.finai.app.data.model.ChatRole
-import com.finai.app.data.model.NotificationItem
 import com.finai.app.data.model.QuickAction
 
 /**
- * What's left of the Phase 0 prototype data after Fase 1 (planning.md §9)
- * replaced everything backed by real numbers with Room + `domain/`
- * calculators (see [com.finai.app.state.FinanceViewModel]), and Fase 2
- * replaced the chat's canned replies with real Gemini calls (see
- * [com.finai.app.state.AppViewModel]). Only later-phase placeholders
- * (notificações proativas — Fase 5) remain
- * fixture-driven here, plus [offlineReply] — the local fallback used only
- * when the AI call itself is unavailable — and a couple of plain UI menu
- * labels that were never "data" to begin with.
+ * What's left of the Phase 0 prototype data: **nenhum dado financeiro**.
+ * Tudo que é número saiu daqui na Fase 1 (Room + calculators de `domain/`,
+ * ver [com.finai.app.state.FinanceViewModel]); a conversa do chat virou
+ * chamada real de IA + histórico no Room na Fase 2; e os avisos do sino
+ * passaram a ser calculados por [com.finai.app.domain.AlertCalculator].
+ *
+ * Só sobrou configuração de UI sem dado pessoal (rótulos do menu do FAB,
+ * presets e sugestões de pergunta) e [offlineReply], o texto local usado
+ * quando a própria camada de IA está indisponível.
  */
 object FinaiFixtures {
-
-    const val notifCount = 1
 
     const val chatPitch = "Pergunte sobre suas finanças — a IA lê seus lançamentos, contas, objetivos e dívidas reais para responder."
     val chatSuggestions = listOf("Como está minha folga este mês?", "Qual dívida devo priorizar?", "Onde economizar?")
 
     val simPresets = listOf(200.0, 500.0, 1200.0, 3000.0)
     const val defaultSimAmount = 500.0
-
-    val initialMessages = listOf(
-        ChatMessage(
-            ChatRole.Ai,
-            "Olá! Sou o assistente do FinAI. Posso responder com base nos seus números reais — contas, objetivos, dívidas e limites.",
-        ),
-    )
 
     /**
      * Local fallback shown only when [com.finai.app.data.ai.AiProvider] itself is unavailable
@@ -56,13 +44,9 @@ object FinaiFixtures {
     }
 
     val quickActions = listOf(
-        QuickAction("R$", Color(0xFFECFDF5), Color(0xFF059669), "Lançar gasto", "Manual"),
-        QuickAction("↑", Color(0xFFEEF2FF), Color(0xFF4F46E5), "Importar fatura", "PDF, planilha ou foto"),
-        QuickAction("?", Color(0xFFFFFBEB), Color(0xFFB45309), "Posso comprar?", "Simular antes de decidir"),
-        QuickAction("◎", Color(0xFFFFF1F2), Color(0xFFE11D48), "Novo objetivo", "Compra, viagem ou reserva"),
-    )
-
-    val notifications = listOf(
-        NotificationItem(Color(0xFF10B981), "Notificações proativas chegam na Fase 5", "Vencimentos e limites já são calculados nas telas Agenda e Limites."),
+        QuickAction("gasto", Color(0xFFD1FAE5), Color(0xFFECFDF5), Color(0xFF047857), "Lançar gasto", "Manual"),
+        QuickAction("importar", Color(0xFFE0E7FF), Color(0xFFEEF2FF), Color(0xFF4338CA), "Importar fatura", "PDF, planilha ou foto"),
+        QuickAction("simular", Color(0xFFFEF3C7), Color(0xFFFFFBEB), Color(0xFFB45309), "Posso comprar?", "Simular antes de decidir"),
+        QuickAction("objetivo", Color(0xFFFFE4E6), Color(0xFFFFF1F2), Color(0xFFBE123C), "Novo objetivo", "Compra, viagem ou reserva"),
     )
 }

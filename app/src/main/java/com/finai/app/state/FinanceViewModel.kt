@@ -13,6 +13,9 @@ import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.data.prefs.FinaiPreferences
 import com.finai.app.data.repository.FinanceRepository
 import com.finai.app.data.repository.FinanceSeeder
+import com.finai.app.domain.transactionsInMonth
+import com.finai.app.domain.AlertCalculator
+import com.finai.app.domain.BehaviorCoach
 import com.finai.app.domain.BudgetCalculator
 import com.finai.app.domain.DebtCalculator
 import com.finai.app.domain.GoalCalculator
@@ -22,7 +25,6 @@ import com.finai.app.domain.SavingsCapacityCalculator
 import com.finai.app.domain.SubscriptionCalculator
 import com.finai.app.domain.formatMonthYearShort
 import com.finai.app.domain.monthKey
-import com.finai.app.domain.monthRangeMillis
 import com.finai.app.domain.toEpochMillis
 import com.finai.app.domain.toLocalDate
 import com.finai.app.domain.toUiBudget
@@ -96,8 +98,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val goalPlans = GoalCalculator.plan(s.objetivos, monthlyCapacityCents, today)
         val safe = SafeToSpendCalculator.calculate(s.contas, s.transacoes, aporteMensalMetasCents(goalPlans), today)
         val debtSummary = DebtCalculator.summarize(s.dividas, today)
-        val monthRange = monthRangeMillis(today)
-        val transacoesDoMes = s.transacoes.filter { it.data in monthRange }
+        val transacoesDoMes = s.transacoes.transactionsInMonth(today)
         val budgetProgress = BudgetCalculator.forCategories(orcamentos, transacoesDoMes, today)
         val subscriptionInsights = SubscriptionCalculator.insights(s.assinaturas, today)
 
@@ -109,7 +110,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             }
             .sortedBy { it.vencimento }
             .take(6)
-            .map { it.toUiWeekBill() }
+            .map { it.toUiWeekBill(today) }
 
         val timelineContas = s.contas
             .filter { it.tipo == "a_receber" && !it.recorrente && it.vencimento.toLocalDate().year == Year.now().value }
@@ -127,6 +128,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             rawDividas = s.dividas,
             rawOrcamentos = orcamentos,
             rawTransacoesDoMes = transacoesDoMes,
+            rawTransacoes = s.transacoes,
             goals = goalPlans.map { it.toUiGoal() },
             safeToday = safe,
             safeTodayLabel = formatBrl(safe.safeTodayCents / 100.0),
@@ -140,8 +142,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 "Nenhuma entrada extra cadastrada para este ano. Lance 13º, bônus ou restituição como conta a receber para vê-los aqui."
             else
                 "Somando as entradas extras cadastradas, você tem ${formatBrl0(timelineTotalCents / 100.0)} fora da renda recorrente neste ano.",
-            coachTitle = coachTitleFor(transacoesDoMes),
-            coachBody = coachBodyFor(transacoesDoMes),
+            behaviorPattern = BehaviorCoach.detect(s.transacoes, today).firstOrNull(),
             monthlyCapacityCents = monthlyCapacityCents,
             monthlyCapacityLabel = formatBrl0(monthlyCapacityCents / 100.0),
             allBillsAndIncome = s.contas,
@@ -159,6 +160,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 ?: "Nenhuma dívida cadastrada",
             budgets = budgetProgress.map { it.toUiBudget() },
             subscriptions = subscriptionInsights.map { it.assinatura.toUiSubscription(it) },
+            alerts = AlertCalculator.alerts(s.contas, budgetProgress, subscriptionInsights, goalPlans, today),
         )
     }
 
@@ -175,19 +177,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         0 -> "Nenhuma conta prevista para os próximos 7 dias."
         1 -> "Você tem 1 conta nos próximos 7 dias."
         else -> "Você tem $count contas nos próximos 7 dias."
-    }
-
-    private fun coachTitleFor(transacoesDoMes: List<TransacaoEntity>): String {
-        val top = transacoesDoMes.groupBy { it.categoria }.maxByOrNull { (_, list) -> list.sumOf { it.valorCentavos } }
-        return if (top == null) "Sem lançamentos este mês ainda"
-        else "Maior categoria de gasto: ${top.key}"
-    }
-
-    private fun coachBodyFor(transacoesDoMes: List<TransacaoEntity>): String {
-        val top = transacoesDoMes.groupBy { it.categoria }.maxByOrNull { (_, list) -> list.sumOf { it.valorCentavos } }
-            ?: return "Lance seus gastos para ver o padrão de consumo do mês. A leitura de comportamento com IA chega na Fase 5."
-        val total = top.value.sumOf { it.valorCentavos }
-        return "${formatBrl0(total / 100.0)} em ${top.value.size} lançamento(s) este mês. A leitura de comportamento com IA chega na Fase 5."
     }
 
     // ── manual entry: transações ───────────────────────────────
@@ -214,11 +203,31 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    suspend fun saveTransactionEntry(entry: TransacaoEntity) {
+        require(entry.valorCentavos > 0 && entry.categoria.isNotBlank())
+        repository.salvarTransacao(entry)
+    }
+
     fun deleteTransacao(transacao: TransacaoEntity) = viewModelScope.launch { repository.excluirTransacao(transacao) }
 
     // ── manual entry: contas ───────────────────────────────────
     fun saveConta(conta: ContaEntity) = viewModelScope.launch { repository.salvarConta(conta) }
     fun deleteConta(conta: ContaEntity) = viewModelScope.launch { repository.excluirConta(conta) }
+
+    /**
+     * Marca uma conta como paga/recebida (ou desfaz). Sem isto não havia
+     * nenhuma ação na UI para uma conta sair de "pendente" — a única forma de
+     * uma conta virar `"pago"` era o [FinanceSeeder]. Fechado nesta sessão
+     * porque a Fase 5 depende disso para os eventos serem testáveis de
+     * verdade (uma conta atrasada só some dos avisos quando é paga; uma
+     * "entrada extra confirmada" só existe quando um recebimento é marcado).
+     */
+    fun marcarContaPaga(contaId: Long, pago: Boolean) {
+        viewModelScope.launch {
+            val conta = uiState.value.rawContas.firstOrNull { it.id == contaId } ?: return@launch
+            repository.salvarConta(conta.copy(status = if (pago) "pago" else "pendente"))
+        }
+    }
 
     // ── manual entry: objetivos ─────────────────────────────────
     fun saveObjetivo(objetivo: ObjetivoEntity) = viewModelScope.launch { repository.salvarObjetivo(objetivo) }

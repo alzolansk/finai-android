@@ -4,10 +4,9 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Room entities matching the model in planning.md §8, one-to-one. These are
- * scaffolding for Phase 0 — no repository/DAO wires them to the UI yet;
- * screens still run on FinaiFixtures. Phase 1 replaces the fixtures with
- * Flow<List<...>> queries backed by these tables.
+ * Room entities matching the model in planning.md §8, one-to-one. Desde a
+ * Fase 1 são a fonte de verdade de tudo que as telas mostram, via
+ * `FinanceRepository` + os calculators de `domain/`.
  */
 
 @Entity(tableName = "transacoes")
@@ -19,6 +18,7 @@ data class TransacaoEntity(
     val categoria: String,
     val contaOrigem: String,
     val recorrente: Boolean,
+    @androidx.room.ColumnInfo(defaultValue = "'Gasto'") val tipo: String = "Gasto",
     val origem: String, // "manual" | "importado"
 )
 
@@ -28,7 +28,9 @@ data class ContaEntity(
     val nome: String,
     val valorCentavos: Long,
     val vencimento: Long,
-    val status: String, // "pago" | "pendente" | "atrasado" | "vence_hoje" | "previsto"
+    // Só o que a data de vencimento não revela. "atrasado"/"vence_hoje"/"previsto" não são
+    // persistidos: mudam sozinhos com o passar do dia e são derivados por BillStatusCalculator.
+    val status: String, // "pago" | "pendente"
     val tipo: String, // "a_pagar" | "a_receber"
     val recorrente: Boolean,
 )
@@ -84,4 +86,19 @@ data class UsoProvedorIaEntity(
     val provedor: String,
     val data: String, // "yyyy-MM-dd"
     val quantidadeChamadasHoje: Int,
+)
+
+/**
+ * Registro de deduplicação das notificações proativas (Fase 5, planning.md
+ * §9/§10: "no máximo as notificações relevantes daquele dia, não uma por
+ * hora"). [chave] é o id estável do evento — o mesmo id de
+ * [com.finai.app.domain.FinanceAlert.id] ou de
+ * [com.finai.app.domain.BehaviorPattern.id] — e [ultimoEnvio] é a última data
+ * (yyyy-MM-dd) em que uma notificação por esse evento foi de fato entregue.
+ * `FinanceCheckWorker` só volta a notificar o mesmo id num dia seguinte.
+ */
+@Entity(tableName = "notificacoes_enviadas")
+data class NotificacaoEnviadaEntity(
+    @PrimaryKey val chave: String,
+    val ultimoEnvio: String, // "yyyy-MM-dd"
 )

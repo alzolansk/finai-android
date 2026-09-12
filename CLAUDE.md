@@ -8,8 +8,9 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 ## Status atual
 
 **Fase 0 (Fundamentos), Fase 1 (MVP sem IA), Fase 2 (camada de IA com um
-provedor), Fase 3 (multi-provedor e resiliência) e Fase 4 (importação de
-fatura) — concluídas.** Ver `planning.md` §9 para a lista de fases.
+provedor), Fase 3 (multi-provedor e resiliência), Fase 4 (importação de
+fatura) e Fase 5 (notificações proativas e coach comportamental) —
+concluídas.** Ver `planning.md` §9 para a lista de fases.
 
 Fase 0: projeto Gradle (Kotlin 1.9.22, AGP 8.3.1, Compose BOM 2024.02.01,
 Navigation-Compose 2.7.7, Room 2.6.1/KSP, DataStore 1.1.1), `applicationId`/namespace
@@ -224,8 +225,193 @@ Fase 4 — o que mudou:
   sinalizadas. **Não testado com uma chave de IA real** (nenhum provedor foi
   configurado nesta sessão) nem com uma fatura real de banco.
 
-**Próximo passo:** Fase 5 (notificações proativas e coach comportamental) — ver
-planning.md §9.
+Revisão pré-Fase 5 (auditoria de mock/fixture vs. critérios de aceite das Fases 1–4):
+- **Status de conta virou cálculo, não campo gravado** (`domain/BillStatusCalculator.kt`,
+  novo). `"atrasado"`/`"vence_hoje"` estavam declarados no schema mas nenhum código os
+  escrevia: a Agenda mostrava "Pendente" numa conta vencida há meses. Agora
+  `toUiBill`/`toUiWeekBill` derivam o status do vencimento vs. hoje (planning.md §6 lista
+  status de conta como cálculo local determinístico); `ContaEntity.status` guarda só o que
+  a data não revela (`"pago"`/`"pendente"`). `BillStatus` ganhou `Expected` ("Previsto")
+  para conta a receber.
+- **Avisos do sino saíram da fixture** (`domain/AlertCalculator.kt`, novo). O badge da
+  topbar era a constante `FinaiFixtures.notifCount = 1` e o dropdown mostrava um item fixo
+  "chega na Fase 5". Agora a lista é calculada do Room — conta atrasada, conta vencendo em
+  até 3 dias, categoria estourada ou projetada acima do limite, assinatura parada, entrada
+  prevista em até 7 dias (exatamente os casos de planning.md §3.9), ordenada por
+  severidade, e o badge é `alerts.size`. Nenhuma IA envolvida: o que a **Fase 5** ainda
+  acrescenta é a *entrega* proativa fora do app (`WorkManager`) e o texto redigido por IA,
+  não a existência da lista.
+- **Histórico do chat passou a ser persistido** (`data/repository/ChatRepository.kt`,
+  novo). A tabela `mensagens_chat` e o `MensagemChatDao` existiam desde a Fase 0 e nada os
+  usava: a conversa vivia em memória e todo restart voltava para uma mensagem de boas-vindas
+  fixa (`FinaiFixtures.initialMessages`), que parecia resposta de IA e não era. Agora
+  `AppViewModel` coleta `ChatRepository.mensagens` (Room é a fonte de verdade, planning.md
+  §5) e grava pergunta e resposta; a tela vazia mostra um cartão de apresentação, não uma
+  mensagem falsa. Corrigida também a linha "lê seus últimos 90 dias" do cabeçalho do chat —
+  a IA recebe o resumo agregado de `FinanceUiState.toAiSummaryText()`, não o extrato
+  (planning.md §4).
+- **`FinaiFixtures` não tem mais nenhum dado financeiro** — sobrou só config de UI sem dado
+  pessoal (presets do simulador, sugestões de pergunta, rótulos do FAB) e `offlineReply`.
+  `NotificationItem`/`NegotiationStep` (models órfãos) foram removidos.
+- Revisado e **sem mock**: Início, Agenda, Objetivos, Dívidas, Limites e Importar já liam
+  tudo de Room/`domain/`; os textos de IA são `AiText.Loading/Ready/Unavailable` com
+  fallback determinístico honesto (veredito do simulador, roteiro de negociação genérico),
+  não texto de protótipo disfarçado.
+- Pendências conhecidas, **deliberadamente não mexidas** nesta revisão: (a)
+  `FinanceSeeder` continua inserindo um dataset inicial realista no primeiro run — é dado
+  real e editável no Room, não fixture de tela, e a decisão está documentada na Fase 1;
+  (b) Agenda não tem a "dica contextual da IA sobre ordem de pagamento" de planning.md
+  §3.2 (não está na lista de pontos de IA da Fase 2); (c) o simulador não mostra o efeito
+  na cobertura da reserva de emergência (planning.md §3.7); (d) não há ação de "marcar
+  conta como paga" na UI — o único jeito de uma conta virar `"pago"` hoje é pelo seeder.
+- Build (`assembleDebug`) e testes verdes: **76 testes de unidade** (66 anteriores + 10
+  novos em `BillStatusCalculatorTest` e `AlertCalculatorTest`). Instrumentados não
+  reexecutados nesta sessão.
+
+Fase 5 — o que mudou:
+- **`FinanceCheckWorker`** (`data/work/`, `CoroutineWorker`) é a rotina periódica
+  (planning.md §5/§9) — `PeriodicWorkRequestBuilder(24h, flex 4h)`, `KEEP` policy,
+  sem restrição de rede (a detecção é local e deve funcionar offline). Agendado uma vez
+  em `FinaiApplication.onCreate()` (novo `android:name` no manifesto); sobrevive a app
+  fechado e a reboot porque o próprio WorkManager persiste o agendamento — nenhum
+  `BroadcastReceiver` de boot foi necessário.
+- **Quatro camadas separadas, nenhuma dentro do Worker ou de um Composable** (exigência
+  explícita desta fase): **detecção** — `domain/AlertCalculator.kt` (estendido: agora
+  recebe `List<GoalPlan>` e também sinaliza objetivos que precisam de atenção e "entrada
+  extra confirmada", planning.md §3.9) e `domain/BehaviorCoach.kt` (novo, o "coach de
+  comportamento" real); **conteúdo** — `data/notifications/NotificationContentBuilder.kt`
+  (só decide o *texto*, nunca se o evento existe); **entrega** —
+  `data/notifications/FinaiNotifier.kt` (único lugar que fala com
+  `NotificationManagerCompat`); **deduplicação** —
+  `data/notifications/NotificationDedupeStore.kt`, sobre uma tabela Room nova
+  (`NotificacaoEnviadaEntity`/`notificacoes_enviadas`, `FinaiDatabase` versão 2→3).
+- **Dedup por dia, não por evento único**: cada `FinanceAlert.id`/`BehaviorPattern.id` só
+  notifica uma vez por data local (`ultimoEnvio`); o mesmo id continua "existindo" (e
+  volta a notificar no dia seguinte) enquanto o problema não for resolvido — uma conta
+  atrasada lembra todo dia, um orçamento estourado também, exatamente o critério de
+  aceite da Fase 5 ("no máximo as notificações relevantes daquele dia, não uma por
+  hora", planning.md §10). Quando o id some da lista que `AlertCalculator`/`BehaviorCoach`
+  devolvem (conta paga, orçamento normalizado), `pruneExcept` limpa o registro.
+- **IA só entra quando já existe evento, nunca mais de 2 chamadas por execução**: uma
+  para o lote de `FinanceAlert`s "novos hoje" (resumidos numa única notificação se houver
+  mais de um) e uma para o padrão do coach — nunca uma chamada por alerta. Usa o mesmo
+  `AiRouter` da Fase 3 (`AiTask.PROACTIVE_ALERT`/`BEHAVIOR_COACH` novos em
+  `AiProvider.kt`, prompts em `AiPromptBuilder.kt`); sem eventos, o Worker não instancia
+  o router — zero chamadas de IA num dia sem nada relevante. Sem IA disponível, a
+  notificação sai igual com o texto determinístico do próprio alerta/padrão (nunca "IA
+  indisponível" como corpo da notificação).
+- **`domain/BehaviorCoach.kt`** é o "coach de comportamento" de planning.md §3.1,
+  substituindo o placeholder da Fase 1 ("maior categoria de gasto... chega na Fase 5").
+  Como `TransacaoEntity.data` só guarda o dia (sem hora), os padrões são por dia da
+  semana e repetição, não por horário como o protótipo sugeria: crescimento de categoria
+  mês a mês (≥30%), estabelecimento repetido ≥4x no mês (hábito, exclui assinatura já
+  conhecida), gasto concentrado no fim de semana (≥60%) ou em dias úteis (≥85%). Cálculo
+  100% determinístico; a IA (`ensureCoachInsight` em `AiViewModel`) só redige
+  `pattern.detail` em linguagem mais natural, com o texto determinístico como fallback
+  imediato — mesma convenção do simulador. O cartão "Coach" da Início
+  (`HomeScreen.CoachCard`) some quando não há padrão relevante, em vez de mostrar texto
+  fixo.
+- **Permissão de notificação (Android 13+)**: `POST_NOTIFICATIONS` no manifesto, pedida
+  em runtime por `MainActivity` via `ActivityResultContracts.RequestPermission()` — negada
+  ou não, o app continua funcionando por completo (`FinaiNotifier.hasNotificationPermission()`
+  faz o Worker pular só o `notify()`, nunca falhar). Diagnóstico e um botão "Testar agora"
+  (dispara `FinanceCheckWorker.runOnce`, um `OneTimeWorkRequest` avulso que não mexe no
+  agendamento periódico) foram colocados na tela de configuração de IA
+  (`AiSettingsDialog.kt`), por ser o lugar existente mais próximo de "diagnóstico do app".
+- **Fechada uma lacuna que a Fase 5 dependia para ser testável**: não havia nenhuma ação
+  de UI para uma conta sair de `"pendente"` (só o seeder gravava `"pago"`). Agenda ganhou
+  toque para alternar paga/pendente em `BillRow`
+  (`FinanceViewModel.marcarContaPaga`) — sem isso não dava para simular "conta atrasada
+  resolvida" nem "entrada extra confirmada" de verdade.
+- **Testes novos** (20): `BehaviorCoachTest` (crescimento, hábito frequente, concentração
+  fim de semana/dia útil, prioridade entre padrões), `AlertCalculatorTest` estendido
+  (objetivo Reassess/Priority, entrada confirmada vs. prevista, salário recorrente não
+  conta como "extra"), `NotificationContentBuilderTest` (fallback determinístico sem IA,
+  uma chamada só para vários alertas, nunca chamada sem evento) e
+  `NotificationDedupeStoreTest` (dedup por dia, prune) — todos com fakes, sem Room/Context
+  real, mesmo padrão de `AiRouterTest`/`ImportAnalyzerTest`.
+- Build (`assembleDebug`) e testes (`testDebugUnitTest`, **96 testes**) verdes neste
+  ambiente. **Não executado em aparelho/emulador real nesta sessão** (sem `adb`/emulador
+  disponível) — ver "AÇÃO MANUAL NECESSÁRIA" no relatório da sessão para o roteiro de
+  teste manual do Worker, da permissão de notificação e do dedup ao vivo.
+
+Correções pós-Fase 5 (bug fix nos fluxos de lançamento manual e importação):
+- **Causa raiz identificada: a Agenda nunca leu `TransacaoEntity`.** `agendaDataFor`
+  (`FinaiApp.kt`) só filtrava `ContaEntity` (contas/vencimentos); um gasto manual ou um
+  item importado grava só `TransacaoEntity` (arquitetura correta desde a Fase 1/4 —
+  planning.md §8, `Transacao` ≠ `Conta`), então nunca aparecia na Agenda. Isso não era
+  visível ao ler `FinanceViewModel`/`FinanceRepository` isoladamente — a persistência em
+  si sempre funcionou (confirmado ao vivo em emulador: o dado sobrevivia a
+  fechar/reabrir o app e já entrava nos cálculos de orçamento/saldo seguro); só a tela
+  Agenda ficava cega para esse dado. O sintoma "nada acontece" ao lançar um gasto era
+  essa lacuna de exibição, não perda de dado. Confirmado que o próprio app já direcionava
+  o usuário para lá: o botão "Ver na Agenda" da tela de importação, e o texto "já
+  entraram nos seus números" do card de sucesso, ambos pressupunham que a Agenda
+  mostraria o que acabou de ser importado — o que planning.md §3.6 também prevê
+  ("lançamentos prontos para revisar antes de entrar na Agenda").
+- **Correção:** `FinanceUiState` ganhou `rawTransacoes` (lista completa, sem filtro de
+  mês — `rawTransacoesDoMes` já existia mas só cobria o mês corrente do relógio, não o
+  mês que a Agenda estiver navegando). `agendaDataFor` passou a filtrar também as
+  transações pelo mês/ano selecionado e `AgendaScreen` ganhou uma seção "Lançamentos
+  deste mês" que lista cada uma (categoria, dia, selo "importado" quando aplicável) com
+  exclusão, espelhando a ação que já existia na tela Limites. Contas (`a_pagar`/
+  `a_receber`) continuam sendo o único componente dos totais "Contas a pagar"/
+  "Recebimentos" do topo — uma transação já é dinheiro gasto, não um compromisso futuro,
+  então somá-la ali distorceria o significado do total.
+- **Validado ao vivo num emulador** (Pixel/API 34, já rodava com `adb` disponível nesta
+  sessão — diferente das anteriores): lançar um gasto manual aparece imediatamente na
+  Agenda sem reiniciar o app; `force-stop` + reabrir o app confirma que o dado persiste
+  no Room; importar `samples/fatura-exemplo.csv` e confirmar mostra os 6 lançamentos na
+  Agenda do mês de cada data (março de 2026 nesse arquivo de exemplo), com o selo
+  "importado".
+- **Corrigido também `gradlew.bat`**, que estava com `set CLASSPATH=` vazio em vez de
+  `set CLASSPATH=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar` — o wrapper não rodava
+  por linha de comando neste ambiente (`Error: -classpath requires class path
+  specification`) com o JDK 20 instalado aqui, o que teria impedido compilar/testar via
+  `./gradlew` nesta sessão.
+- Build (`assembleDebug`) e testes (`testDebugUnitTest`, **96 testes**, sem alteração de
+  quantidade) verdes.
+
+Refatoração do lançamento manual (12/09/2026):
+- Referências lidas integralmente: os 13 slides de `project/ref/Finai Mobile App Design.pdf`,
+  `lancamento.png` e `categoria.png`. O antigo `AddTransactionDialog` foi substituído
+  por `ui/components/TransactionEntryScreen.kt`, camada Compose dedicada em tela cheia.
+  Header e teclado próprio de 240 dp são fixos; só o formulário rola. Em paisagem,
+  teclado e formulário ficam lado a lado. Rascunho usa `rememberSaveable` e é
+  preservado ao voltar, inclusive após recriação da Activity.
+- Inter 400–800 está empacotada em `res/font`, usada somente no novo fluxo;
+  licença OFL em `assets/licenses/Inter-OFL.txt`. Ícones vetoriais próprios usam
+  grid 24, traço 1,8 e tamanho 21 dp. Categorias têm a grade fixa de nove opções,
+  seleção verde, fechamento em um toque e cancelamento pelo fundo.
+- `domain/TransactionEntry.kt` concentra tipos, categorias e entrada em centavos
+  (string, máximo 9 dígitos, 4 → 3 → 00 = 4300; apagar = 430).
+  Salvar exige apenas valor positivo e categoria; descrição vazia usa a categoria
+  como nome na Agenda. Conta padrão vem das origens já usadas, com Carteira como
+  fallback local; o seletor permite informar outra conta sem inventar bancos.
+- **Migração Room 3→4 não destrutiva:** acrescenta `TransacaoEntity.tipo`,
+  com `Gasto` como padrão para registros existentes. Receita soma ao saldo,
+  transferência é neutra e nenhuma das duas entra no orçamento/coach como gasto.
+  Não há cadastro de saldos bancários ou conta de destino no modelo/referência:
+  transferência registra tipo, valor, categoria e origem, sem inventar débito/crédito
+  em contas bancárias inexistentes. Repositório e ViewModels existentes são mantidos.
+- Recorrência projeta uma ocorrência por mês a partir da data inicial, ajustando
+  dia 29–31 para o último dia quando necessário, sem criar cópias no banco.
+  A Agenda e os números do mês usam essas ocorrências; excluir uma recorrência
+  exclui o registro da série. Sucesso aparece somente após Room concluir;
+  falha mantém o formulário e permite tentar novamente. “Ver lançamento” limpa
+  o rascunho e abre a Agenda no mês/ano da data salva.
+- Validação: `assembleDebug`, 100 testes JVM, 5 testes instrumentados dedicados
+  (`TransactionEntryFlowTest`: três tipos/Room reaberto/Agenda, rascunho e migração).
+  Fluxos exercitados no emulador API 34 em 412×892, 320×640 e 640×360 dp.
+  Nenhuma chave de IA ou rede é necessária no fluxo. Não testado em aparelho físico.
+- Diferenças da plataforma: sombras são nativas; o teclado usa gradiente claro
+  sobre fundo fixo. O desfoque Compose do formulário atrás do sheet funciona em
+  Android 12+, com scrim sem blur nas APIs 26–30. Calendário é Material 3.
+  Menu de ações e rodapé global ficaram fora desta refatoração do lançamento.
+
+**Próximo passo:** Fase 6 (endurecimento e lançamento) — ver planning.md §9: ofuscação
+e proteção das chaves de API, testes de navegação completa em aparelho físico, revisão
+de privacidade, ficha da Play Store.
 
 ## Como retomar uma sessão
 
@@ -276,14 +462,18 @@ planning.md §9.
   `project/FinAI Mobile.dc.html`, `project/support.js`, `project/ref/*.png`.
 - Transcript de design (intenção por trás de cada decisão de UX): `chats/chat1.md`.
 - Design tokens já extraídos: `app/src/main/java/com/finai/app/ui/theme/`.
-- Cálculo real (Fase 1): `app/src/main/java/com/finai/app/domain/`.
+- Cálculo real (Fase 1): `app/src/main/java/com/finai/app/domain/` — inclui
+  `BillStatusCalculator` (status de conta derivado da data), `AlertCalculator`
+  (eventos financeiros — sino da topbar e notificações, planning.md §3.9) e
+  `BehaviorCoach` (padrões de gasto do coach comportamental, planning.md §3.1).
 - Importação de fatura (Fase 4): `domain/importer/` (parsing, classificação,
   duplicata, recorrência — Kotlin puro, testável na JVM), `data/importer/`
   (Uri/OCR/PDF/planilha), `data/ai/ImportAiAssistant.kt` (o único ponto de IA da
   importação), `state/ImportViewModel.kt`, `ui/screens/importer/ImportScreen.kt`.
   Faturas de exemplo para teste manual e instrumentado: `samples/`.
-- Dado real (Room): `data/local/`, `data/repository/`. O que resta de fixture
-  (Fase 5 e config de UI sem dado pessoal): `data/fixtures/FinaiFixtures.kt`.
+- Dado real (Room): `data/local/`, `data/repository/` (`FinanceRepository` para os
+  números, `ChatRepository` para o histórico do chat). O que resta em
+  `data/fixtures/FinaiFixtures.kt` é só config de UI sem dado pessoal.
 - Camada de IA (Fase 2/3): `data/ai/` — `AiProvider` (interface),
   `GeminiAiProvider`/`OpenAiCompatibleAiProvider`+4 subclasses (adaptadores),
   `AiRouter` (fallback), `ProviderUsageStore` (cota diária),
@@ -292,3 +482,12 @@ planning.md §9.
   (goal insight/veredito/negociação/decisões + gestão das chaves) e o chat em
   `state/AppViewModel.kt`. Testes do roteador:
   `app/src/test/java/.../data/ai/AiRouterTest.kt`.
+- Notificações proativas e coach (Fase 5): `data/work/FinanceCheckWorker.kt` (a rotina
+  periódica, orquestra as camadas abaixo, nenhuma regra de detecção mora nele),
+  `data/notifications/` (`NotificationContentBuilder` — texto; `FinaiNotifier` — entrega,
+  único lugar que usa `NotificationManagerCompat`; `NotificationDedupeStore` — "não
+  notificar o mesmo evento duas vezes no dia"; `FinaiNotificationChannels`),
+  `FinaiApplication.kt` (agenda o Worker e cria os canais na subida do processo).
+  Detecção continua em `domain/` (`AlertCalculator`, `BehaviorCoach`). Testes:
+  `app/src/test/java/.../domain/{AlertCalculatorTest,BehaviorCoachTest}.kt` e
+  `.../data/notifications/{NotificationContentBuilderTest,NotificationDedupeStoreTest}.kt`.

@@ -39,9 +39,12 @@ object SafeToSpendCalculator {
             .filter { it.tipo == "a_receber" && it.data() in range }
             .sumOf { it.valorCentavos }
 
-        val gastosDoMes = transacoes
-            .filter { it.data in range }
-            .sumOf { it.valorCentavos }
+        val gastosDoMes = transacoes.transactionsInMonth(today)
+            .sumOf { when (it.tipo) {
+                "Receita" -> -it.valorCentavos
+                "Transferencia" -> 0L
+                else -> it.valorCentavos
+            } }
 
         val contasAPagarRestantes = contas
             .filter { it.tipo == "a_pagar" && it.status != "pago" && it.data() in range }

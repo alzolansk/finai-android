@@ -15,6 +15,7 @@ import com.finai.app.data.model.TimelineEntry
 import com.finai.app.data.model.TimelineTone
 import com.finai.app.data.model.WeekBill
 import com.finai.app.util.formatBrl0
+import java.time.LocalDate
 
 /**
  * Converts domain calculation results (plain numbers) into the existing
@@ -115,15 +116,17 @@ private fun initialsOf(nome: String): String =
     nome.trim().split(Regex("\\s+")).take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
         .ifEmpty { "?" }
 
-fun ContaEntity.toUiBill(): Bill {
-    val status = when (this.status) {
-        "pago" -> BillStatus.Paid
-        "atrasado" -> BillStatus.Overdue
-        "vence_hoje" -> BillStatus.DueToday
-        else -> BillStatus.Pending
+fun ContaEntity.toUiBill(today: LocalDate = LocalDate.now()): Bill {
+    val status = when (BillStatusCalculator.of(this, today)) {
+        EffectiveBillStatus.PAGO -> BillStatus.Paid
+        EffectiveBillStatus.ATRASADO -> BillStatus.Overdue
+        EffectiveBillStatus.VENCE_HOJE -> BillStatus.DueToday
+        EffectiveBillStatus.PENDENTE -> BillStatus.Pending
+        EffectiveBillStatus.PREVISTO -> BillStatus.Expected
     }
     val (tint, ink) = palette[(nome.hashCode() and Int.MAX_VALUE) % palette.size]
     return Bill(
+        id = id,
         name = nome,
         meta = (if (recorrente) "Fixo" else "Avulso") + " · " + formatDayMonth(vencimento),
         amount = formatBrl0(centsToReais(valorCentavos)),
@@ -134,14 +137,14 @@ fun ContaEntity.toUiBill(): Bill {
     )
 }
 
-fun ContaEntity.toUiWeekBill(): WeekBill {
+fun ContaEntity.toUiWeekBill(today: LocalDate = LocalDate.now()): WeekBill {
     val date = vencimento.toLocalDate()
-    val (label, tone) = when {
-        tipo == "a_receber" -> "Previsto" to StatusTone.Positive
-        status == "atrasado" -> "Atrasado" to StatusTone.Due
-        status == "vence_hoje" -> "Vence hoje" to StatusTone.Due
-        status == "pago" -> "Pago" to StatusTone.Scheduled
-        else -> "Pendente" to StatusTone.Pending
+    val (label, tone) = when (BillStatusCalculator.of(this, today)) {
+        EffectiveBillStatus.PREVISTO -> "Previsto" to StatusTone.Positive
+        EffectiveBillStatus.ATRASADO -> "Atrasado" to StatusTone.Due
+        EffectiveBillStatus.VENCE_HOJE -> "Vence hoje" to StatusTone.Due
+        EffectiveBillStatus.PAGO -> "Pago" to StatusTone.Scheduled
+        EffectiveBillStatus.PENDENTE -> "Pendente" to StatusTone.Pending
     }
     val amount = formatBrl0(centsToReais(valorCentavos)).let { if (tipo == "a_receber") "+ $it" else it }
     return WeekBill(

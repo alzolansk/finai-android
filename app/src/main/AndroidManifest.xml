@@ -4,7 +4,13 @@
     <!-- AI provider calls only (Fase 2/3, planning.md §9: Gemini/Groq/OpenRouter/Mistral/Cerebras) — the only network use in the app. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Notificações proativas (Fase 5, planning.md §9). Obrigatória a partir do Android 13
+         (API 33) e pedida em runtime por MainActivity; sem ela o app funciona normalmente,
+         só a notificação em si não aparece (FinaiNotifier degrada silenciosamente). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
+        android:name=".FinaiApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"

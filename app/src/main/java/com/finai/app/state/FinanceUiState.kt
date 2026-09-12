@@ -12,6 +12,8 @@ import com.finai.app.data.model.Goal
 import com.finai.app.data.model.Subscription
 import com.finai.app.data.model.TimelineEntry
 import com.finai.app.data.model.WeekBill
+import com.finai.app.domain.BehaviorPattern
+import com.finai.app.domain.FinanceAlert
 import com.finai.app.domain.SafeToSpendResult
 
 /**
@@ -33,6 +35,8 @@ data class FinanceUiState(
     val rawDividas: List<DividaEntity> = emptyList(),
     val rawOrcamentos: List<OrcamentoCategoriaEntity> = emptyList(),
     val rawTransacoesDoMes: List<TransacaoEntity> = emptyList(),
+    /** Todas as transações, sem filtro de mês — usado pela Agenda para o mês que o usuário estiver navegando (planning.md §3.2/§3.6). */
+    val rawTransacoes: List<TransacaoEntity> = emptyList(),
 
     // Home
     val goals: List<Goal> = emptyList(),
@@ -42,8 +46,8 @@ data class FinanceUiState(
     val nextWeekBills: List<WeekBill> = emptyList(),
     val timeline: List<TimelineEntry> = emptyList(),
     val timelineNote: String = "",
-    val coachTitle: String = "",
-    val coachBody: String = "",
+    /** Padrão de gasto mais relevante do mês, calculado por [com.finai.app.domain.BehaviorCoach] — null se nenhum padrão passou dos limiares. */
+    val behaviorPattern: BehaviorPattern? = null,
 
     // Objetivos
     val monthlyCapacityCents: Long = 0,
@@ -63,6 +67,9 @@ data class FinanceUiState(
     // Orçamentos
     val budgets: List<Budget> = emptyList(),
     val subscriptions: List<Subscription> = emptyList(),
+
+    /** Avisos do sino da topbar — planning.md §3.9, calculados por [com.finai.app.domain.AlertCalculator]. */
+    val alerts: List<FinanceAlert> = emptyList(),
 )
 
 /**

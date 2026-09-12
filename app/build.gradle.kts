@@ -98,6 +98,10 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
 
+    // WorkManager (Fase 5, planning.md §5/§9) — rotina periódica de notificações
+    // proativas, funciona com o app fechado e sobrevive a reboot.
+    implementation(libs.androidx.work.runtime.ktx)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)

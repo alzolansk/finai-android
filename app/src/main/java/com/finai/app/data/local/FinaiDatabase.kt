@@ -8,6 +8,7 @@ import com.finai.app.data.local.dao.AssinaturaDao
 import com.finai.app.data.local.dao.ContaDao
 import com.finai.app.data.local.dao.DividaDao
 import com.finai.app.data.local.dao.MensagemChatDao
+import com.finai.app.data.local.dao.NotificacaoEnviadaDao
 import com.finai.app.data.local.dao.ObjetivoDao
 import com.finai.app.data.local.dao.OrcamentoCategoriaDao
 import com.finai.app.data.local.dao.TransacaoDao
@@ -16,6 +17,7 @@ import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
 import com.finai.app.data.local.entity.MensagemChatEntity
+import com.finai.app.data.local.entity.NotificacaoEnviadaEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
@@ -23,8 +25,7 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
 
 /**
  * The app's only local database — everything financial lives here, on-device,
- * per planning.md §4's privacy-first requirement. Not yet instantiated from
- * any screen in Phase 0; wire it up via [get] once real repositories land.
+ * per planning.md §4's privacy-first requirement.
  */
 @Database(
     entities = [
@@ -36,8 +37,9 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
         AssinaturaEntity::class,
         MensagemChatEntity::class,
         UsoProvedorIaEntity::class,
+        NotificacaoEnviadaEntity::class,
     ],
-    version = 2,
+    version = 4,
     exportSchema = false,
 )
 abstract class FinaiDatabase : RoomDatabase() {
@@ -49,8 +51,15 @@ abstract class FinaiDatabase : RoomDatabase() {
     abstract fun assinaturaDao(): AssinaturaDao
     abstract fun mensagemChatDao(): MensagemChatDao
     abstract fun usoProvedorIaDao(): UsoProvedorIaDao
+    abstract fun notificacaoEnviadaDao(): NotificacaoEnviadaDao
 
     companion object {
+        val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transacoes ADD COLUMN tipo TEXT NOT NULL DEFAULT 'Gasto'")
+            }
+        }
+
         @Volatile private var instance: FinaiDatabase? = null
 
         fun get(context: Context): FinaiDatabase = instance ?: synchronized(this) {
@@ -61,6 +70,7 @@ abstract class FinaiDatabase : RoomDatabase() {
             )
                 // Pre-launch app, no real user data to preserve yet (planning.md §11) —
                 // destructive migration is fine until Fase 6 (endurecimento e lançamento).
+                .addMigrations(MIGRATION_3_4)
                 .fallbackToDestructiveMigration()
                 .build().also { instance = it }
         }

@@ -10,6 +10,7 @@ import com.finai.app.data.ai.AiRouter
 import com.finai.app.data.ai.AiText
 import com.finai.app.data.ai.ProviderId
 import com.finai.app.data.model.Budget
+import com.finai.app.domain.BehaviorPattern
 import com.finai.app.data.model.Debt
 import com.finai.app.data.model.Goal
 import com.finai.app.data.model.GoalBadge
@@ -140,6 +141,33 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         _decisions.value = AiText.Loading
         decisionsJob = viewModelScope.launch {
             _decisions.value = requestText(AiPromptBuilder.decisions(topDebt, budgetsOver, unusedSubs, reassessGoals, safeNote))
+        }
+    }
+
+    // ── início: "coach de comportamento" (Fase 5) ──────────────────────────
+    private val _coachInsight = MutableStateFlow<AiText?>(null)
+    val coachInsight: StateFlow<AiText?> = _coachInsight
+    private var coachInsightKey: String? = null
+    private var coachInsightJob: Job? = null
+
+    /**
+     * [pattern] já foi decidido por [com.finai.app.domain.BehaviorCoach] — esta função só pede à
+     * IA para redigir [pattern.detail] em linguagem mais natural (planning.md §9's "coach
+     * comportamental"). `null` (nenhum padrão relevante este mês) limpa o estado sem chamar IA.
+     */
+    fun ensureCoachInsight(pattern: BehaviorPattern?) {
+        if (pattern == null) {
+            coachInsightJob?.cancel()
+            coachInsightKey = null
+            _coachInsight.value = null
+            return
+        }
+        if (coachInsightKey == pattern.id) return
+        coachInsightKey = pattern.id
+        coachInsightJob?.cancel()
+        _coachInsight.value = AiText.Loading
+        coachInsightJob = viewModelScope.launch {
+            _coachInsight.value = requestText(AiPromptBuilder.behaviorCoach(pattern))
         }
     }
 

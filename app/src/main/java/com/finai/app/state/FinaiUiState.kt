@@ -9,9 +9,9 @@ import java.time.LocalDate
  * simulator draft amount, the agenda month cursor. Real financial data
  * (goals, bills, debts, budgets) lives in [FinanceViewModel]/[FinanceUiState]
  * as of Fase 1; this is what's left of the Fase 0 single-state-object that
- * has nothing to do with persistence (planning.md §9). The chat message list
- * itself lives here too, though [AppViewModel] now fills it with real Gemini
- * replies (Fase 2) instead of canned text.
+ * has nothing to do with persistence (planning.md §9). [messages] is the one
+ * exception: it mirrors the chat history [AppViewModel] reads from Room, so
+ * the conversation survives a restart (planning.md §5).
  */
 data class FinaiUiState(
     val addOpen: Boolean = false,
@@ -24,5 +24,6 @@ data class FinaiUiState(
     val simAmount: Double = FinaiFixtures.defaultSimAmount,
     val draft: String = "",
     val thinking: Boolean = false,
-    val messages: List<ChatMessage> = FinaiFixtures.initialMessages,
+    /** Espelho do histórico gravado no Room — ver [AppViewModel]; começa vazio, não com uma mensagem fixa. */
+    val messages: List<ChatMessage> = emptyList(),
 )

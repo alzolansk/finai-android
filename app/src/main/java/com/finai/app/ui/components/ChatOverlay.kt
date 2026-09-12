@@ -78,7 +78,9 @@ fun ChatOverlay(
             Column(modifier = Modifier.weight(1f)) {
                 Text("FinAI", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
                 Text(
-                    if (thinking) "analisando seus dados..." else "online · lê seus últimos 90 dias",
+                    // O que a IA realmente recebe é o resumo agregado de FinanceUiState
+                    // (planning.md §4: minimização do que sai do aparelho) — não o extrato.
+                    if (thinking) "analisando seus números..." else "online · lê o resumo dos seus números",
                     fontSize = 11.sp, color = FinaiColors.TextTertiary,
                 )
             }
@@ -99,6 +101,9 @@ fun ChatOverlay(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (messages.isEmpty() && !thinking) {
+                item { EmptyChatIntro() }
+            }
             items(messages) { message -> ChatBubble(message) }
             if (thinking) item { ThinkingBubble() }
         }
@@ -201,5 +206,28 @@ private fun ThinkingBubble() {
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         repeat(3) { Dot(FinaiColors.Emerald, size = 7.dp) }
+    }
+}
+
+/**
+ * Estado inicial da conversa. É texto de apresentação da tela, não uma
+ * mensagem: o histórico real vem do Room ([com.finai.app.data.repository.ChatRepository])
+ * e começa vazio, em vez de já conter uma "resposta" da IA que nunca foi gerada.
+ */
+@Composable
+private fun EmptyChatIntro() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(18.dp))
+            .background(FinaiColors.Surface)
+            .padding(16.dp),
+    ) {
+        Text("Assistente FinAI", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        Text(
+            FinaiFixtures.chatPitch, fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
+            modifier = Modifier.padding(top = 6.dp),
+        )
     }
 }

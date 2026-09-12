@@ -23,20 +23,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.finai.app.data.fixtures.FinaiFixtures
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
+import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.data.model.Bill
 import com.finai.app.data.model.Goal
 import com.finai.app.data.model.Subscription
+import com.finai.app.data.notifications.FinaiNotifier
+import com.finai.app.data.work.FinanceCheckWorker
 import com.finai.app.domain.toEpochMillis
 import com.finai.app.domain.toLocalDate
 import com.finai.app.domain.toUiBill
@@ -49,7 +53,9 @@ import com.finai.app.state.toAiSummaryText
 import com.finai.app.ui.components.AddContaDialog
 import com.finai.app.ui.components.AddDividaDialog
 import com.finai.app.ui.components.AddGoalDialog
-import com.finai.app.ui.components.AddTransactionDialog
+import com.finai.app.ui.components.TransactionEntryScreen
+import com.finai.app.domain.transactionsInMonth
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.finai.app.ui.components.ApiKeySettingsScreen
 import com.finai.app.ui.components.BudgetLimitDialog
 import com.finai.app.ui.components.BuySimulatorContent
@@ -93,6 +99,7 @@ fun FinaiApp(
     val purchaseVerdict by aiViewModel.purchaseVerdict.collectAsState()
     val debtNegotiation by aiViewModel.debtNegotiation.collectAsState()
     val decisions by aiViewModel.decisions.collectAsState()
+    val coachInsight by aiViewModel.coachInsight.collectAsState()
     val importState by importViewModel.uiState.collectAsState()
     val financeSummary = remember(financeState) { financeState.toAiSummaryText() }
     val navController = rememberNavController()
@@ -107,19 +114,19 @@ fun FinaiApp(
         }
     }
 
-    var showAddTransaction by remember { mutableStateOf(false) }
+    var showAddTransaction by rememberSaveable { mutableStateOf(false) }
     var showAddGoal by remember { mutableStateOf(false) }
     var showAddConta by remember { mutableStateOf(false) }
     var showAddDivida by remember { mutableStateOf(false) }
     var contributionTarget by remember { mutableStateOf<Goal?>(null) }
     var budgetLimitTarget by remember { mutableStateOf<String?>(null) }
 
-    val agenda = remember(financeState.rawContas, uiState.monthIndex, uiState.agendaYear) {
-        agendaDataFor(financeState.rawContas, uiState.monthIndex, uiState.agendaYear)
+    val agenda = remember(financeState.rawContas, financeState.rawTransacoes, uiState.monthIndex, uiState.agendaYear) {
+        agendaDataFor(financeState.rawContas, financeState.rawTransacoes, uiState.monthIndex, uiState.agendaYear)
     }
 
     Box(modifier = Modifier.fillMaxSize().background(FinaiColors.Background)) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().then(if (showAddTransaction) Modifier.clearAndSetSemantics {} else Modifier)) {
             if (current == FinaiDestination.AiSettings) {
                 FinaiSettingsTopBar(
                     title = current.screenLabel,
@@ -128,7 +135,7 @@ fun FinaiApp(
             } else {
                 FinaiTopBar(
                     screenLabel = current.screenLabel,
-                    notifCount = FinaiFixtures.notifCount,
+                    notifCount = financeState.alerts.size,
                     onOpenNotifications = viewModel::openNotifications,
                     onOpenChat = viewModel::openChat,
                     onOpenAiSettings = { navController.navigate(FinaiDestination.AiSettings.route) { launchSingleTop = true } },
@@ -146,6 +153,9 @@ fun FinaiApp(
                                 safeNote = financeState.safeNote,
                             )
                         }
+                        LaunchedEffect(financeState.behaviorPattern) {
+                            aiViewModel.ensureCoachInsight(financeState.behaviorPattern)
+                        }
                         HomeScreen(
                             greeting = financeState.greeting,
                             subGreeting = financeState.subGreeting,
@@ -157,8 +167,8 @@ fun FinaiApp(
                             timeline = financeState.timeline,
                             timelineNote = financeState.timelineNote,
                             showCoach = uiState.showCoach,
-                            coachTitle = financeState.coachTitle,
-                            coachBody = financeState.coachBody,
+                            behaviorPattern = financeState.behaviorPattern,
+                            coachInsight = coachInsight,
                             decisions = decisions,
                             onOpenGoals = { navigateTo(FinaiDestination.Goals) },
                             onNewGoal = { showAddGoal = true },
@@ -179,7 +189,10 @@ fun FinaiApp(
                             toPayCount = agenda.toPayCount,
                             toGetCents = agenda.toGetCents,
                             toGetCount = agenda.toGetCount,
+                            transactions = agenda.transactions,
                             onNewConta = { showAddConta = true },
+                            onToggleContaPaga = financeViewModel::marcarContaPaga,
+                            onDeleteTransaction = financeViewModel::deleteTransacao,
                         )
                     }
                     composable(FinaiDestination.Goals.route) {
@@ -244,10 +257,13 @@ fun FinaiApp(
                         )
                     }
                     composable(FinaiDestination.AiSettings.route) {
+                        val context = LocalContext.current
                         ApiKeySettingsScreen(
                             configuredProviders = configuredAiProviders,
                             onSave = aiViewModel::setProviderKey,
                             onClear = aiViewModel::clearProviderKey,
+                            notificationsEnabled = remember { FinaiNotifier(context).hasNotificationPermission() },
+                            onTestNotifications = { FinanceCheckWorker.runOnce(context) },
                         )
                     }
                 }
@@ -261,6 +277,7 @@ fun FinaiApp(
                 onSelect = ::navigateTo,
                 onToggleAdd = viewModel::toggleAddMenu,
                 modifier = Modifier
+                    .then(if (showAddTransaction) Modifier.clearAndSetSemantics {} else Modifier)
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = 12.dp)
                     .padding(bottom = 14.dp),
@@ -315,6 +332,7 @@ fun FinaiApp(
         if (uiState.notifsOpen) {
             Scrim(onDismiss = viewModel::closeNotifications)
             NotificationsCard(
+                alerts = financeState.alerts,
                 onClose = viewModel::closeNotifications,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -334,15 +352,17 @@ fun FinaiApp(
             )
         }
 
-        if (showAddTransaction) {
-            AddTransactionDialog(
-                onDismiss = { showAddTransaction = false },
-                onConfirm = { descricao, valor, categoria, contaOrigem, data, recorrente ->
-                    financeViewModel.addTransacao(descricao, valor, categoria, contaOrigem, data, recorrente)
-                    showAddTransaction = false
-                },
-            )
-        }
+        TransactionEntryScreen(
+            visible = showAddTransaction,
+            accounts = financeState.rawTransacoes.map { it.contaOrigem }.distinct(),
+            onDismiss = { showAddTransaction = false },
+            onSave = financeViewModel::saveTransactionEntry,
+            onViewEntry = { date ->
+                viewModel.showAgendaDate(date)
+                showAddTransaction = false
+                navigateTo(FinaiDestination.Agenda)
+            },
+        )
 
         if (showAddGoal) {
             AddGoalDialog(
@@ -423,21 +443,47 @@ fun FinaiApp(
     }
 }
 
-private data class AgendaData(val bills: List<Bill>, val toPayCents: Long, val toPayCount: Int, val toGetCents: Long, val toGetCount: Int)
+private data class AgendaData(
+    val bills: List<Bill>,
+    val toPayCents: Long,
+    val toPayCount: Int,
+    val toGetCents: Long,
+    val toGetCount: Int,
+    val transactions: List<TransacaoEntity>,
+)
 
-private fun agendaDataFor(contas: List<ContaEntity>, monthIndex: Int, year: Int): AgendaData {
+/**
+ * Contas (a_pagar/a_receber) continuam sendo o que compõe os totais do mês —
+ * uma transação já é dinheiro gasto, não um compromisso futuro, então somá-la
+ * em "Contas a pagar" infringiria o significado do total (planning.md §8).
+ * [transactions] alimenta só a lista informativa de lançamentos do mês —
+ * sem isso, todo gasto manual ou importado ficava invisível na Agenda mesmo
+ * gravado no Room (o bug relatado: a tela de importação manda o usuário "Ver
+ * na Agenda" depois de salvar, mas a Agenda nunca leu TransacaoEntity).
+ */
+private fun agendaDataFor(
+    contas: List<ContaEntity>,
+    transacoes: List<TransacaoEntity>,
+    monthIndex: Int,
+    year: Int,
+    today: java.time.LocalDate = java.time.LocalDate.now(),
+): AgendaData {
     val inMonth = contas.filter {
         val d = it.vencimento.toLocalDate()
         d.monthValue - 1 == monthIndex && d.year == year
     }
     val payable = inMonth.filter { it.tipo == "a_pagar" }.sortedBy { it.vencimento }
     val receivable = inMonth.filter { it.tipo == "a_receber" }
+    val transacoesDoMes = transacoes
+        .transactionsInMonth(java.time.LocalDate.of(year, monthIndex + 1, 1))
+        .sortedByDescending { it.data }
     return AgendaData(
-        bills = payable.map { it.toUiBill() },
+        bills = payable.map { it.toUiBill(today) },
         toPayCents = payable.sumOf { it.valorCentavos },
         toPayCount = payable.size,
         toGetCents = receivable.sumOf { it.valorCentavos },
         toGetCount = receivable.size,
+        transactions = transacoesDoMes,
     )
 }
 

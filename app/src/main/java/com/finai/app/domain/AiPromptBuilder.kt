@@ -164,6 +164,51 @@ object AiPromptBuilder {
         )
     }
 
+    // ── Fase 5 · notificações proativas e coach comportamental ────────────
+    // Os dois prompts abaixo só entram em jogo depois que a detecção local já
+    // decidiu que existe um evento (AlertCalculator/BehaviorCoach) — a IA
+    // nunca decide se algo é relevante, só reescreve o texto que
+    // FinanceCheckWorker já vai mostrar de qualquer forma (com o texto
+    // determinístico do próprio alerta/padrão) se a IA estiver indisponível.
+
+    /** [alerts] já foi filtrado para os que ainda não foram notificados hoje — ver `NotificationDedupeStore`. */
+    fun proactiveAlerts(alerts: List<FinanceAlert>): AiRequest {
+        val prompt = buildString {
+            appendLine("Eventos financeiros detectados hoje, já calculados localmente (não invente outros nem valores diferentes):")
+            alerts.forEach { appendLine("- ${it.title}: ${it.body}") }
+            append(
+                if (alerts.size == 1) {
+                    "Escreva o texto de uma notificação push curta (1 frase, no máximo 140 caracteres) sobre esse evento. " +
+                        "Direto ao ponto, sem saudação."
+                } else {
+                    "Escreva o texto de uma notificação push resumindo esses ${alerts.size} eventos em até 2 frases curtas " +
+                        "(no máximo 200 caracteres no total), priorizando o mais urgente primeiro. Sem saudação, sem lista."
+                },
+            )
+        }
+        return AiRequest(
+            AiTask.PROACTIVE_ALERT,
+            "$SYSTEM_BASE Você escreve o texto de uma notificação push proativa sobre eventos financeiros já detectados.",
+            prompt,
+        )
+    }
+
+    fun behaviorCoach(pattern: BehaviorPattern): AiRequest {
+        val prompt = buildString {
+            appendLine("Padrão de comportamento de gasto detectado localmente: \"${pattern.title}\".")
+            appendLine("Fatos já calculados: ${pattern.detail}")
+            append(
+                "Escreva de 1 a 2 frases curtas comentando esse padrão para o usuário, em tom de observação (não de bronca), " +
+                    "com uma sugestão prática opcional. Não invente números além dos fornecidos.",
+            )
+        }
+        return AiRequest(
+            AiTask.BEHAVIOR_COACH,
+            "$SYSTEM_BASE Você é o \"coach de comportamento\" do app: comenta um padrão de gasto já identificado, nunca decide se ele existe.",
+            prompt,
+        )
+    }
+
     fun chat(financeSummary: String, history: List<ChatMessage>, question: String): AiRequest {
         val historyText = history.takeLast(8).joinToString("\n") { m ->
             (if (m.role == ChatRole.Me) "Usuário" else "FinAI") + ": " + m.text

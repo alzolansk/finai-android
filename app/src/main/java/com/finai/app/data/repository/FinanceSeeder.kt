@@ -25,7 +25,7 @@ object FinanceSeeder {
 
         val salario = ContaEntity(
             nome = "Salário", valorCentavos = 850_000, vencimento = today.withDayOfMonth(5.coerceAtMost(today.lengthOfMonth())).toEpochMillis(),
-            status = "previsto", tipo = "a_receber", recorrente = true,
+            status = "pendente", tipo = "a_receber", recorrente = true,
         )
         val aluguel = ContaEntity(
             nome = "Aluguel Apartamento", valorCentavos = 180_000, vencimento = dayOrLast(today, 8).toEpochMillis(),

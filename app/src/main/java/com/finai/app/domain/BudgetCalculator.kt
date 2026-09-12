@@ -29,7 +29,7 @@ object BudgetCalculator {
         val month = YearMonth.from(today)
         val dayOfMonth = today.dayOfMonth
         val lastDay = month.lengthOfMonth()
-        val spentByCategory = transacoes.groupBy { it.categoria }.mapValues { (_, list) -> list.sumOf { it.valorCentavos } }
+        val spentByCategory = transacoes.filter { it.tipo == "Gasto" }.groupBy { it.categoria }.mapValues { (_, list) -> list.sumOf { it.valorCentavos } }
 
         return categorias.map { budget ->
             val spent = spentByCategory[budget.categoria] ?: 0L

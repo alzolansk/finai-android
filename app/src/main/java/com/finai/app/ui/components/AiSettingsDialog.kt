@@ -17,9 +17,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,6 +49,8 @@ fun ApiKeySettingsScreen(
     configuredProviders: Set<ProviderId>,
     onSave: (ProviderId, String) -> Unit,
     onClear: (ProviderId) -> Unit,
+    notificationsEnabled: Boolean,
+    onTestNotifications: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -73,7 +77,53 @@ fun ApiKeySettingsScreen(
             )
             Spacer(Modifier.height(10.dp))
         }
+        Spacer(Modifier.height(14.dp))
+        NotificationsDiagnostics(notificationsEnabled, onTestNotifications)
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/**
+ * Diagnóstico das notificações proativas da Fase 5 (planning.md §9) — não é
+ * necessário para o app funcionar, mas é o que torna a rotina do
+ * `FinanceCheckWorker` testável sem esperar a janela de 24h: dispara uma
+ * execução imediata via `WorkManager.enqueue` (não muda o agendamento
+ * periódico, só roda uma vez a mais).
+ */
+@Composable
+private fun NotificationsDiagnostics(notificationsEnabled: Boolean, onTest: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(FinaiColors.Surface, RoundedCornerShape(16.dp))
+            .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Icon(
+                Icons.Filled.Notifications, contentDescription = null,
+                tint = if (notificationsEnabled) FinaiColors.EmeraldDark else FinaiColors.TextTertiary,
+            )
+            Column {
+                Text("Notificações proativas", fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                Text(
+                    if (notificationsEnabled) "Permitidas neste aparelho" else "Sem permissão do sistema — ative em Ajustes",
+                    color = if (notificationsEnabled) FinaiColors.EmeraldDark else FinaiColors.RoseDark,
+                    fontSize = 12.sp,
+                )
+            }
+        }
+        Text(
+            "Uma rotina em segundo plano recalcula seus dados a cada 24h e só notifica quando há algo " +
+                "relevante (conta vencendo/atrasada, orçamento perto do limite, objetivo que precisa de atenção " +
+                "ou um padrão de gasto identificado). Use o botão abaixo para rodar essa checagem agora, sem esperar.",
+            color = FinaiColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp),
+        )
+        OutlinedButton(
+            onClick = onTest,
+            modifier = Modifier.padding(top = 10.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = FinaiColors.TextPrimary),
+        ) { Text("Testar agora") }
     }
 }
 
