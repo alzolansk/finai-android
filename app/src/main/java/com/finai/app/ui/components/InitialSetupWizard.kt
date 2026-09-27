@@ -1,5 +1,6 @@
 package com.finai.app.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -92,6 +93,10 @@ fun InitialSetupWizard(
     var goalsAdded by rememberSaveable { mutableStateOf(0) }
 
     fun goTo(next: SetupStep) { step = next }
+
+    // Voltar do sistema = o "Voltar" da própria etapa. Na tela de boas-vindas
+    // segue o padrão do Android.
+    BackHandler(enabled = step != SetupStep.Welcome) { step = SetupStep.entries[step.ordinal - 1] }
 
     Surface(modifier = modifier.fillMaxSize(), color = FinaiColors.Background) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {

@@ -686,6 +686,21 @@ Painel de avisos refeito + versionCode automático (27/09/2026):
 - Build e 137 testes JVM verdes. **Não conferido em emulador nem no celular** (o emulador foi
   encerrado por falta de memória).
 
+Botão voltar do sistema fecha a camada de cima (27/09/2026):
+- **Causa:** chat, menu do "+", simulador "Posso comprar?", tour e assistente inicial não
+  tinham `BackHandler`. O voltar ia para o `NavController`, que trocava a tela *atrás* da
+  sobreposição (Agenda → Início) com ela ainda aberta, e o voltar seguinte fechava o app.
+  Reproduzido no emulador com o chat aberto na Agenda.
+- **Correção:** um `BackHandler` central em `FinaiApp` fecha chat > simulador > menu do "+" >
+  avisos, nessa ordem. Além disso, `navController.enableOnBackPressed(false)` fica ligado
+  enquanto houver qualquer camada aberta (inclusive lançamento, fatura, dívida, tour e
+  assistente, que têm tratador próprio). Assim a tela de trás nunca reage, seja qual for a
+  ordem de registro dos tratadores. Tour e assistente inicial: voltar = passo anterior.
+- **Limites e Importação** deixaram de ser tratados como abas em `navigateTo`: empilham sobre a
+  tela atual, então voltar retorna para onde se estava (ex.: Agenda → aviso → Limites → Agenda).
+  As quatro abas da barra continuam trocando entre si, e voltar numa aba leva à Início.
+- Conferido no emulador Pixel 6 API 34 (chat, "+", simulador, avisos, Limites a partir de um aviso).
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

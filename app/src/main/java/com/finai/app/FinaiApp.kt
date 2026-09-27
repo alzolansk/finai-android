@@ -1,6 +1,7 @@
 package com.finai.app
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.runtime.SideEffect
 import com.finai.app.domain.AlertKind
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.platform.LocalDensity
@@ -143,9 +144,14 @@ fun FinaiApp(
 
     fun navigateTo(destination: FinaiDestination) {
         navController.navigate(destination.route) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            // Abas da barra de baixo trocam entre si (voltar leva à Início).
+            // Limites e Importação são telas secundárias: empilham sobre a
+            // tela atual, para o voltar retornar exatamente de onde se veio.
+            if (destination in bottomTabs) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                restoreState = true
+            }
             launchSingleTop = true
-            restoreState = true
         }
     }
 
@@ -482,7 +488,6 @@ fun FinaiApp(
             pivotFractionX = bellCenterX?.let { ((it - with(density) { panelMargin.toPx() }) / panelWidthPx).coerceIn(0f, 1f) } ?: 0.6f,
             pivotFractionY = 0f,
         )
-        BackHandler(enabled = uiState.notifsOpen) { viewModel.closeNotifications() }
         AnimatedVisibility(
             visible = uiState.notifsOpen,
             enter = fadeIn(finaiTween(FinaiMotion.Standard)) +
@@ -657,6 +662,29 @@ fun FinaiApp(
         // pulado, nunca antes nem em paralelo (planning.md §4: nada de dado
         // fictício automático — este assistente é a única forma dos números
         // do app começarem preenchidos, e é inteiramente opcional).
+        // Voltar do sistema fecha o que está por cima, nunca a tela de trás.
+        // Chat, menu do "+", simulador e avisos não têm tratador próprio:
+        // sem este, o toque ia direto para o NavController, que trocava a
+        // tela *atrás* da sobreposição (ou fechava o app, se já estava na
+        // Início) e deixava a sobreposição aberta. Lançamento, fatura,
+        // dívida e Configurações têm o próprio BackHandler.
+        val overlayOpen = uiState.chatOpen || uiState.simOpen || uiState.addOpen || uiState.notifsOpen
+        BackHandler(enabled = overlayOpen) {
+            when {
+                uiState.chatOpen -> viewModel.closeChat()
+                uiState.simOpen -> viewModel.closeSimulator()
+                uiState.addOpen -> viewModel.closeAddMenu()
+                uiState.notifsOpen -> viewModel.closeNotifications()
+            }
+        }
+        // Segunda trava, independente da ordem em que os tratadores foram
+        // registrados: com qualquer camada aberta por cima, a navegação entre
+        // telas não reage ao voltar.
+        val anyLayerOpen = overlayOpen || showAddTransaction || openedInvoiceContaId != null ||
+            showAddDivida || editingDivida != null || onboardingComplete == false ||
+            (onboardingComplete == true && initialSetupComplete == false)
+        SideEffect { navController.enableOnBackPressed(!anyLayerOpen) }
+
         if (onboardingComplete == false) {
             OnboardingTour(
                 onFinish = viewModel::completeOnboarding,
@@ -733,6 +761,8 @@ private fun agendaDataFor(
         debtsDue = flow.debtsDue,
     )
 }
+
+private val bottomTabs = setOf(FinaiDestination.Home, FinaiDestination.Agenda, FinaiDestination.Goals, FinaiDestination.Debts)
 
 @Composable
 private fun Scrim(onDismiss: () -> Unit) {

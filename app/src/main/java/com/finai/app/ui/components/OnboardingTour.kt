@@ -32,6 +32,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -98,6 +99,8 @@ fun OnboardingTour(onFinish: () -> Unit, onSkip: () -> Unit, modifier: Modifier 
     var stepIndex by rememberSaveable { mutableIntStateOf(0) }
     val step = tourSteps[stepIndex]
     val isLast = stepIndex == tourSteps.lastIndex
+    // Voltar do sistema volta um passo do tour; no primeiro, segue o padrão do Android.
+    BackHandler(enabled = stepIndex > 0) { stepIndex-- }
 
     Box(
         modifier = modifier
