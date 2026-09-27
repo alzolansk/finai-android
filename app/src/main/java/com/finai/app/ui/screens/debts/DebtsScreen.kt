@@ -1,5 +1,6 @@
 package com.finai.app.ui.screens.debts
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +19,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,9 +34,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finai.app.data.ai.AiText
 import com.finai.app.data.model.Debt
+import com.finai.app.ui.components.ConfirmDeleteDialog
+import com.finai.app.ui.components.FadeInAppear
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
+import com.finai.app.ui.theme.FinaiMotion
+import com.finai.app.ui.theme.finaiTween
 
 /** Fallback shown while the AI script is loading/unavailable, or once no debt is cadastrada. */
 private val genericNegotiationSteps = listOf(
@@ -51,9 +60,13 @@ fun DebtsScreen(
     negotiationTitle: String,
     negotiationScript: AiText?,
     onNewDebt: () -> Unit,
+    onEditDebt: (Debt) -> Unit,
     onDeleteDebt: (Debt) -> Unit,
+    onPayInstallment: (Debt) -> Unit,
     onRehearseCall: () -> Unit,
 ) {
+    var pendingDelete by remember { mutableStateOf<Debt?>(null) }
+
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = ScreenContentPadding,
@@ -108,10 +121,12 @@ fun DebtsScreen(
 
         if (debts.isEmpty()) {
             item {
-                Text(
-                    "Nenhuma dívida cadastrada. Toque em \"+\" para adicionar.",
-                    fontSize = 13.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(vertical = 8.dp),
-                )
+                FadeInAppear {
+                    Text(
+                        "Nenhuma dívida cadastrada. Toque em \"+\" para adicionar.",
+                        fontSize = 13.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                }
             }
         } else {
             item {
@@ -128,8 +143,15 @@ fun DebtsScreen(
                         strategyNote, fontSize = 11.5.sp, color = FinaiColors.TextMuted,
                         modifier = Modifier.padding(top = 2.dp, bottom = 14.dp),
                     )
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        debts.forEach { debt -> DebtRow(debt, onDeleteDebt) }
+                    // `debts` isn't a LazyColumn here (it's one card with a fixed inner
+                    // order, not an independently scrollable list), so a deleted row can't
+                    // get its own exit transition — animateContentSize() at least makes the
+                    // card resize smoothly instead of the remaining rows jumping into place.
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier.animateContentSize(finaiTween(FinaiMotion.Standard)),
+                    ) {
+                        debts.forEach { debt -> DebtRow(debt, onEdit = { onEditDebt(debt) }, onDelete = { pendingDelete = debt }, onPay = { onPayInstallment(debt) }) }
                     }
                 }
             }
@@ -194,10 +216,19 @@ fun DebtsScreen(
             }
         }
     }
+
+    pendingDelete?.let { debt ->
+        ConfirmDeleteDialog(
+            title = "Excluir dívida?",
+            description = "\"${debt.name}\" (${debt.amount} em aberto) será removida permanentemente.",
+            onDismiss = { pendingDelete = null },
+            onConfirm = { onDeleteDebt(debt); pendingDelete = null },
+        )
+    }
 }
 
 @Composable
-private fun DebtRow(debt: Debt, onDelete: (Debt) -> Unit) {
+private fun DebtRow(debt: Debt, onEdit: () -> Unit, onDelete: () -> Unit, onPay: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(
             modifier = Modifier.size(26.dp).clip(RoundedCornerShape(9.dp)).background(FinaiColors.SurfaceMuted),
@@ -213,10 +244,22 @@ private fun DebtRow(debt: Debt, onDelete: (Debt) -> Unit) {
         Column(horizontalAlignment = Alignment.End) {
             Text(debt.amount, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
             Text(debt.rate, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = debt.rateColor, modifier = Modifier.padding(top = 2.dp))
-            Text(
-                "Excluir", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE11D48),
-                modifier = Modifier.padding(top = 4.dp).clickable { onDelete(debt) },
-            )
+            Row(modifier = Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (debt.hasParcelaFixa) {
+                    Text(
+                        "Paguei a parcela", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark,
+                        modifier = Modifier.clickable(onClick = onPay),
+                    )
+                }
+                Text(
+                    "Editar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextSecondary,
+                    modifier = Modifier.clickable(onClick = onEdit),
+                )
+                Text(
+                    "Excluir", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE11D48),
+                    modifier = Modifier.clickable(onClick = onDelete),
+                )
+            }
         }
     }
 }

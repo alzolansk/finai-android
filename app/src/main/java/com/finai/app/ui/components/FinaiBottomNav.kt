@@ -1,5 +1,6 @@
 package com.finai.app.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finai.app.navigation.FinaiDestination
 import com.finai.app.ui.theme.FinaiColors
+import com.finai.app.ui.theme.FinaiMotion
+import com.finai.app.ui.theme.finaiTween
 
 /**
  * The dark floating pill nav from the prototype: Início / Agenda / (+) /
@@ -94,8 +97,8 @@ private fun NavTab(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val bg = if (selected) FinaiColors.InkBorder else Color.Transparent
-    val fg = if (selected) Color.White else FinaiColors.TextMuted
+    val bg by animateColorAsState(if (selected) FinaiColors.InkBorder else Color.Transparent, finaiTween(FinaiMotion.Quick), label = "navTabBg")
+    val fg by animateColorAsState(if (selected) Color.White else FinaiColors.TextMuted, finaiTween(FinaiMotion.Quick), label = "navTabFg")
     androidx.compose.foundation.layout.Column(
         modifier = modifier
             .clip(RoundedCornerShape(13.dp))

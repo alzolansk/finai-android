@@ -2,6 +2,7 @@ package com.finai.app.state
 
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
+import com.finai.app.data.local.entity.FaturaCartaoEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
@@ -31,6 +32,7 @@ data class FinanceUiState(
 
     // Raw entities, kept around for edit dialogs and screens that need more than the mapped UI shape.
     val rawContas: List<ContaEntity> = emptyList(),
+    val rawFaturasCartao: List<FaturaCartaoEntity> = emptyList(),
     val rawObjetivos: List<ObjetivoEntity> = emptyList(),
     val rawDividas: List<DividaEntity> = emptyList(),
     val rawOrcamentos: List<OrcamentoCategoriaEntity> = emptyList(),
@@ -43,6 +45,9 @@ data class FinanceUiState(
     val safeToday: SafeToSpendResult? = null,
     val safeTodayLabel: String = "",
     val safeNote: String = "",
+    /** Saldo agregado (receitas - gastos, transferência neutra) de todas as transações já lançadas. */
+    val saldoCents: Long = 0,
+    val saldoLabel: String = "",
     val nextWeekBills: List<WeekBill> = emptyList(),
     val timeline: List<TimelineEntry> = emptyList(),
     val timelineNote: String = "",

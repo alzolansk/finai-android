@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -62,11 +63,16 @@ class FinaiDatabaseMigrationTest {
                 // Coluna criada pela MIGRATION_1_2: a dívida é anterior a ela, então
                 // o valor original é 0 (honesto — o dado não existia para recuperar).
                 assertEquals(0L, dividas[0].valorOriginalCentavos)
+                // Colunas da MIGRATION_5_6: sem total nem vencimento conhecidos.
+                assertEquals(0, dividas[0].parcelasTotais)
+                assertNull(dividas[0].proximoVencimento)
 
                 val transacoes = db.transacaoDao().observeAll().first()
                 assertEquals(1, transacoes.size)
                 assertEquals("Mercado", transacoes[0].descricao)
                 assertEquals(18_990L, transacoes[0].valorCentavos)
+                // Coluna da MIGRATION_6_7: nada antigo vira entrada extra sozinho.
+                assertEquals(false, transacoes[0].extra)
                 // Coluna criada pela MIGRATION_3_4, com o default que a entidade declara.
                 assertEquals("Gasto", transacoes[0].tipo)
 

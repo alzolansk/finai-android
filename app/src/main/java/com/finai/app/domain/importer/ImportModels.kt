@@ -53,6 +53,13 @@ data class ParseResult(
     val ignoredLines: Int,
 )
 
+/** Metadados da fatura extraídos localmente do cabeçalho do documento. */
+data class InvoiceMetadata(
+    val reference: String? = null,
+    val closingDate: LocalDate? = null,
+    val dueDate: LocalDate? = null,
+)
+
 /** De onde veio a categoria do lançamento — a UI mostra isso para o usuário saber no que confiar. */
 enum class CategorySource {
     /** Regra local de estabelecimento (determinística, sem IA). */
@@ -124,6 +131,8 @@ data class ImportPreview(
     val aiUsed: Boolean,
     /** Por que a IA não rodou (sem chave, sem rede, cota esgotada) — null quando rodou ou não foi necessária. */
     val aiNote: String? = null,
+    /** Nunca é inferido: dados ausentes devem ser confirmados antes de salvar. */
+    val invoiceMetadata: InvoiceMetadata = InvoiceMetadata(),
 ) {
     val selectedItems: List<ImportItem> get() = items.filter { it.selected }
     val duplicateCount: Int get() = items.count { it.duplicate != DuplicateVerdict.NONE }

@@ -27,7 +27,8 @@ data class DebtSummary(
 /**
  * Ordem de ataque por custo do juro + previsão de "livre de dívida" —
  * planning.md §3.4/§6. Pure interest-rate math (loan amortization), no AI:
- * each debt with a fixed parcela is projected independently with the
+ * a debt with an installment contract ends on its last parcela ([DebtSchedule]);
+ * any other debt with a fixed parcela is projected independently with the
  * standard amortization formula; the whole-portfolio "livre em" date is the
  * slowest of them (a conservative estimate — it assumes no extra payment is
  * redirected from a debt that finishes early, which the user is always free
@@ -49,8 +50,16 @@ object DebtCalculator {
         }
 
         var hasUnpayable = false
-        val monthsToPayoff = ordered.mapNotNull { d ->
+        val payoffDates = ordered.mapNotNull { d ->
             if (d.valorAbertoCentavos <= 0) return@mapNotNull null
+            // Dívida com contrato de parcelas (cadastrada pela DebtEntryScreen): a última parcela
+            // é o fim, porque o valor da parcela já embute o juro. Reaplicar a taxa sobre o saldo
+            // aqui estendia a data — "4 parcelas até dez/26" virava "livre em abr/27".
+            if (d.parcelasTotais > 0 && d.parcelasRestantes > 0) {
+                val last = DebtSchedule.lastInstallmentMonth(d, today) ?: return@mapNotNull null
+                val day = d.proximoVencimento?.toLocalDate()?.dayOfMonth ?: 1
+                return@mapNotNull DebtSchedule.dueDateIn(last, day)
+            }
             // No parcela defined for an open balance (e.g. a revolving card) means there is no
             // schedule that ever pays it off — that must sink the whole projection, not be skipped.
             if (d.valorParcelaCentavos <= 0) {
@@ -68,11 +77,10 @@ object DebtCalculator {
                 }
                 else -> ceil(ln(payment / (payment - balance * rate)) / ln(1 + rate))
             }
-            months
+            months?.let { today.plusMonths(it.toLong()) }
         }
 
-        val debtFreeDate = if (hasUnpayable || monthsToPayoff.isEmpty()) null
-        else today.plusMonths(monthsToPayoff.max().toLong())
+        val debtFreeDate = if (hasUnpayable || payoffDates.isEmpty()) null else payoffDates.max()
 
         return DebtSummary(
             ordered = plans,

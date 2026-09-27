@@ -47,8 +47,8 @@ object BehaviorCoach {
     fun detect(transacoes: List<TransacaoEntity>, today: LocalDate = LocalDate.now()): List<BehaviorPattern> {
         val thisMonthRange = monthRangeMillis(today)
         val lastMonthRange = monthRangeMillis(YearMonth.from(today).minusMonths(1).atDay(1))
-        val thisMonth = transacoes.filter { it.tipo == "Gasto" && it.data in thisMonthRange }
-        val lastMonth = transacoes.filter { it.tipo == "Gasto" && it.data in lastMonthRange }
+        val thisMonth = transacoes.filter { it.tipo == "Gasto" && it.origem != DebtSchedule.PAYMENT_ORIGIN && it.data in thisMonthRange }
+        val lastMonth = transacoes.filter { it.tipo == "Gasto" && it.origem != DebtSchedule.PAYMENT_ORIGIN && it.data in lastMonthRange }
 
         val patterns = mutableListOf<BehaviorPattern>()
         patterns += categoryGrowthPatterns(thisMonth, lastMonth)

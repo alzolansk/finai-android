@@ -553,12 +553,74 @@ Remoção do dataset de demonstração + tour guiado + reset (12/09/2026):
   afetado) verdes neste ambiente. Instrumentados (`connectedDebugAndroidTest`) não
   rodados nesta sessão.
 
-**Próximo passo:** o que resta da Fase 6 depende de você — ver `RELEASE.md` §2 a §7
-(keystore, `targetSdk` exigido pela Play na data da submissão, imagens da ficha, URL da
-política de privacidade, teste em aparelho físico e teste com uma chave de IA real). A
-validação manual do tour guiado, do reset e do fluxo uninstall/reinstall (ver "AÇÃO
-MANUAL NECESSÁRIA" no relatório da sessão de 12/09/2026 acima) também depende de um
-aparelho/emulador com `adb`, que não estava disponível nesta sessão.
+Saldo do mês + parcelas de dívida na Agenda + nova tela de dívida (26/09/2026):
+- **Saldo atual (Início) passou a ser só do mês corrente** — `BalanceCalculator.saldoDoMesCents`
+  usa `transactionsInMonth` (recorrentes contam uma vez por mês); meses anteriores não se acumulam.
+- **Parcelas de dívida projetadas até a última** (`domain/DebtSchedule.kt`). Antes a Agenda
+  mostrava a dívida só no mês corrente, porque não havia vencimento. `DividaEntity` ganhou
+  `parcelasTotais` e `proximoVencimento` (**Room 5→6**, `MIGRATION_5_6`, não destrutiva);
+  cada parcela restante aparece no mês em que vence (dia 29–31 cai no último dia do mês),
+  com "Parcela N de M", atrasada em vermelho. Nada é gravado por parcela: "Paguei a parcela"
+  (`DebtSchedule.afterPayment`) decrementa o restante e avança o vencimento em um mês. Só a
+  parcela mais antiga em aberto é tocável. Dívida antiga sem vencimento fica ancorada no mês
+  corrente, "sem dia definido", até ser editada.
+- **`ui/components/DebtEntryScreen.kt`** substitui o `AddDividaDialog` (removido): tela cheia
+  no visual do lançamento (componentes `Entry*` de `TransactionEntryScreen.kt` viraram
+  `internal`), Parcelada/Sem parcelas, teclado próprio para valores, total/já pagas com
+  stepper, vencimento pelo calendário, juros opcional, saldo devedor estimado (sobrescrevível)
+  e resumo "faltam N parcelas… até mês/ano". Regras em `domain/DebtEntry.kt`.
+- Testes: `BalanceCalculatorTest`, `DebtScheduleTest` (JVM) verdes; migração coberta em
+  `FinaiDatabaseMigrationTest` (não reexecutado). Conferido no emulador Pixel 6 API 34:
+  cadastro 24x/5 pagas → parcela 6/24 em out/2026 … 24/24 em abr/2028, nada em mai/2028.
+  O passo de dívidas do `InitialSetupWizard` continua sem vencimento (vira "sem dia definido").
+
+Entrada extra, 7 dias sem itens de fatura, página da fatura (26/09/2026):
+- **`TransacaoEntity.extra`** (**Room 6→7**, `MIGRATION_6_7`): receita marcada como entrada
+  extra (13º, bônus, restituição). A "Linha do tempo do ano" (`domain/ExtraIncomeTimeline.kt`)
+  junta conta a receber avulsa + receitas `extra` do ano — antes só lia `ContaEntity`, que não
+  tem mais cadastro na UI, então ficava sempre vazia. No lançamento, Receita ganhou o switch
+  "Entrada extra" (exclusivo com Recorrente); o "+" da linha do tempo já abre com ele ligado.
+  Na Agenda, receitas têm "Marcar extra"/"Extra ✓" para corrigir as já lançadas.
+- **"Próximos 7 dias" ignora itens de fatura** (`faturaId != null`): eles têm a data da
+  compra, não do pagamento. Quem aparece é a conta da fatura, pelo vencimento.
+- **`ui/screens/invoice/InvoiceScreen.kt`** substitui o `AlertDialog` de itens da fatura:
+  cartão com total/vencimento/status e "Marcar fatura como paga", "Para onde foi" (categorias),
+  "Onde você mais usou" (estabelecimentos agrupados), "Parcelamentos" (lê `(01/02)`,
+  `PARC 3/10`, `parcela 2 de 6`), filtros Todos/Compras/Estornos/Parcelados e itens por dia.
+  Números em `domain/InvoiceSummary.kt`, testados em `InvoiceAndTimelineTest`.
+- Build `pessoal` (novo em `app/build.gradle.kts`): release minificado assinado com a chave
+  de debug, só arm64 — `./gradlew assemblePessoal` gera um APK de ~16 MB que instala por
+  cima do debug. Não usar `-Pandroid.injected.build.abi` (marca o APK como testOnly).
+- Testes JVM verdes. **Não conferido em emulador/aparelho** nesta rodada (emulador foi
+  encerrado por falta de memória); APK enviado ao usuário para teste no celular.
+
+Saldo = Agenda, "Livre em" pelo contrato, nova logo (26/09/2026):
+- **`domain/MonthCashFlow.kt`** é a única conta de "o que entra/sai no mês": totais da Agenda
+  e "Saldo atual" da Início (= recebimentos − contas a pagar do mês). Substitui o
+  `BalanceCalculator`, que ignorava parcelas de dívida e contava itens de fatura pela data da
+  compra. "Paguei a parcela" agora grava um Gasto (`DebtSchedule.PAYMENT_CATEGORY`/`ORIGIN`,
+  fora do coach) para o valor não "voltar" ao saldo quando a parcela sai da projeção.
+- **"Livre em"** (`DebtCalculator`): dívida com contrato de parcelas termina na última parcela;
+  a amortização só vale para dívidas sem contrato (reaplicar juros estendia a data).
+- Logo: `res/drawable-nodpi/finai_mark.png` (folha recortada da arte do usuário) no header;
+  ícone adaptativo com a folha em `mipmap-*/ic_launcher_foreground.png` sobre fundo branco.
+- 121 testes JVM verdes. Não conferido em aparelho.
+
+**Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
+Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
+(keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/
+formulário de segurança de dados, política de privacidade em URL pública —
+`RELEASE.md` §2, §3, §6) **não serão feitos**. `RELEASE.md` e `play-store/`
+ficam no repo só como referência caso essa decisão mude. O teste em aparelho
+físico foi feito pelo usuário nesta data; o feedback detalhado dele ainda não
+foi registrado aqui — próxima sessão deve perguntar e anotar.
+
+**Próximo passo:** nenhuma pendência de lançamento. Para instalar em uso
+pessoal, `./gradlew assembleDebug` (ou `assembleRelease` sem
+`keystore.properties`, que gera APK não assinado) já basta — ver a nota em
+`planning.md` §9 Fase 6. Se houver trabalho de sessão anterior ainda não
+commitado no working tree, resolver isso primeiro (ver passo 2 de "Como
+retomar uma sessão" abaixo).
 
 ## Como retomar uma sessão
 

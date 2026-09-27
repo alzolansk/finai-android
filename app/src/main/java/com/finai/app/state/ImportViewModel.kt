@@ -9,11 +9,14 @@ import com.finai.app.data.importer.ImportStage
 import com.finai.app.data.importer.StatementImporter
 import com.finai.app.data.local.FinaiDatabase
 import com.finai.app.data.local.entity.AssinaturaEntity
+import com.finai.app.data.local.entity.ContaEntity
+import com.finai.app.data.local.entity.FaturaCartaoEntity
 import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.data.repository.FinanceRepository
 import com.finai.app.domain.importer.CategorySource
 import com.finai.app.domain.importer.ImportItem
 import com.finai.app.domain.importer.ImportPreview
+import com.finai.app.domain.importer.InvoiceMetadata
 import com.finai.app.domain.importer.RecurrenceVerdict
 import com.finai.app.domain.toEpochMillis
 import com.finai.app.util.FinaiLog
@@ -98,6 +101,14 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
         preview.copy(items = preview.items.map { it.copy(selected = selected) })
     }
 
+    fun setInvoiceReference(reference: String) = updatePreview { preview ->
+        preview.copy(invoiceMetadata = preview.invoiceMetadata.copy(reference = reference))
+    }
+
+    fun setInvoiceDueDate(text: String) = updatePreview { preview ->
+        preview.copy(invoiceMetadata = preview.invoiceMetadata.copy(dueDate = parseDate(text)))
+    }
+
     private fun updateItem(id: String, transform: (ImportItem) -> ImportItem) = updatePreview { preview ->
         preview.copy(items = preview.items.map { if (it.id == id) transform(it) else it })
     }
@@ -125,6 +136,10 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
         val preview = _uiState.value.preview ?: return
         val selected = preview.selectedItems
         if (selected.isEmpty()) return
+        if (preview.invoiceMetadata.reference.isNullOrBlank() || preview.invoiceMetadata.dueDate == null) {
+            _uiState.update { it.copy(error = "Informe banco/cartão e a data de vencimento antes de salvar a fatura.") }
+            return
+        }
 
         _uiState.update { it.copy(busy = true) }
         viewModelScope.launch {
@@ -150,22 +165,44 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private suspend fun confirmImportInternal(preview: ImportPreview, selected: List<ImportItem>) {
-        val origem = preview.sourceName.substringBeforeLast('.').take(40)
+        val metadata = preview.invoiceMetadata
+        val referencia = requireNotNull(metadata.reference).trim().take(60)
+        val vencimento = requireNotNull(metadata.dueDate)
         val existingSubscriptions = repository.assinaturas.first()
         var subscriptionsSaved = 0
 
-        selected.forEach { item ->
-            repository.salvarTransacao(
-                TransacaoEntity(
-                    data = (item.entry.date ?: LocalDate.now()).toEpochMillis(),
-                    descricao = describeForStorage(item),
-                    valorCentavos = item.entry.amountCents,
-                    categoria = item.categoria,
-                    contaOrigem = origem,
-                    recorrente = item.recurrence == RecurrenceVerdict.LIKELY || item.entry.installment != null,
-                    origem = "importado",
-                ),
+        val itens = selected.map { item ->
+            TransacaoEntity(
+                // A data/hora original da compra continua sendo a fonte para análises comportamentais.
+                data = (item.entry.date ?: LocalDate.now()).toEpochMillis(),
+                descricao = describeForStorage(item),
+                valorCentavos = item.entry.amountCents,
+                categoria = item.categoria,
+                contaOrigem = referencia,
+                recorrente = item.recurrence == RecurrenceVerdict.LIKELY || item.entry.installment != null,
+                origem = "importado",
             )
+        }
+        val total = itens.sumOf { it.valorCentavos }
+        repository.salvarFatura(
+            conta = ContaEntity(
+                nome = "Fatura $referencia",
+                valorCentavos = total,
+                vencimento = vencimento.toEpochMillis(),
+                status = "pendente",
+                tipo = "a_pagar",
+                recorrente = false,
+            ),
+            fatura = FaturaCartaoEntity(
+                contaId = 0,
+                referencia = referencia,
+                fechamento = metadata.closingDate?.toEpochMillis(),
+                vencimento = vencimento.toEpochMillis(),
+            ),
+            itens = itens,
+        )
+
+        selected.forEach { item ->
 
             if (item.recurrence == RecurrenceVerdict.LIKELY && item.entry.installment == null && !item.entry.isRefund) {
                 val nome = item.entry.description.trim().take(40)
@@ -194,4 +231,10 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
         val installment = item.entry.installment ?: return item.entry.description.trim()
         return "${item.entry.description.trim()} (${installment.label})"
     }
+
+    private fun parseDate(text: String): LocalDate? = runCatching {
+        val parts = text.trim().split('/')
+        if (parts.size != 3) return null
+        LocalDate.of(parts[2].toInt(), parts[1].toInt(), parts[0].toInt())
+    }.getOrNull()
 }

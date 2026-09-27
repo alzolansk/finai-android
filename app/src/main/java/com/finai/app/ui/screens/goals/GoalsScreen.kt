@@ -1,5 +1,6 @@
 package com.finai.app.ui.screens.goals
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,9 +15,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,12 +33,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finai.app.data.ai.AiText
 import com.finai.app.data.model.Goal
+import com.finai.app.ui.components.ConfirmDeleteDialog
+import com.finai.app.ui.components.FadeInAppear
 import com.finai.app.ui.components.PillTag
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
+import com.finai.app.ui.theme.FinaiMotion
+import com.finai.app.ui.theme.finaiTween
 import com.finai.app.util.formatBrl0
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GoalsScreen(
     goals: List<Goal>,
@@ -40,9 +51,12 @@ fun GoalsScreen(
     goalInsights: Map<String, AiText>,
     onNewGoal: () -> Unit,
     onContribute: (Goal) -> Unit,
+    onEdit: (Goal) -> Unit,
     onDelete: (Goal) -> Unit,
     onSimulate: () -> Unit,
 ) {
+    var pendingDelete by remember { mutableStateOf<Goal?>(null) }
+
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = ScreenContentPadding,
@@ -92,21 +106,45 @@ fun GoalsScreen(
 
         if (goals.isEmpty()) {
             item {
-                Text(
-                    "Nenhum objetivo cadastrado ainda. Toque em \"+\" para criar o primeiro.",
-                    fontSize = 13.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(vertical = 12.dp),
-                )
+                FadeInAppear {
+                    Text(
+                        "Nenhum objetivo cadastrado ainda. Toque em \"+\" para criar o primeiro.",
+                        fontSize = 13.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(vertical = 12.dp),
+                    )
+                }
             }
         }
 
-        items(goals) { goal -> GoalCard(goal, goalInsights[goal.id], onContribute, onDelete, onSimulate) }
+        items(goals, key = { it.id }) { goal ->
+            GoalCard(
+                goal, goalInsights[goal.id], onContribute, onEdit, { pendingDelete = goal }, onSimulate,
+                modifier = Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard)),
+            )
+        }
+    }
+
+    pendingDelete?.let { goal ->
+        ConfirmDeleteDialog(
+            title = "Excluir objetivo?",
+            description = "\"${goal.name}\" será removido permanentemente, junto com o progresso guardado nele (${formatBrl0(goal.saved)}).",
+            onDismiss = { pendingDelete = null },
+            onConfirm = { onDelete(goal); pendingDelete = null },
+        )
     }
 }
 
 @Composable
-private fun GoalCard(goal: Goal, insight: AiText?, onContribute: (Goal) -> Unit, onDelete: (Goal) -> Unit, onSimulate: () -> Unit) {
+private fun GoalCard(
+    goal: Goal,
+    insight: AiText?,
+    onContribute: (Goal) -> Unit,
+    onEdit: (Goal) -> Unit,
+    onDelete: (Goal) -> Unit,
+    onSimulate: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
@@ -156,6 +194,15 @@ private fun GoalCard(goal: Goal, insight: AiText?, onContribute: (Goal) -> Unit,
                     .padding(10.dp),
             ) {
                 Text(goal.action, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            }
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(12.dp))
+                    .clickable { onEdit(goal) }
+                    .padding(horizontal = 13.dp, vertical = 10.dp),
+            ) {
+                Icon(Icons.Filled.Edit, contentDescription = "Editar objetivo", tint = FinaiColors.TextTertiary, modifier = Modifier.size(16.dp))
             }
             androidx.compose.foundation.layout.Box(
                 modifier = Modifier

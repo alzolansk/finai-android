@@ -31,10 +31,16 @@ import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +67,8 @@ import com.finai.app.ui.components.PillTag
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.util.formatBrl
+import java.time.Instant
+import java.time.ZoneOffset
 
 /**
  * Importação de fatura (Fase 4). A tela só mostra estado e coleta as decisões
@@ -75,6 +83,8 @@ fun ImportScreen(
     onToggleItem: (String) -> Unit,
     onSetCategory: (String, String) -> Unit,
     onSetAllSelected: (Boolean) -> Unit,
+    onSetInvoiceReference: (String) -> Unit,
+    onSetInvoiceDueDate: (String) -> Unit,
     onConfirm: () -> Unit,
     onReset: () -> Unit,
     onOpenAgenda: () -> Unit,
@@ -109,7 +119,7 @@ fun ImportScreen(
             state.busy || state.stage != null -> item { ProgressCard(state.stage) }
             state.error != null -> item { ErrorCard(state.error, onReset) }
             state.preview != null -> {
-                item { PreviewSummaryCard(state.preview, onSetAllSelected, onReset) }
+                item { PreviewSummaryCard(state.preview, onSetAllSelected, onSetInvoiceReference, onSetInvoiceDueDate, onReset) }
                 items(state.preview.items, key = { it.id }) { item ->
                     ImportItemRow(item, onToggleItem, onSetCategory)
                 }
@@ -337,8 +347,17 @@ private fun SavedCard(state: ImportUiState, onOpenAgenda: () -> Unit, onReset: (
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PreviewSummaryCard(preview: ImportPreview, onSetAllSelected: (Boolean) -> Unit, onReset: () -> Unit) {
+private fun PreviewSummaryCard(
+    preview: ImportPreview,
+    onSetAllSelected: (Boolean) -> Unit,
+    onSetInvoiceReference: (String) -> Unit,
+    onSetInvoiceDueDate: (String) -> Unit,
+    onReset: () -> Unit,
+) {
+    var showDueDatePicker by remember { mutableStateOf(false) }
+    val dueDate = preview.invoiceMetadata.dueDate
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -348,6 +367,43 @@ private fun PreviewSummaryCard(preview: ImportPreview, onSetAllSelected: (Boolea
             .padding(16.dp),
     ) {
         Text(preview.sourceName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        Text(
+            "Dados da fatura", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
+            modifier = Modifier.padding(top = 14.dp),
+        )
+        Text(
+            "Confirme os dados abaixo. Campos ausentes não são inventados.",
+            fontSize = 11.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+        )
+        OutlinedTextField(
+            value = preview.invoiceMetadata.reference.orEmpty(),
+            onValueChange = onSetInvoiceReference,
+            label = { Text("Banco ou cartão") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
+        Box(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            OutlinedTextField(
+                value = dueDate?.let { "%02d/%02d/%04d".format(it.dayOfMonth, it.monthValue, it.year) }.orEmpty(),
+                onValueChange = {},
+                label = { Text("Vencimento") },
+                placeholder = { Text("Selecione a data") },
+                singleLine = true,
+                readOnly = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable { showDueDatePicker = true },
+            )
+        }
+        preview.invoiceMetadata.closingDate?.let { closing ->
+            Text(
+                "Fechamento identificado: %02d/%02d/%04d".format(closing.dayOfMonth, closing.monthValue, closing.year),
+                fontSize = 11.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 5.dp),
+            )
+        }
         Text(
             buildString {
                 append("${preview.items.size} lançamento(s) encontrados")
@@ -394,6 +450,28 @@ private fun PreviewSummaryCard(preview: ImportPreview, onSetAllSelected: (Boolea
                 "Cancelar", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary,
                 modifier = Modifier.clickable { onReset() },
             )
+        }
+    }
+
+    if (showDueDatePicker) {
+        val picker = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = dueDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDueDatePicker = false },
+            colors = DatePickerDefaults.colors(containerColor = FinaiColors.Surface),
+            confirmButton = {
+                TextButton(onClick = {
+                    picker.selectedDateMillis?.let { millis ->
+                        val selected = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                        onSetInvoiceDueDate("%02d/%02d/%04d".format(selected.dayOfMonth, selected.monthValue, selected.year))
+                    }
+                    showDueDatePicker = false
+                }) { Text("Confirmar") }
+            },
+            dismissButton = { TextButton(onClick = { showDueDatePicker = false }) { Text("Cancelar") } },
+        ) {
+            DatePicker(state = picker, showModeToggle = false)
         }
     }
 }

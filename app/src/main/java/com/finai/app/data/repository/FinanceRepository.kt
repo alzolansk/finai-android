@@ -5,6 +5,7 @@ import com.finai.app.data.local.FinaiDatabase
 import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
+import com.finai.app.data.local.entity.FaturaCartaoEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 class FinanceRepository(private val db: FinaiDatabase) {
     private val transacaoDao = db.transacaoDao()
     private val contaDao = db.contaDao()
+    private val faturaCartaoDao = db.faturaCartaoDao()
     private val objetivoDao = db.objetivoDao()
     private val dividaDao = db.dividaDao()
     private val orcamentoDao = db.orcamentoCategoriaDao()
@@ -27,6 +29,7 @@ class FinanceRepository(private val db: FinaiDatabase) {
 
     val transacoes: Flow<List<TransacaoEntity>> = transacaoDao.observeAll()
     val contas: Flow<List<ContaEntity>> = contaDao.observeAll()
+    val faturasCartao: Flow<List<FaturaCartaoEntity>> = faturaCartaoDao.observeAll()
     val objetivos: Flow<List<ObjetivoEntity>> = objetivoDao.observeAll()
     val dividas: Flow<List<DividaEntity>> = dividaDao.observeAll()
     val assinaturas: Flow<List<AssinaturaEntity>> = assinaturaDao.observeAll()
@@ -40,6 +43,15 @@ class FinanceRepository(private val db: FinaiDatabase) {
     suspend fun salvarConta(conta: ContaEntity) =
         if (conta.id == 0L) contaDao.upsert(conta) else contaDao.update(conta).let { conta.id }
     suspend fun excluirConta(conta: ContaEntity) = contaDao.delete(conta)
+
+    /** Persiste a conta da Agenda, a fatura e seus itens numa transação SQLite atômica. */
+    suspend fun salvarFatura(conta: ContaEntity, fatura: FaturaCartaoEntity, itens: List<TransacaoEntity>) {
+        db.withTransaction {
+            val contaId = contaDao.upsert(conta)
+            val faturaId = faturaCartaoDao.insert(fatura.copy(contaId = contaId))
+            itens.forEach { transacaoDao.upsert(it.copy(faturaId = faturaId)) }
+        }
+    }
 
     suspend fun salvarObjetivo(objetivo: ObjetivoEntity) =
         if (objetivo.id == 0L) objetivoDao.upsert(objetivo) else objetivoDao.update(objetivo).let { objetivo.id }
@@ -68,6 +80,7 @@ class FinanceRepository(private val db: FinaiDatabase) {
     suspend fun apagarTodosOsDados() {
         db.withTransaction {
             transacaoDao.deleteAll()
+            faturaCartaoDao.deleteAll()
             contaDao.deleteAll()
             objetivoDao.deleteAll()
             dividaDao.deleteAll()

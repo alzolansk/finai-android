@@ -150,7 +150,8 @@ Esta foi a opção escolhida, então os riscos abaixo entram como itens de harde
 
 ## 8. Modelo de dados (entidades principais, Room)
 
-- `Transacao` (id, data, descrição, valor, categoria, conta/cartão de origem, recorrente: bool, origem: manual/importado)
+- `Transacao` (id, data/hora original, descrição, valor, categoria, conta/cartão de origem, recorrente: bool, origem: manual/importado, faturaId opcional). A data/hora original não é substituída pelo vencimento da fatura, para sustentar análises de comportamento futuras.
+- `FaturaCartao` (id, contaId, referência de banco/cartão, fechamento opcional, vencimento). Cada fatura cria uma única `Conta` a pagar na Agenda, cujo valor é a soma dos itens válidos vinculados.
 - `Conta` (id, nome, valor, vencimento, status, tipo: a pagar/a receber, recorrente: bool)
 - `Objetivo` (id, tipo, nome, valorAlvo, valorGuardado, prazo, prioridade)
 - `Divida` (id, nome, valorAberto, taxaJurosMensal, parcelasRestantes, valorParcela)
@@ -179,18 +180,32 @@ OCR on-device (ML Kit) + parsing determinístico de valores/datas + chamada de I
 **Fase 5 · Notificações proativas e coach comportamental — ✅ concluída** (ver CLAUDE.md → Status atual para detalhes)
 Rotina diária via `WorkManager`: recalcula tudo localmente e só aciona a IA para redigir o texto da notificação quando o cálculo local indicar algo relevante (evita gerar notificação, e gastar cota, todo dia à toa).
 
-**Fase 6 · Endurecimento e lançamento — ⏸ pausada na validação em aparelho físico e na publicação** (ver CLAUDE.md → Status atual)
-Ofuscação e proteção das chaves de API, testes de navegação completa em aparelho físico, revisão de privacidade (o que sai do aparelho vs o que fica), preparação da ficha da Play Store.
+**Fase 6 · Endurecimento — ✅ concluída no escopo decidido (uso pessoal, sem
+publicação na Play Store)** (ver CLAUDE.md → Status atual)
+Ofuscação e proteção das chaves de API, revisão de privacidade (o que sai do
+aparelho vs o que fica), validação em aparelho físico.
 
-O que ficou pronto: R8/ProGuard ligados e validados em release rodando, chave de API fora da query string e fora do logcat, migrações de Room reais (o `fallbackToDestructiveMigration` saiu), permissões revisadas e documentadas, `cleartextTrafficPermitted=false`, backup automático desligado, escritas de banco e chamadas de IA sem caminho de crash, e os documentos de lançamento (`PRIVACY.md`, `RELEASE.md`, `play-store/`).
+**Decisão (26/09/2026): o app não vai ser publicado na Play Store** — é para
+uso pessoal, instalado direto no aparelho. Isso reduz o escopo da Fase 6: tudo
+que só existe por exigência da loja (keystore de assinatura de produção,
+`targetSdk` mínimo da Play, ficha/imagens/formulário de segurança de dados,
+política de privacidade publicada em URL pública) **não é necessário** e não
+será feito. `RELEASE.md` e `play-store/` continuam no repo como referência,
+caso essa decisão mude no futuro, mas não fazem parte do caminho atual.
 
-**Pausa atual:** iniciar a validação ponta a ponta em aparelho físico. A publicação permanece bloqueada até essa validação e as providências externas abaixo.
+O que ficou pronto e é o que importa para uso pessoal: R8/ProGuard ligados e
+validados em release rodando, chave de API fora da query string e fora do
+logcat, migrações de Room reais (o `fallbackToDestructiveMigration` saiu),
+permissões revisadas e documentadas, `cleartextTrafficPermitted=false`, backup
+automático desligado, escritas de banco e chamadas de IA sem caminho de
+crash, e a validação em aparelho físico (feita pelo usuário em 26/09/2026 —
+feedback detalhado ainda pendente de registro aqui).
 
-O que **não** pode ser concluído sem você, e está detalhado em `RELEASE.md`:
-gerar o keystore de assinatura, decidir o `targetSdk` que a Play exige na data
-da submissão (o projeto está em 34), produzir as imagens da ficha, publicar a
-política de privacidade numa URL, e testar em **aparelho físico** — toda a
-validação até aqui foi em emulador.
+Instalar para uso pessoal não precisa de keystore de produção nem de
+`targetSdk` além do atual: `./gradlew assembleDebug` já gera um APK
+instalável via `adb install`; `./gradlew assembleRelease` também funciona sem
+`keystore.properties` (gera APK não assinado, dá para assinar com qualquer
+keystore local via `apksigner` se quiser o benefício do R8 no dia a dia).
 
 ## 10. Critérios de aceite por fase (resumo)
 

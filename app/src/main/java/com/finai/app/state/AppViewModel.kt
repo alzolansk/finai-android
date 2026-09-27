@@ -72,6 +72,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Usado tanto por "Rever tour guiado" quanto depois de "Apagar todos os dados". */
     fun restartOnboarding() = viewModelScope.launch { prefs.setOnboardingComplete(false) }
 
+    /**
+     * Configuração inicial de dados ([com.finai.app.ui.components.InitialSetupWizard]),
+     * mostrada uma única vez logo depois do tour guiado (`null` enquanto o
+     * DataStore não respondeu, mesma convenção de [onboardingComplete]).
+     * Deliberadamente não reaberta por "Rever tour guiado" — quem já tem
+     * dados cadastrados não deve ser levado de volta a um assistente de
+     * cadastro inicial; só "Apagar todos os dados" a reabre, junto com o tour.
+     */
+    val initialSetupComplete: StateFlow<Boolean?> =
+        prefs.initialSetupComplete
+            .map<Boolean, Boolean?> { it }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun completeInitialSetup() = viewModelScope.launch { prefs.setInitialSetupComplete(true) }
+    fun restartInitialSetup() = viewModelScope.launch { prefs.setInitialSetupComplete(false) }
+
+    /** Nomes de conta/cartão digitados na configuração inicial — ver [FinaiPreferences.knownAccounts]. */
+    val knownAccounts: StateFlow<Set<String>> =
+        prefs.knownAccounts.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    fun addKnownAccounts(names: Set<String>) = viewModelScope.launch { prefs.addKnownAccounts(names) }
+    fun removeKnownAccount(name: String) = viewModelScope.launch { prefs.removeKnownAccount(name) }
+
     private var chatReplyJob: kotlinx.coroutines.Job? = null
 
     init {

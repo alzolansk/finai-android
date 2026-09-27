@@ -1,5 +1,6 @@
 package com.finai.app.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -17,8 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -26,11 +28,36 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.finai.app.R
 import com.finai.app.ui.theme.FinaiColors
+
+// Tons tirados da própria folha da logo (res/drawable-nodpi/finai_mark.png): o verde claro
+// do topo, o médio da dobra e o escuro da sombra interna.
+private val BrandLeafMist = Color(0xFFF1FBF3)
+private val BrandLeafWash = Color(0xFFDDF6E3)
+private val BrandLeafEdge = Color(0xFFBFEBCB)
+private val BrandLeafDeep = Color(0xFF0B6B3A)
+
+/** Botão quadrado da topbar no verde da marca: fundo em degradê suave, contorno e ícone da folha. */
+@Composable
+private fun BrandIconButton(onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Brush.linearGradient(listOf(BrandLeafMist, BrandLeafWash)))
+            .border(1.dp, BrandLeafEdge, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+        content = content,
+    )
+}
 
 /**
  * Sticky top bar: FinAI mark + screen label on the left, notification bell
@@ -58,15 +85,11 @@ fun FinaiTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(FinaiColors.Ink),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(modifier = Modifier.size(14.dp).clip(CircleShape).background(FinaiColors.Emerald))
-            }
+            Image(
+                painter = painterResource(R.drawable.finai_mark),
+                contentDescription = null,
+                modifier = Modifier.height(34.dp),
+            )
             Column {
                 Text("FinAI", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
                 Text(screenLabel, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary)
@@ -74,30 +97,32 @@ fun FinaiTopBar(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(FinaiColors.SurfaceMuted)
-                    .clickable(onClick = onOpenAiSettings),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Filled.Settings, contentDescription = "Configurações", tint = FinaiColors.TextTertiary)
+            BrandIconButton(onClick = onOpenAiSettings) {
+                Icon(Icons.Outlined.Settings, contentDescription = "Configurações", tint = BrandLeafDeep, modifier = Modifier.size(20.dp))
             }
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(FinaiColors.SurfaceMuted)
-                    .clickable(onClick = onOpenNotifications),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Filled.Notifications, contentDescription = "Avisos", tint = FinaiColors.TextTertiary)
-                if (notifCount > 0) {
+            BrandIconButton(onClick = onOpenNotifications) {
+                Icon(Icons.Outlined.Notifications, contentDescription = "Avisos", tint = BrandLeafDeep, modifier = Modifier.size(20.dp))
+                // A new alert popping the badge in (rather than just appearing) is the one
+                // place a little spring feels right — it's rare and meant to catch the eye.
+                val reducedMotion = com.finai.app.ui.theme.rememberReducedMotion()
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = notifCount > 0,
+                    enter = if (reducedMotion) androidx.compose.animation.EnterTransition.None else {
+                        androidx.compose.animation.scaleIn(
+                            androidx.compose.animation.core.spring(dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy),
+                        ) + androidx.compose.animation.fadeIn()
+                    },
+                    exit = if (reducedMotion) androidx.compose.animation.ExitTransition.None else {
+                        androidx.compose.animation.scaleOut() + androidx.compose.animation.fadeOut()
+                    },
+                    modifier = Modifier.align(Alignment.TopEnd),
+                ) {
                     Box(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                    .size(15.dp)
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                            .padding(1.5.dp)
                             .clip(CircleShape)
                             .background(FinaiColors.Rose),
                         contentAlignment = Alignment.Center,

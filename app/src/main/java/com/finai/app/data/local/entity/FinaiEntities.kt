@@ -1,6 +1,7 @@
 package com.finai.app.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -9,7 +10,7 @@ import androidx.room.PrimaryKey
  * `FinanceRepository` + os calculators de `domain/`.
  */
 
-@Entity(tableName = "transacoes")
+@Entity(tableName = "transacoes", indices = [Index("faturaId")])
 data class TransacaoEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val data: Long, // epoch millis
@@ -20,6 +21,28 @@ data class TransacaoEntity(
     val recorrente: Boolean,
     @androidx.room.ColumnInfo(defaultValue = "'Gasto'") val tipo: String = "Gasto",
     val origem: String, // "manual" | "importado"
+    /** Fatura que liquidará esta compra. Nulo para lançamentos manuais e importações antigas. */
+    val faturaId: Long? = null,
+    /**
+     * Receita fora da renda normal (13º, bônus, restituição) — é o que alimenta a "Linha do
+     * tempo do ano" da Início. Sem este campo não havia como separar um 13º de um salário
+     * lançado avulso.
+     */
+    @androidx.room.ColumnInfo(defaultValue = "0") val extra: Boolean = false,
+)
+
+/** Uma fatura de cartão, exibida como um único compromisso na Agenda. */
+@Entity(tableName = "faturas_cartao", indices = [Index("contaId")])
+data class FaturaCartaoEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Conta a pagar criada para a Agenda; o valor dela é a soma dos itens vinculados. */
+    val contaId: Long,
+    /** Banco, cartão ou os dois, confirmado pelo usuário quando o documento não os informa. */
+    val referencia: String,
+    /** Data de fechamento, quando o documento a informou. */
+    val fechamento: Long?,
+    /** Data de vencimento confirmada antes de persistir. */
+    val vencimento: Long,
 )
 
 @Entity(tableName = "contas")
@@ -55,6 +78,14 @@ data class DividaEntity(
     val taxaJurosMensalBasisPoints: Int, // 1% a.m. = 100 bp
     val parcelasRestantes: Int,
     val valorParcelaCentavos: Long,
+    /** Quantidade total de parcelas do contrato (0 = não informado / sem parcelas). */
+    @androidx.room.ColumnInfo(defaultValue = "0") val parcelasTotais: Int = 0,
+    /**
+     * Vencimento (epoch millis) da próxima parcela em aberto. As demais são projetadas
+     * mês a mês a partir dela (`DebtSchedule`), sem gravar uma linha por parcela.
+     * Nulo em dívidas cadastradas antes da v6 ou sem parcela fixa.
+     */
+    val proximoVencimento: Long? = null,
 )
 
 @Entity(tableName = "orcamento_categorias", primaryKeys = ["categoria", "mesReferencia"])

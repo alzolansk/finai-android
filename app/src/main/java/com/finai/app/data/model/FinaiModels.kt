@@ -90,6 +90,7 @@ data class Debt(
     val rateColor: Color,
     val progressPct: Float,
     val barColor: Color,
+    val hasParcelaFixa: Boolean = false,
 )
 
 data class Budget(

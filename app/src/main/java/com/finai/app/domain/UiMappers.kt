@@ -3,6 +3,7 @@ package com.finai.app.domain
 import androidx.compose.ui.graphics.Color
 import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
+import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.data.model.Bill
 import com.finai.app.data.model.BillStatus
 import com.finai.app.data.model.Budget
@@ -65,8 +66,14 @@ fun DebtPlan.toUiDebt(): Debt {
         over = divida.taxaJurosMensalBasisPoints >= 800,
         warn = divida.taxaJurosMensalBasisPoints >= 200,
     )
-    val meta = if (divida.parcelasRestantes > 0 && divida.valorParcelaCentavos > 0) {
-        "${divida.parcelasRestantes} parcela(s) restante(s) · ${formatBrl0(centsToReais(divida.valorParcelaCentavos))}/mês"
+    val hasParcelaFixa = divida.parcelasRestantes > 0 && divida.valorParcelaCentavos > 0
+    val meta = if (hasParcelaFixa) {
+        val restantes = if (divida.parcelasTotais >= divida.parcelasRestantes && divida.parcelasTotais > 0)
+            "${divida.parcelasRestantes} de ${divida.parcelasTotais} parcelas restantes"
+        else "${divida.parcelasRestantes} parcela(s) restante(s)"
+        val fim = DebtSchedule.lastInstallmentMonth(divida, java.time.LocalDate.now())
+            ?.let { " · até ${MONTH_NAMES_PT[it.monthValue - 1].take(3).lowercase()}/${it.year % 100}" }.orEmpty()
+        "$restantes · ${formatBrl0(centsToReais(divida.valorParcelaCentavos))}/mês$fim"
     } else {
         "Sem parcela fixa definida"
     }
@@ -80,6 +87,7 @@ fun DebtPlan.toUiDebt(): Debt {
         rateColor = rateColor,
         progressPct = progress,
         barColor = barColor,
+        hasParcelaFixa = hasParcelaFixa,
     )
 }
 
@@ -125,11 +133,18 @@ fun ContaEntity.toUiBill(today: LocalDate = LocalDate.now()): Bill {
         EffectiveBillStatus.PREVISTO -> BillStatus.Expected
     }
     val (tint, ink) = palette[(nome.hashCode() and Int.MAX_VALUE) % palette.size]
+    val amountLabel = formatBrl0(centsToReais(valorCentavos)).let { if (tipo == "a_receber") "+ $it" else it }
+    val kindLabel = when {
+        tipo == "a_receber" && recorrente -> "Entrada fixa"
+        tipo == "a_receber" -> "Entrada"
+        recorrente -> "Fixo"
+        else -> "Avulso"
+    }
     return Bill(
         id = id,
         name = nome,
-        meta = (if (recorrente) "Fixo" else "Avulso") + " · " + formatDayMonth(vencimento),
-        amount = formatBrl0(centsToReais(valorCentavos)),
+        meta = "$kindLabel · " + formatDayMonth(vencimento),
+        amount = amountLabel,
         status = status,
         initials = initialsOf(nome),
         tint = tint,
@@ -158,10 +173,30 @@ fun ContaEntity.toUiWeekBill(today: LocalDate = LocalDate.now()): WeekBill {
     )
 }
 
-fun ContaEntity.toUiTimelineEntry(): TimelineEntry = TimelineEntry(
-    month = MONTH_ABBREV_PT[vencimento.toLocalDate().monthValue - 1],
-    amount = "+ " + formatBrl0(centsToReais(valorCentavos)),
-    label = nome,
+/**
+ * Só lançamentos avulsos (não recorrentes) entram aqui — um lançamento recorrente é
+ * projetado por mês (ver [transactionsInMonth]), não numa janela corrida de 7 dias que
+ * pode cruzar mês, e cobrir isso direito exigiria a mesma projeção com um range de
+ * datas em vez de um mês inteiro (fora do escopo desta correção pontual).
+ */
+fun TransacaoEntity.toUiWeekBill(today: LocalDate = LocalDate.now()): WeekBill {
+    val date = data.toLocalDate()
+    val amount = formatBrl0(centsToReais(valorCentavos)).let { if (tipo == TransactionType.Receita.name) "+ $it" else it }
+    return WeekBill(
+        day = date.dayOfMonth.toString().padStart(2, '0'),
+        mon = MONTH_ABBREV_PT[date.monthValue - 1].uppercase(),
+        name = descricao.ifBlank { categoria },
+        cat = if (tipo == TransactionType.Receita.name) "Entrada" else "Lançamento",
+        amount = amount,
+        status = if (date == today) "Hoje" else "Previsto",
+        statusTone = StatusTone.Positive,
+    )
+}
+
+fun ExtraIncome.toUiTimelineEntry(): TimelineEntry = TimelineEntry(
+    month = MONTH_ABBREV_PT[date.monthValue - 1],
+    amount = "+ " + formatBrl0(centsToReais(cents)),
+    label = label,
     tone = TimelineTone.Positive,
 )
 

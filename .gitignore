@@ -21,3 +21,6 @@ local.properties
 # Mapping do R8: o arquivo em si é gerado pelo build, mas GUARDE uma cópia
 # de cada versão publicada fora do repo (ver RELEASE.md) — sem ele, um crash
 # reportado pela Play Console vem ilegível.
+
+# Prints enviados na conversa com o Claude — têm dado financeiro pessoal.
+/uploads/

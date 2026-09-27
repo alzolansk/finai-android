@@ -1,5 +1,6 @@
 package com.finai.app.ui.screens.budgets
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +14,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,9 +29,13 @@ import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.data.model.Budget
 import com.finai.app.data.model.Categorias
 import com.finai.app.data.model.Subscription
+import com.finai.app.ui.components.ConfirmDeleteDialog
+import com.finai.app.ui.components.FadeInAppear
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
+import com.finai.app.ui.theme.FinaiMotion
+import com.finai.app.ui.theme.finaiTween
 import com.finai.app.util.formatBrl0
 
 @Composable
@@ -41,6 +50,7 @@ fun BudgetsScreen(
 ) {
     val configured = budgets.map { it.name }.toSet()
     val missing = Categorias.all.filter { it !in configured }
+    var pendingDelete by remember { mutableStateOf<TransacaoEntity?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
@@ -126,7 +136,10 @@ fun BudgetsScreen(
                         "Sinalizadas quando sem uso há 45 dias ou mais", fontSize = 11.sp, color = FinaiColors.TextMuted,
                         modifier = Modifier.padding(top = 2.dp),
                     )
-                    Column(modifier = Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Column(
+                        modifier = Modifier.padding(top = 12.dp).animateContentSize(finaiTween(FinaiMotion.Standard)),
+                        verticalArrangement = Arrangement.spacedBy(9.dp),
+                    ) {
                         subscriptions.forEach { sub -> SubscriptionRow(sub, onSubscriptionAction) }
                     }
                 }
@@ -144,17 +157,31 @@ fun BudgetsScreen(
             ) {
                 Text("Lançamentos deste mês", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
                 if (recentTransactions.isEmpty()) {
-                    Text(
-                        "Nenhum lançamento ainda.", fontSize = 12.sp, color = FinaiColors.TextMuted,
-                        modifier = Modifier.padding(top = 10.dp),
-                    )
+                    FadeInAppear {
+                        Text(
+                            "Nenhum lançamento ainda.", fontSize = 12.sp, color = FinaiColors.TextMuted,
+                            modifier = Modifier.padding(top = 10.dp),
+                        )
+                    }
                 } else {
-                    Column(modifier = Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                        recentTransactions.forEach { t -> TransactionRow(t, onDeleteTransaction) }
+                    Column(
+                        modifier = Modifier.padding(top = 10.dp).animateContentSize(finaiTween(FinaiMotion.Standard)),
+                        verticalArrangement = Arrangement.spacedBy(9.dp),
+                    ) {
+                        recentTransactions.forEach { t -> TransactionRow(t) { pendingDelete = t } }
                     }
                 }
             }
         }
+    }
+
+    pendingDelete?.let { t ->
+        ConfirmDeleteDialog(
+            title = "Excluir lançamento?",
+            description = "${t.descricao} · ${formatBrl0(t.valorCentavos / 100.0)} será removido permanentemente.",
+            onDismiss = { pendingDelete = null },
+            onConfirm = { onDeleteTransaction(t); pendingDelete = null },
+        )
     }
 }
 

@@ -7,12 +7,14 @@ import com.finai.app.data.local.FinaiDatabase
 import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
+import com.finai.app.data.local.entity.FaturaCartaoEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.data.ai.AiResponseCache
 import com.finai.app.data.notifications.FinaiNotifier
 import com.finai.app.data.repository.FinanceRepository
+import com.finai.app.domain.TransactionType
 import com.finai.app.domain.transactionsInMonth
 import com.finai.app.domain.AlertCalculator
 import com.finai.app.domain.BehaviorCoach
@@ -101,9 +103,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         repository.objetivos,
         repository.dividas,
         repository.transacoes,
-        repository.assinaturas,
-    ) { contas, objetivos, dividas, transacoes, assinaturas ->
-        Snapshot(contas, objetivos, dividas, transacoes, assinaturas)
+        repository.faturasCartao,
+    ) { contas, objetivos, dividas, transacoes, faturasCartao ->
+        Snapshot(contas, objetivos, dividas, transacoes, faturasCartao, emptyList())
+    }.combine(repository.assinaturas) { snapshot, assinaturas ->
+        snapshot.copy(assinaturas = assinaturas)
     }.combine(repository.orcamentosDoMes(mesAtual)) { snapshot, orcamentos ->
         buildState(snapshot, orcamentos)
     }.catch { t ->
@@ -121,6 +125,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val objetivos: List<ObjetivoEntity>,
         val dividas: List<DividaEntity>,
         val transacoes: List<TransacaoEntity>,
+        val faturasCartao: List<FaturaCartaoEntity>,
         val assinaturas: List<AssinaturaEntity>,
     )
 
@@ -135,27 +140,44 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val subscriptionInsights = SubscriptionCalculator.insights(s.assinaturas, today)
 
         val nextWeekEnd = today.plusDays(7)
-        val weekBills = s.contas
+        // Conta continua sendo o compromisso com data certa; lançamento avulso já
+        // cadastrado com data futura (ex.: salário do dia 30) também é "esperado nos
+        // próximos 7 dias" do ponto de vista do usuário — sem isto essa seção ficava
+        // vazia pra quem lança tudo pelo "+" central em vez de "Nova conta".
+        val weekFromContas = s.contas
             .filter {
                 val d = it.vencimento.toLocalDate()
                 !d.isBefore(today) && !d.isAfter(nextWeekEnd) && it.status != "pago"
             }
-            .sortedBy { it.vencimento }
+            .map { it.vencimento.toLocalDate() to it.toUiWeekBill(today) }
+        val weekFromTransacoes = s.transacoes
+            .filter {
+                // Item de fatura tem a data da compra, não do pagamento: quem vence é a
+                // fatura (a ContaEntity dela, já em weekFromContas), não cada compra.
+                it.tipo != TransactionType.Transferencia.name && !it.recorrente && it.faturaId == null &&
+                    it.data.toLocalDate().let { d -> !d.isBefore(today) && !d.isAfter(nextWeekEnd) }
+            }
+            .map { it.data.toLocalDate() to it.toUiWeekBill(today) }
+        val weekBills = (weekFromContas + weekFromTransacoes)
+            .sortedBy { it.first }
             .take(6)
-            .map { it.toUiWeekBill(today) }
+            .map { it.second }
 
-        val timelineContas = s.contas
-            .filter { it.tipo == "a_receber" && !it.recorrente && it.vencimento.toLocalDate().year == Year.now().value }
-            .sortedBy { it.vencimento }
-        val timelineTotalCents = timelineContas.sumOf { it.valorCentavos }
+        val timelineExtras = com.finai.app.domain.ExtraIncomeTimeline.forYear(s.contas, s.transacoes, Year.now().value)
+        val timelineTotalCents = timelineExtras.sumOf { it.cents }
 
         val topDebt = debtSummary.ordered.firstOrNull()
+        // Mesma conta dos totais da Agenda do mês (recebimentos − contas a pagar).
+        val saldoCents = com.finai.app.domain.MonthCashFlow.of(
+            s.contas, s.transacoes, s.dividas, java.time.YearMonth.from(today), today,
+        ).saldoCents
 
         return FinanceUiState(
             loading = false,
             greeting = greetingFor(LocalTime.now()),
             subGreeting = subGreetingFor(weekBills.size),
             rawContas = s.contas,
+            rawFaturasCartao = s.faturasCartao,
             rawObjetivos = s.objetivos,
             rawDividas = s.dividas,
             rawOrcamentos = orcamentos,
@@ -164,14 +186,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             goals = goalPlans.map { it.toUiGoal() },
             safeToday = safe,
             safeTodayLabel = formatBrl(safe.safeTodayCents / 100.0),
+            saldoCents = saldoCents,
+            saldoLabel = formatBrl(saldoCents / 100.0),
             safeNote = if (safe.slackThisMonthCents >= 0)
                 "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} até o dia ${safe.lastDayOfMonth}, já descontadas contas e metas."
             else
                 "Você já comprometeu ${formatBrl0(-safe.slackThisMonthCents / 100.0)} a mais do que entra este mês.",
             nextWeekBills = weekBills,
-            timeline = timelineContas.map { it.toUiTimelineEntry() },
-            timelineNote = if (timelineContas.isEmpty())
-                "Nenhuma entrada extra cadastrada para este ano. Lance 13º, bônus ou restituição como conta a receber para vê-los aqui."
+            timeline = timelineExtras.map { it.toUiTimelineEntry() },
+            timelineNote = if (timelineExtras.isEmpty())
+                "Nenhuma entrada extra neste ano. Toque em + para lançar 13º, bônus ou restituição — ou marque uma receita já lançada como extra na Agenda."
             else
                 "Somando as entradas extras cadastradas, você tem ${formatBrl0(timelineTotalCents / 100.0)} fora da renda recorrente neste ano.",
             behaviorPattern = BehaviorCoach.detect(s.transacoes, today).firstOrNull(),
@@ -240,6 +264,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         repository.salvarTransacao(entry)
     }
 
+    /** Marca/desmarca uma receita já lançada como entrada extra (Linha do tempo do ano). */
+    fun setTransacaoExtra(transacao: TransacaoEntity, extra: Boolean) = launchSafely("atualizar o lançamento") {
+        repository.salvarTransacao(transacao.copy(extra = extra, recorrente = if (extra) false else transacao.recorrente))
+    }
+
     fun deleteTransacao(transacao: TransacaoEntity) = launchSafely("excluir o lançamento") { repository.excluirTransacao(transacao) }
 
     // ── manual entry: contas ───────────────────────────────────
@@ -284,6 +313,36 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun deleteDividaById(id: Long) {
         launchSafely("excluir a dívida") {
             uiState.value.rawDividas.firstOrNull { it.id == id }?.let { repository.excluirDivida(it) }
+        }
+    }
+
+    /**
+     * Registra o pagamento de uma parcela: some uma parcela de [DividaEntity.parcelasRestantes]
+     * e desconta [DividaEntity.valorParcelaCentavos] do valor em aberto. Sem isto não havia
+     * nenhuma forma de a dívida avançar conforme o usuário paga — ficava travada no valor
+     * cadastrado no dia da negociação para sempre.
+     */
+    fun pagarParcela(dividaId: Long) {
+        launchSafely("registrar pagamento da parcela") {
+            val divida = uiState.value.rawDividas.firstOrNull { it.id == dividaId } ?: return@launchSafely
+            if (divida.parcelasRestantes <= 0) return@launchSafely
+            val hoje = LocalDate.now()
+            val numero = if (divida.parcelasTotais > 0) divida.parcelasTotais - divida.parcelasRestantes + 1 else null
+            // O pagamento vira um gasto do dia: a parcela sai da projeção (afterPayment) e passa
+            // a contar por aqui, então o saldo do mês e os totais da Agenda não "devolvem" o valor.
+            repository.salvarTransacao(
+                TransacaoEntity(
+                    data = hoje.toEpochMillis(),
+                    descricao = if (numero != null) "${divida.nome} · parcela $numero de ${divida.parcelasTotais}" else "${divida.nome} · parcela",
+                    valorCentavos = minOf(divida.valorParcelaCentavos, divida.valorAbertoCentavos).coerceAtLeast(0),
+                    categoria = com.finai.app.domain.DebtSchedule.PAYMENT_CATEGORY,
+                    contaOrigem = "",
+                    recorrente = false,
+                    origem = com.finai.app.domain.DebtSchedule.PAYMENT_ORIGIN,
+                ),
+            )
+            // Avança o vencimento junto: a Agenda projeta as parcelas seguintes a partir dele.
+            repository.salvarDivida(com.finai.app.domain.DebtSchedule.afterPayment(divida, hoje))
         }
     }
 

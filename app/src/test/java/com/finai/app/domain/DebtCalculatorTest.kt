@@ -58,4 +58,18 @@ class DebtCalculatorTest {
         val plan = DebtCalculator.summarize(listOf(debt), today).ordered.single()
         assertEquals(0.75f, plan.progress)
     }
+
+    @Test
+    fun `installment contract ends on the last parcela, not on re-amortized interest`() {
+        val today = LocalDate.of(2026, 9, 26)
+        // Picpay do relato: saldo 2.401 a 6% a.m., 4 x 481 restantes a partir de set/26.
+        // Pela fórmula de amortização daria 7 meses (abr/27); o contrato termina em dez/26.
+        val picpay = DividaEntity(
+            nome = "Picpay", valorOriginalCentavos = 400_000, valorAbertoCentavos = 240_100,
+            taxaJurosMensalBasisPoints = 600, parcelasRestantes = 4, valorParcelaCentavos = 48_100,
+            parcelasTotais = 8, proximoVencimento = LocalDate.of(2026, 9, 10).toEpochMillis(),
+        )
+        val summary = DebtCalculator.summarize(listOf(picpay), today)
+        assertEquals(LocalDate.of(2026, 12, 10), summary.debtFreeDate)
+    }
 }

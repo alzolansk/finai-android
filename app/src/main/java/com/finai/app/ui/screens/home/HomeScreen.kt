@@ -48,6 +48,8 @@ fun HomeScreen(
     greeting: String,
     subGreeting: String,
     goals: List<Goal>,
+    saldoLabel: String,
+    saldoPositivo: Boolean,
     safeToday: SafeToSpendResult?,
     safeTodayLabel: String,
     safeNote: String,
@@ -64,6 +66,7 @@ fun HomeScreen(
     onOpenBudgets: () -> Unit,
     onOpenAgenda: () -> Unit,
     onOpenChat: () -> Unit,
+    onNewIncomeEntry: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
@@ -80,19 +83,46 @@ fun HomeScreen(
             }
         }
 
+        item { SaldoCard(saldoLabel, saldoPositivo) }
+
         item { GoalsCarousel(goals, onOpenGoals, onNewGoal) }
 
         item { SafeToSpendCard(safeToday, safeTodayLabel, safeNote, onOpenSimulator, onOpenBudgets) }
 
         item { DecisionsCard(decisions) }
 
-        item { TimelineSection(timeline, timelineNote) }
+        item { TimelineSection(timeline, timelineNote, onNewIncomeEntry) }
 
         item { NextWeekSection(week, onOpenAgenda) }
 
         if (showCoach && behaviorPattern != null) {
             item { CoachCard(behaviorPattern, coachInsight, onOpenChat) }
         }
+    }
+}
+
+/**
+ * Saldo = recebimentos − contas a pagar do mês corrente, a mesma conta dos totais da
+ * Agenda (MonthCashFlow): parcelas de dívida e fatura pelo vencimento entram; meses anteriores
+ * não se acumulam — pra não obrigar o usuário a ir até a Agenda fazer essa conta de
+ * cabeça a cada vez.
+ */
+@Composable
+private fun SaldoCard(saldoLabel: String, saldoPositivo: Boolean) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
+            .background(FinaiColors.Surface)
+            .padding(16.dp),
+    ) {
+        Text("SALDO ATUAL", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
+        Text(
+            saldoLabel, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold,
+            color = if (saldoPositivo) FinaiColors.EmeraldDark else Color(0xFFE11D48),
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 
@@ -322,13 +352,27 @@ private fun DecisionsCard(decisions: AiText?) {
 }
 
 @Composable
-private fun TimelineSection(timeline: List<TimelineEntry>, timelineNote: String) {
+private fun TimelineSection(timeline: List<TimelineEntry>, timelineNote: String, onNewIncomeEntry: () -> Unit) {
     Column {
-        Text("Linha do tempo do ano", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-        Text(
-            "Entradas extras cadastradas como conta a receber", fontSize = 11.sp, color = FinaiColors.TextMuted,
-            modifier = Modifier.padding(top = 3.dp, bottom = 12.dp),
-        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+            Column {
+                Text("Linha do tempo do ano", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                Text(
+                    "13º, bônus, restituição e outras entradas extras", fontSize = 11.sp, color = FinaiColors.TextMuted,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(FinaiColors.Ink)
+                    .clickable(onClick = onNewIncomeEntry)
+                    .padding(7.dp),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "Registrar entrada extra (13º, bônus, restituição...)", tint = Color.White, modifier = Modifier.size(15.dp))
+            }
+        }
+        Spacer(Modifier.height(9.dp))
         Column(
             modifier = Modifier
                 .fillMaxWidth()

@@ -73,6 +73,20 @@ android {
             )
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
         }
+        // Uso pessoal (sem Play Store, ver CLAUDE.md 26/09/2026): o mesmo build
+        // minificado do release, mas assinado com a chave de debug — instala por cima
+        // do app-debug já no celular sem perder dados, e com R8 + só arm64 fica
+        // pequeno o bastante para mandar por mensagem.
+        // ./gradlew assemblePessoal → app/build/outputs/apk/pessoal/app-pessoal.apk
+        // (não usar -Pandroid.injected.build.abi: esse atalho de IDE marca o APK como
+        // testOnly e o instalador do celular recusa com "pacote inválido").
+        create("pessoal") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            // Só celulares 64-bit ARM: tira ~30 MB de bibliotecas do OCR de outras arquiteturas.
+            ndk { abiFilters += "arm64-v8a" }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8

@@ -9,6 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.finai.app.data.local.dao.AssinaturaDao
 import com.finai.app.data.local.dao.ContaDao
 import com.finai.app.data.local.dao.DividaDao
+import com.finai.app.data.local.dao.FaturaCartaoDao
 import com.finai.app.data.local.dao.MensagemChatDao
 import com.finai.app.data.local.dao.NotificacaoEnviadaDao
 import com.finai.app.data.local.dao.ObjetivoDao
@@ -18,6 +19,7 @@ import com.finai.app.data.local.dao.UsoProvedorIaDao
 import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
+import com.finai.app.data.local.entity.FaturaCartaoEntity
 import com.finai.app.data.local.entity.MensagemChatEntity
 import com.finai.app.data.local.entity.NotificacaoEnviadaEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
@@ -32,6 +34,7 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
 @Database(
     entities = [
         TransacaoEntity::class,
+        FaturaCartaoEntity::class,
         ContaEntity::class,
         ObjetivoEntity::class,
         DividaEntity::class,
@@ -41,7 +44,7 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
         UsoProvedorIaEntity::class,
         NotificacaoEnviadaEntity::class,
     ],
-    version = 4,
+    version = 7,
     // Fase 6: o schema de cada versão passa a ser exportado para
     // `app/schemas/` e versionado no git. É o que permite escrever (e testar)
     // uma migração sem adivinhar o DDL que o Room gerou na versão anterior —
@@ -51,6 +54,7 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
 )
 abstract class FinaiDatabase : RoomDatabase() {
     abstract fun transacaoDao(): TransacaoDao
+    abstract fun faturaCartaoDao(): FaturaCartaoDao
     abstract fun contaDao(): ContaDao
     abstract fun objetivoDao(): ObjetivoDao
     abstract fun dividaDao(): DividaDao
@@ -96,7 +100,37 @@ abstract class FinaiDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        /** Faturas passam a ser compromissos únicos, sem perder a data original das compras. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `transacoes` ADD COLUMN `faturaId` INTEGER")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `faturas_cartao` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`contaId` INTEGER NOT NULL, `referencia` TEXT NOT NULL, " +
+                        "`fechamento` INTEGER, `vencimento` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_faturas_cartao_contaId` ON `faturas_cartao` (`contaId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transacoes_faturaId` ON `transacoes` (`faturaId`)")
+            }
+        }
+
+        /** Parcelas de dívida passam a ter vencimento e total, para a Agenda projetar até a última. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `dividas` ADD COLUMN `parcelasTotais` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `dividas` ADD COLUMN `proximoVencimento` INTEGER")
+            }
+        }
+
+        /** Receita pode ser marcada como entrada extra (Linha do tempo do ano). */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `transacoes` ADD COLUMN `extra` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 
         @Volatile private var instance: FinaiDatabase? = null
 

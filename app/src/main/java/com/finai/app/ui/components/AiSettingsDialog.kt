@@ -2,6 +2,7 @@ package com.finai.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -58,6 +60,9 @@ fun ApiKeySettingsScreen(
     onTestNotifications: () -> Unit,
     onRestartTour: () -> Unit,
     onEraseAllData: () -> Unit,
+    knownAccounts: Set<String>,
+    onAddAccount: (String) -> Unit,
+    onRemoveAccount: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -87,10 +92,77 @@ fun ApiKeySettingsScreen(
         Spacer(Modifier.height(14.dp))
         NotificationsDiagnostics(notificationsEnabled, onTestNotifications)
         Spacer(Modifier.height(20.dp))
+        Text("Contas e cartões", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        Spacer(Modifier.height(10.dp))
+        KnownAccountsSection(knownAccounts, onAddAccount, onRemoveAccount)
+        Spacer(Modifier.height(20.dp))
         Text("Dados e privacidade", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
         Spacer(Modifier.height(10.dp))
         DataPrivacySection(onRestartTour = onRestartTour, onEraseAllData = onEraseAllData)
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/**
+ * Contas e cartões usados no seletor de "conta/cartão de origem" do
+ * lançamento manual (também alimentado pelas contas de origem já usadas em
+ * lançamentos — ver [com.finai.app.FinaiApp]) e pela configuração inicial de
+ * dados. Este é o único lugar fora do lançamento manual e do assistente de
+ * configuração inicial onde dá para cadastrar um nome novo a qualquer
+ * momento, ou remover um que não é mais usado — remover aqui não apaga
+ * nenhum lançamento já gravado com esse nome, só tira a sugestão da lista.
+ */
+@Composable
+private fun KnownAccountsSection(
+    accounts: Set<String>,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit,
+) {
+    var input by remember { mutableStateOf("") }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(FinaiColors.Surface, RoundedCornerShape(16.dp))
+            .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+    ) {
+        Text(
+            "Nomes sugeridos ao lançar um gasto (ex.: Carteira, Nubank, Itaú). Contas usadas em algum lançamento aparecem no seletor mesmo sem estar nesta lista.",
+            color = FinaiColors.TextSecondary, fontSize = 12.sp,
+        )
+        if (accounts.isNotEmpty()) {
+            Row(
+                modifier = Modifier.padding(top = 10.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                accounts.sorted().forEach { name ->
+                    Row(
+                        modifier = Modifier
+                            .background(FinaiColors.SurfaceSunken, RoundedCornerShape(99.dp))
+                            .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
+                            .padding(horizontal = 11.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(name, fontSize = 12.sp, color = FinaiColors.TextPrimary)
+                        Text(
+                            " ×", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.RoseDark,
+                            modifier = Modifier.padding(start = 6.dp).clickable { onRemove(name) },
+                        )
+                    }
+                }
+            }
+        }
+        Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = input, onValueChange = { input = it }, label = { Text("Nova conta/cartão") },
+                singleLine = true, modifier = Modifier.weight(1f),
+            )
+            Button(
+                enabled = input.isNotBlank(),
+                onClick = { onAdd(input.trim()); input = "" },
+                colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.Ink, contentColor = Color.White),
+            ) { Text("Adicionar") }
+        }
     }
 }
 

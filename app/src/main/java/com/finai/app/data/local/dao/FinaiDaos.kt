@@ -9,6 +9,7 @@ import androidx.room.Update
 import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
+import com.finai.app.data.local.entity.FaturaCartaoEntity
 import com.finai.app.data.local.entity.MensagemChatEntity
 import com.finai.app.data.local.entity.NotificacaoEnviadaEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
@@ -37,6 +38,18 @@ interface TransacaoDao {
     suspend fun delete(transacao: TransacaoEntity)
 
     @Query("DELETE FROM transacoes")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface FaturaCartaoDao {
+    @Query("SELECT * FROM faturas_cartao ORDER BY vencimento DESC, id DESC")
+    fun observeAll(): Flow<List<FaturaCartaoEntity>>
+
+    @Insert
+    suspend fun insert(fatura: FaturaCartaoEntity): Long
+
+    @Query("DELETE FROM faturas_cartao")
     suspend fun deleteAll()
 }
 

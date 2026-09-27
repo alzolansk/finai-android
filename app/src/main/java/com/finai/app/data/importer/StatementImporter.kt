@@ -9,6 +9,7 @@ import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.domain.importer.DocumentKind
 import com.finai.app.domain.importer.ImportAnalyzer
 import com.finai.app.domain.importer.ImportPreview
+import com.finai.app.domain.importer.InvoiceMetadataParser
 import com.finai.app.domain.importer.ParseResult
 import com.finai.app.domain.importer.SpreadsheetStatementParser
 import com.finai.app.domain.importer.StatementTextParser
@@ -93,7 +94,7 @@ class StatementImporter(
                     sourceName = name,
                     documentKind = kind,
                     usedOcr = extracted.usedOcr,
-                ),
+                ).copy(invoiceMetadata = InvoiceMetadataParser.parse(extracted.lines, reference)),
             )
         } catch (e: SecurityException) {
             ImportOutcome.Failure("Sem permissão para ler \"$name\". Escolha o arquivo de novo pelo seletor.")

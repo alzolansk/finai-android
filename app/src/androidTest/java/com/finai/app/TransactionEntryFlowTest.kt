@@ -38,10 +38,21 @@ class TransactionEntryFlowTest {
                 FinaiTheme {
                     if (!visible) {
                         val date = entries.single().data.toLocalDate()
-                        AgendaScreen(date.monthValue - 1, date.year, {}, {}, emptyList(), 0, 0, 0, 0,
-                            entries, {}, { _, _ -> }, {})
+                        AgendaScreen(
+                            monthIndex = date.monthValue - 1, year = date.year,
+                            onPrevMonth = {}, onNextMonth = {}, bills = emptyList(),
+                            toPayCents = 0, toPayCount = 0, toGetCents = 0, toGetCount = 0,
+                            recurringTransactions = emptyList(),
+                            transactions = entries, invoiceItemsByAccountId = emptyMap(),
+                            debtsDue = emptyList(), onPayInstallment = {},
+                            onToggleContaPaga = { _, _ -> },
+                            onDeleteTransaction = {}, onDeleteConta = {}, onEditConta = {},
+                        )
                     }
-                    TransactionEntryScreen(visible, listOf("Nubank"), {}, { repository.salvarTransacao(it) }, { visible = false })
+                    TransactionEntryScreen(
+                        visible = visible, accounts = listOf("Nubank"),
+                        onDismiss = {}, onSave = { repository.salvarTransacao(it) }, onViewEntry = { visible = false },
+                    )
                 }
             }
             compose.onNodeWithText(type.label).performClick()
@@ -83,7 +94,10 @@ class TransactionEntryFlowTest {
     @Test fun backPreservesDraftAndZeroWithCategoryCannotSave() {
         var visible by mutableStateOf(true)
         compose.setContent { FinaiTheme {
-            TransactionEntryScreen(visible, listOf("Carteira"), { visible = false }, {}, {})
+            TransactionEntryScreen(
+                visible = visible, accounts = listOf("Carteira"),
+                onDismiss = { visible = false }, onSave = {}, onViewEntry = {},
+            )
         } }
         compose.onNodeWithText("Selecionar categoria").performScrollTo().performClick()
         compose.onNodeWithText("Saúde").performClick()
@@ -93,6 +107,27 @@ class TransactionEntryFlowTest {
         compose.runOnIdle { visible = true }
         compose.onNodeWithContentDescription("Valor: R$ 0,07").assertExists()
         compose.onNodeWithText("Saúde").assertExists()
+    }
+
+    @Test fun keypadReturnsWhenTappingAmountAfterOtherFields() {
+        compose.setContent { FinaiTheme {
+            TransactionEntryScreen(visible = true, accounts = listOf("Carteira"), onDismiss = {}, onSave = {}, onViewEntry = {})
+        } }
+        compose.onNodeWithText("4").performClick()
+        // Descrição focada (o caso do bug): o teclado próprio some...
+        compose.onNodeWithContentDescription("Descrição").performClick().performTextInput("Mercado")
+        compose.waitUntil(3000) { compose.onAllNodesWithText("7").fetchSemanticsNodes().isEmpty() }
+        // ...e tocar no valor precisa trazê-lo de volta, e continuar digitando.
+        compose.onNodeWithContentDescription("Valor: R$ 0,04").performScrollTo().performClick()
+        compose.waitUntil(3000) { compose.onAllNodesWithText("7").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("7").performClick()
+        compose.onNodeWithContentDescription("Valor: R$ 0,47").assertExists()
+        // Mesmo caminho depois de ir para outro campo (categoria).
+        compose.onNodeWithText("Selecionar categoria").performScrollTo().performClick()
+        compose.onNodeWithText("Saúde").performClick()
+        compose.waitUntil(3000) { compose.onAllNodesWithText("7").fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithContentDescription("Valor: R$ 0,47").performScrollTo().performClick()
+        compose.waitUntil(3000) { compose.onAllNodesWithText("7").fetchSemanticsNodes().isNotEmpty() }
     }
 
     @Test fun migrationPreservesExistingExpense() {
@@ -108,13 +143,16 @@ class TransactionEntryFlowTest {
         legacy.execSQL("INSERT INTO transacoes VALUES (23, 0, 'Preservar', 4300, 'Saúde', 'Carteira', 0, 'manual')")
         legacy.version = 3
         legacy.close()
-        val migrated = Room.databaseBuilder(context, FinaiDatabase::class.java, name).addMigrations(FinaiDatabase.MIGRATION_3_4).build()
+        val migrated = Room.databaseBuilder(context, FinaiDatabase::class.java, name)
+            .addMigrations(FinaiDatabase.MIGRATION_3_4, FinaiDatabase.MIGRATION_4_5)
+            .build()
         try {
             val entry = runBlocking { migrated.transacaoDao().observeAll().first() }.single()
             assertEquals(23L, entry.id)
             assertEquals(4300L, entry.valorCentavos)
             assertEquals("Preservar", entry.descricao)
             assertEquals("Gasto", entry.tipo)
+            assertEquals(null, entry.faturaId)
         } finally { migrated.close(); context.deleteDatabase(name) }
     }
 }
