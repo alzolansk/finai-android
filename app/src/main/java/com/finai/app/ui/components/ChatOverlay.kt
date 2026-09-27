@@ -38,7 +38,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.AddComment
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import com.finai.app.data.fixtures.FinaiFixtures
+import com.finai.app.data.local.entity.ConversaResumo
 import com.finai.app.data.model.ChatMessage
 import com.finai.app.data.model.ChatRole
 import com.finai.app.ui.theme.FinaiColors
@@ -61,12 +79,26 @@ fun ChatOverlay(
     messages: List<ChatMessage>,
     thinking: Boolean,
     draft: String,
+    conversations: List<ConversaResumo>,
+    currentConversationId: Long,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
     onSuggestion: (String) -> Unit,
+    onNewConversation: () -> Unit,
+    onOpenConversation: (Long) -> Unit,
+    onDeleteConversation: (Long) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showHistory by rememberSaveable { mutableStateOf(false) }
+    // Registrado depois do BackHandler central de FinaiApp, então tem prioridade:
+    // com a lista aberta, voltar fecha só a lista.
+    BackHandler(enabled = showHistory) { showHistory = false }
+    val listState = rememberLazyListState()
+    LaunchedEffect(currentConversationId, messages.size, thinking) {
+        val last = messages.size + (if (thinking) 1 else 0) - 1
+        if (last >= 0) listState.animateScrollToItem(last)
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -93,14 +125,31 @@ fun ChatOverlay(
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = FinaiColors.EmeraldDark, modifier = Modifier.size(17.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text("FinAI", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                Text(
+                    if (showHistory) "Conversas anteriores" else "FinAI",
+                    fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
+                )
                 Text(
                     // O que a IA realmente recebe é o resumo agregado de FinanceUiState
                     // (planning.md §4: minimização do que sai do aparelho) — não o extrato.
-                    if (thinking) "analisando seus números..." else "online · lê o resumo dos seus números",
+                    when {
+                        showHistory -> "${conversations.size} " + if (conversations.size == 1) "conversa" else "conversas"
+                        thinking -> "analisando seus números..."
+                        else -> "lê o resumo dos seus números"
+                    },
                     fontSize = 11.sp, color = FinaiColors.TextTertiary,
                 )
             }
+            HeaderIcon(
+                icon = if (showHistory) Icons.AutoMirrored.Filled.ArrowBack else Icons.Outlined.History,
+                description = if (showHistory) "Voltar para a conversa" else "Conversas anteriores",
+                onClick = { showHistory = !showHistory },
+            )
+            HeaderIcon(
+                icon = Icons.Outlined.AddComment,
+                description = "Nova conversa",
+                onClick = { onNewConversation(); showHistory = false },
+            )
             Box(
                 modifier = Modifier
                     .size(34.dp)
@@ -113,7 +162,19 @@ fun ChatOverlay(
             }
         }
 
+        if (showHistory) {
+            ConversationHistory(
+                conversations = conversations,
+                currentConversationId = currentConversationId,
+                onOpen = { id -> onOpenConversation(id); showHistory = false },
+                onDelete = onDeleteConversation,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
+            return@Column
+        }
+
         LazyColumn(
+            state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -212,6 +273,99 @@ private fun ChatBubble(message: ChatMessage) {
                 AiRichText(message.text, fontSize = 13.sp, lineHeight = 20.sp, showHighlights = true)
             }
         }
+    }
+}
+
+@Composable
+private fun HeaderIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = description, tint = FinaiColors.TextSecondary, modifier = Modifier.size(19.dp))
+    }
+}
+
+/** Lista de conversas guardadas, a mais recente primeiro. Título = primeira pergunta. */
+@Composable
+private fun ConversationHistory(
+    conversations: List<ConversaResumo>,
+    currentConversationId: Long,
+    onOpen: (Long) -> Unit,
+    onDelete: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var pendingDelete by remember { mutableStateOf<ConversaResumo?>(null) }
+    if (conversations.isEmpty()) {
+        Box(modifier = modifier.padding(32.dp), contentAlignment = Alignment.TopCenter) {
+            Text(
+                "Nenhuma conversa ainda. As conversas ficam guardadas aqui para você voltar a elas.",
+                fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary, textAlign = TextAlign.Center,
+            )
+        }
+        return
+    }
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(conversations, key = { it.conversaId }) { conversa ->
+            val current = conversa.conversaId == currentConversationId
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(FinaiColors.Surface)
+                    .border(
+                        1.dp,
+                        if (current) FinaiColors.EmeraldSoftBorder else FinaiColors.BorderHairline,
+                        RoundedCornerShape(16.dp),
+                    )
+                    .clickable { onOpen(conversa.conversaId) }
+                    .padding(start = 14.dp, top = 11.dp, bottom = 11.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        conversa.titulo ?: "Conversa sem pergunta",
+                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        (if (current) "Aberta · " else "") + conversationDateLabel(conversa.ultima) +
+                            " · ${conversa.total} " + if (conversa.total == 1) "mensagem" else "mensagens",
+                        fontSize = 11.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                HeaderIcon(Icons.Outlined.DeleteOutline, "Apagar conversa") { pendingDelete = conversa }
+            }
+        }
+    }
+    pendingDelete?.let { conversa ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Apagar conversa?") },
+            text = { Text("\"${conversa.titulo ?: "Conversa"}\" e todas as mensagens dela serão apagadas.") },
+            confirmButton = {
+                TextButton(onClick = { onDelete(conversa.conversaId); pendingDelete = null }) { Text("Apagar") }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Cancelar") } },
+        )
+    }
+}
+
+private fun conversationDateLabel(millis: Long): String {
+    val dateTime = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.systemDefault())
+    val days = java.time.temporal.ChronoUnit.DAYS.between(dateTime.toLocalDate(), java.time.LocalDate.now())
+    val time = dateTime.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    return when (days) {
+        0L -> "hoje, $time"
+        1L -> "ontem, $time"
+        else -> dateTime.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
     }
 }
 

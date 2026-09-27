@@ -72,6 +72,8 @@ import com.finai.app.state.toAiSummaryText
 import com.finai.app.ui.components.AddContaDialog
 import com.finai.app.ui.components.DebtEntryScreen
 import com.finai.app.ui.components.AddGoalDialog
+import com.finai.app.domain.AssistantTopic
+import com.finai.app.domain.AssistantTopics
 import com.finai.app.ui.components.TransactionEntryScreen
 import com.finai.app.domain.transactionsInMonth
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -133,6 +135,8 @@ fun FinaiApp(
     val initialSetupComplete by viewModel.initialSetupComplete.collectAsState()
     val knownAccounts by viewModel.knownAccounts.collectAsState()
     val financeSummary = remember(financeState) { financeState.toAiSummaryText() }
+    val conversations by viewModel.conversations.collectAsState()
+    val askAbout: (AssistantTopic) -> Unit = { topic -> viewModel.askAbout(topic, financeSummary) }
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val current = FinaiDestination.fromRoute(backStackEntry?.destination?.route)
@@ -243,7 +247,7 @@ fun FinaiApp(
                             onOpenSimulator = viewModel::openSimulator,
                             onOpenBudgets = { navigateTo(FinaiDestination.Budgets) },
                             onOpenAgenda = { navigateTo(FinaiDestination.Agenda) },
-                            onOpenChat = viewModel::openChat,
+                            onAskAbout = askAbout,
                             onNewIncomeEntry = { transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name; transactionEntryInitialExtra = true; showAddTransaction = true },
                         )
                     }
@@ -288,7 +292,7 @@ fun FinaiApp(
                             onContribute = { goal -> contributionTarget = goal },
                             onEdit = { goal -> editingObjetivoId = goal.id.toLong() },
                             onDelete = { goal -> financeViewModel.deleteObjetivoById(goal.id.toLong()) },
-                            onSimulate = viewModel::openChat,
+                            onSimulate = { goal -> askAbout(AssistantTopics.goal(goal, financeState.monthlyCapacityLabel)) },
                         )
                     }
                     composable(FinaiDestination.Debts.route) {
@@ -307,7 +311,7 @@ fun FinaiApp(
                             onEditDebt = { debt -> editingDividaId = debt.id },
                             onDeleteDebt = { debt -> financeViewModel.deleteDividaById(debt.id) },
                             onPayInstallment = { debt -> financeViewModel.pagarParcela(debt.id) },
-                            onRehearseCall = viewModel::openChat,
+                            onRehearseCall = { askAbout(AssistantTopics.debtCall(financeState.debts)) },
                         )
                     }
                     composable(FinaiDestination.Budgets.route) {
@@ -464,7 +468,7 @@ fun FinaiApp(
                     },
                     onPickPreset = viewModel::setSimAmount,
                     onDecideLater = viewModel::closeSimulator,
-                    onAsk = viewModel::openChat,
+                    onAsk = askAbout,
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                 )
             }
@@ -526,6 +530,11 @@ fun FinaiApp(
                 messages = uiState.messages,
                 thinking = uiState.thinking,
                 draft = uiState.draft,
+                conversations = conversations,
+                currentConversationId = uiState.conversationId,
+                onNewConversation = viewModel::newConversation,
+                onOpenConversation = viewModel::openConversation,
+                onDeleteConversation = viewModel::deleteConversation,
                 onDraftChange = viewModel::onDraftChange,
                 onSend = { viewModel.sendDraft(financeSummary) },
                 onSuggestion = { text -> viewModel.sendMessage(text, financeSummary) },

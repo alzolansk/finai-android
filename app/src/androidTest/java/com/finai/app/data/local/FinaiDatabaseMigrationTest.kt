@@ -83,6 +83,10 @@ class FinaiDatabaseMigrationTest {
                 val mensagens = db.mensagemChatDao().observeAll().first()
                 assertEquals(1, mensagens.size)
                 assertEquals("Quanto posso gastar hoje?", mensagens[0].texto)
+                // MIGRATION_7_8: o histórico antigo vira a conversa 0, sem contexto de card.
+                assertEquals(0L, mensagens[0].conversaId)
+                assertNull(mensagens[0].contexto)
+                assertEquals(1, db.mensagemChatDao().observeConversas().first().size)
 
                 // Tabela criada pela MIGRATION_2_3: existe e está utilizável.
                 db.notificacaoEnviadaDao().upsert(NotificacaoEnviadaEntity("alerta-teste", "2026-09-12"))

@@ -44,7 +44,7 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
         UsoProvedorIaEntity::class,
         NotificacaoEnviadaEntity::class,
     ],
-    version = 7,
+    version = 8,
     // Fase 6: o schema de cada versão passa a ser exportado para
     // `app/schemas/` e versionado no git. É o que permite escrever (e testar)
     // uma migração sem adivinhar o DDL que o Room gerou na versão anterior —
@@ -130,7 +130,20 @@ abstract class FinaiDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        /**
+         * Chat em conversas separadas (`conversaId`, `contexto` do card que abriu
+         * a conversa) e descrição do objetivo, que a leitura da IA usa. Mensagens
+         * antigas ficam todas na conversa 0.
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `mensagens_chat` ADD COLUMN `conversaId` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `mensagens_chat` ADD COLUMN `contexto` TEXT")
+                db.execSQL("ALTER TABLE `objetivos` ADD COLUMN `descricao` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
 
         @Volatile private var instance: FinaiDatabase? = null
 

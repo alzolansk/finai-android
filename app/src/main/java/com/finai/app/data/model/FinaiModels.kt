@@ -27,6 +27,8 @@ data class Goal(
     val badge: GoalBadge,
     val note: String,
     val action: String,
+    /** Descrição escrita pelo usuário (por que a meta existe, flexibilidade do prazo...). */
+    val description: String = "",
 ) {
     val progress: Float get() = (saved / target).toFloat().coerceIn(0f, 1f)
 }

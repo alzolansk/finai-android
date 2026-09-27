@@ -58,6 +58,7 @@ fun GoalPlan.toUiGoal(): Goal {
         badge = badge,
         note = note,
         action = "Registrar aporte",
+        description = objetivo.descricao,
     )
 }
 

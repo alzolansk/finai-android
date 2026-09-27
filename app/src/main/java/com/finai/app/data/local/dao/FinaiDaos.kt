@@ -8,6 +8,7 @@ import androidx.room.Query
 import androidx.room.Update
 import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
+import com.finai.app.data.local.entity.ConversaResumo
 import com.finai.app.data.local.entity.DividaEntity
 import com.finai.app.data.local.entity.FaturaCartaoEntity
 import com.finai.app.data.local.entity.MensagemChatEntity
@@ -139,6 +140,21 @@ interface MensagemChatDao {
     // id desempata mensagens gravadas no mesmo milissegundo (pergunta + resposta rápida da IA).
     @Query("SELECT * FROM mensagens_chat ORDER BY timestamp ASC, id ASC")
     fun observeAll(): Flow<List<MensagemChatEntity>>
+
+    @Query("SELECT * FROM mensagens_chat WHERE conversaId = :conversaId ORDER BY timestamp ASC, id ASC")
+    fun observeConversa(conversaId: Long): Flow<List<MensagemChatEntity>>
+
+    // Título = primeira pergunta do usuário na conversa.
+    @Query(
+        "SELECT m.conversaId AS conversaId, MIN(m.timestamp) AS inicio, MAX(m.timestamp) AS ultima, COUNT(*) AS total, " +
+            "(SELECT p.texto FROM mensagens_chat AS p WHERE p.conversaId = m.conversaId AND p.papel = 'usuario' " +
+            "ORDER BY p.timestamp ASC, p.id ASC LIMIT 1) AS titulo " +
+            "FROM mensagens_chat AS m GROUP BY m.conversaId ORDER BY ultima DESC",
+    )
+    fun observeConversas(): Flow<List<ConversaResumo>>
+
+    @Query("DELETE FROM mensagens_chat WHERE conversaId = :conversaId")
+    suspend fun deleteConversa(conversaId: Long)
 
     @Insert
     suspend fun insert(mensagem: MensagemChatEntity): Long

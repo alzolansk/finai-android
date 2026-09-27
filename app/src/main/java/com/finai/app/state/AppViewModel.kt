@@ -22,6 +22,10 @@ import kotlinx.coroutines.launch
 import com.finai.app.util.FinaiLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import com.finai.app.data.local.entity.ConversaResumo
+import com.finai.app.data.model.ChatMessage
+import com.finai.app.domain.AssistantTopic
 
 /**
  * Holds the state behind the overlays and widgets that float above whatever
@@ -46,6 +50,7 @@ import kotlinx.coroutines.flow.catch
  * singletons, so two instances stay consistent with each other.
  */
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val aiProvider: AiProvider = AiRouter(application)
@@ -97,19 +102,39 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private var chatReplyJob: kotlinx.coroutines.Job? = null
 
+    /**
+     * Conversa aberta no chat. Um id novo só vira linha no Room quando a
+     * primeira mensagem é gravada — "Nova conversa" sem escrever nada não
+     * deixa conversa vazia na lista.
+     */
+    private val conversationId = MutableStateFlow(newConversationId())
+
+    /** Contexto invisível da conversa atual (card que a abriu), lido do Room. */
+    private var topicContext: String? = null
+
+    /** Conversa que está esperando resposta da IA — o "pensando" só aparece nela. */
+    private var pendingConversationId: Long? = null
+
+    val conversations: StateFlow<List<ConversaResumo>> = chatRepository.conversas
+        .catch { t -> FinaiLog.e(TAG, "Falha ao ler a lista de conversas", t); emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     init {
         // Room é a fonte de verdade da conversa (planning.md §5): a lista da tela
         // é sempre o que está gravado, não um acumulador em memória.
         viewModelScope.launch {
-            chatRepository.mensagens
+            conversationId
+                .flatMapLatest { id -> chatRepository.conversa(id) }
                 .catch { t ->
                     // Fase 6: sem isto, uma falha de leitura do Room cancelaria a
                     // coroutine com exceção não tratada e derrubaria o app na
                     // abertura. A conversa fica vazia; o resto do app segue inteiro.
                     FinaiLog.e(TAG, "Falha ao ler o histórico do chat", t)
                 }
-                .collect { mensagens ->
-                    _uiState.update { it.copy(messages = mensagens) }
+                .collect { conversa ->
+                    if (conversa.id != conversationId.value) return@collect
+                    topicContext = conversa.contexto
+                    _uiState.update { it.copy(messages = conversa.mensagens, conversationId = conversa.id) }
                 }
         }
     }
@@ -121,8 +146,60 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun openSimulator() = _uiState.update { it.copy(simOpen = true, addOpen = false) }
     fun closeSimulator() = _uiState.update { it.copy(simOpen = false) }
 
-    fun openChat() = _uiState.update {
-        it.copy(chatOpen = true, addOpen = false, simOpen = false, notifsOpen = false)
+    /**
+     * Ícone do assistente na topbar: continua a conversa mais recente se ela
+     * teve mensagem hoje; senão começa uma nova — o assunto de ontem não
+     * deveria se misturar com a pergunta de hoje.
+     */
+    fun openChat() {
+        val latest = conversations.value.firstOrNull()
+        val current = conversationId.value
+        val target = when {
+            latest != null && isToday(latest.ultima) -> latest.conversaId
+            conversations.value.none { it.conversaId == current } -> current // já é uma conversa nova, vazia
+            else -> newConversationId()
+        }
+        switchConversation(target)
+        _uiState.update { it.copy(chatOpen = true, addOpen = false, simOpen = false, notifsOpen = false) }
+    }
+
+    fun newConversation() {
+        if (conversations.value.none { it.conversaId == conversationId.value }) return // a atual já está vazia
+        switchConversation(newConversationId())
+    }
+
+    fun openConversation(id: Long) = switchConversation(id)
+
+    fun deleteConversation(id: Long) {
+        viewModelScope.launch {
+            try {
+                chatRepository.apagarConversa(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                FinaiLog.e(TAG, "Falha ao apagar a conversa", t)
+            }
+        }
+        if (id == conversationId.value) switchConversation(newConversationId())
+    }
+
+    /**
+     * Botões contextuais ("Conversar sobre isso", "Ensaiar a ligação",
+     * "Simular", "Perguntar", decisões): abre uma conversa nova e já envia a
+     * pergunta, com o contexto do card indo junto no prompt.
+     */
+    fun askAbout(topic: AssistantTopic, financeSummary: String) {
+        switchConversation(newConversationId())
+        send(topic.question, financeSummary, history = emptyList(), context = topic.context, isFirstMessage = true)
+    }
+
+    private fun switchConversation(id: Long) {
+        if (id == conversationId.value) return
+        topicContext = null
+        conversationId.value = id
+        _uiState.update {
+            it.copy(conversationId = id, messages = emptyList(), draft = "", thinking = pendingConversationId == id)
+        }
     }
     fun closeChat() = _uiState.update { it.copy(chatOpen = false) }
 
@@ -158,22 +235,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** [financeSummary] is the minimal aggregated context — see [com.finai.app.state.toAiSummaryText]. */
     fun sendMessage(text: String, financeSummary: String) {
+        val history = _uiState.value.messages
+        send(text, financeSummary, history, context = topicContext, isFirstMessage = history.isEmpty())
+    }
+
+    private fun send(text: String, financeSummary: String, history: List<ChatMessage>, context: String?, isFirstMessage: Boolean) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         chatReplyJob?.cancel()
-        val historyBeforeReply = _uiState.value.messages
+        val convId = conversationId.value
+        pendingConversationId = convId
+        if (isFirstMessage) topicContext = context
         _uiState.update {
             it.copy(chatOpen = true, addOpen = false, simOpen = false, thinking = true, draft = "")
         }
         chatReplyJob = viewModelScope.launch {
             try {
-                chatRepository.registrar(ChatRole.Me, trimmed)
-                val request = AiPromptBuilder.chat(financeSummary, historyBeforeReply, trimmed)
+                chatRepository.registrar(convId, ChatRole.Me, trimmed, contexto = context.takeIf { isFirstMessage })
+                val request = AiPromptBuilder.chat(financeSummary, history, trimmed, context)
                 val reply = when (val response = aiProvider.generate(request)) {
                     is AiResponse.Success -> response.text
                     is AiResponse.Unavailable -> FinaiFixtures.offlineReply(trimmed, response.reason)
                 }
-                chatRepository.registrar(ChatRole.Ai, reply)
+                chatRepository.registrar(convId, ChatRole.Ai, reply)
+                pendingConversationId = null
                 _uiState.update { it.copy(thinking = false) }
             } catch (e: CancellationException) {
                 // Cancelamento aqui só acontece quando o usuário manda outra
@@ -188,6 +273,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // em vez de derrubar o app, e sem deixar o indicador de "pensando"
                 // girando para sempre.
                 FinaiLog.e(TAG, "Falha ao responder no chat", t)
+                pendingConversationId = null
                 _uiState.update { it.copy(thinking = false) }
             }
         }
@@ -197,5 +283,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val TAG = "AppViewModel"
+
+        fun newConversationId(): Long = System.currentTimeMillis()
+
+        fun isToday(millis: Long): Boolean =
+            java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.systemDefault()).toLocalDate() ==
+                java.time.LocalDate.now()
     }
 }

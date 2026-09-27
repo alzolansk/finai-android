@@ -53,7 +53,7 @@ fun GoalsScreen(
     onContribute: (Goal) -> Unit,
     onEdit: (Goal) -> Unit,
     onDelete: (Goal) -> Unit,
-    onSimulate: () -> Unit,
+    onSimulate: (Goal) -> Unit,
 ) {
     var pendingDelete by remember { mutableStateOf<Goal?>(null) }
 
@@ -140,7 +140,7 @@ private fun GoalCard(
     onContribute: (Goal) -> Unit,
     onEdit: (Goal) -> Unit,
     onDelete: (Goal) -> Unit,
-    onSimulate: () -> Unit,
+    onSimulate: (Goal) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -208,7 +208,7 @@ private fun GoalCard(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
                     .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(12.dp))
-                    .clickable(onClick = onSimulate)
+                    .clickable { onSimulate(goal) }
                     .padding(horizontal = 13.dp, vertical = 10.dp),
             ) {
                 Text("Simular", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary)

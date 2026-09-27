@@ -53,7 +53,7 @@ fun BuySimulatorContent(
     ) -> Unit,
     onPickPreset: (Double) -> Unit,
     onDecideLater: () -> Unit,
-    onAsk: () -> Unit,
+    onAsk: (com.finai.app.domain.AssistantTopic) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val free = monthlyCapacity
@@ -199,7 +199,13 @@ fun BuySimulatorContent(
                 Text("Decidir depois", fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
             OutlinedButton(
-                onClick = onAsk,
+                onClick = {
+                    onAsk(
+                        com.finai.app.domain.AssistantTopics.purchase(
+                            formatBrl0(amount), verdict.label, formatBrl0(free), formatBrl0(free - amount), topGoal?.name, topGoalAffected,
+                        ),
+                    )
+                },
                 shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = FinaiColors.TextSecondary),
             ) {

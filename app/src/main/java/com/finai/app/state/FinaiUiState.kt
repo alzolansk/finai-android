@@ -26,4 +26,6 @@ data class FinaiUiState(
     val thinking: Boolean = false,
     /** Espelho do histórico gravado no Room — ver [AppViewModel]; começa vazio, não com uma mensagem fixa. */
     val messages: List<ChatMessage> = emptyList(),
+    /** Conversa mostrada no chat — ver [AppViewModel.openChat]. */
+    val conversationId: Long = 0,
 )

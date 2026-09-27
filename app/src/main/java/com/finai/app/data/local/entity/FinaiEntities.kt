@@ -67,6 +67,8 @@ data class ObjetivoEntity(
     val valorGuardadoCentavos: Long,
     val prazo: Long,
     val prioridade: Int,
+    /** Por que a meta existe, flexibilidade do prazo, o que está fora dela — contexto para a leitura da IA. */
+    @androidx.room.ColumnInfo(defaultValue = "''") val descricao: String = "",
 )
 
 @Entity(tableName = "dividas")
@@ -110,6 +112,23 @@ data class MensagemChatEntity(
     val papel: String, // "usuario" | "ia"
     val texto: String,
     val timestamp: Long,
+    /** Conversa a que a mensagem pertence (0 = histórico anterior às conversas separadas). */
+    @androidx.room.ColumnInfo(defaultValue = "0") val conversaId: Long = 0,
+    /**
+     * Dados do card que abriu a conversa ("Conversar sobre isso", "Ensaiar a
+     * ligação"...). Só a primeira pergunta de uma conversa aberta por botão tem;
+     * vai no prompt de toda a conversa, mas não aparece no balão.
+     */
+    val contexto: String? = null,
+)
+
+/** Uma linha da lista "Conversas anteriores" — agregado de [MensagemChatEntity]. */
+data class ConversaResumo(
+    val conversaId: Long,
+    val inicio: Long,
+    val ultima: Long,
+    val total: Int,
+    val titulo: String?,
 )
 
 @Entity(tableName = "uso_provedor_ia", primaryKeys = ["provedor", "data"])

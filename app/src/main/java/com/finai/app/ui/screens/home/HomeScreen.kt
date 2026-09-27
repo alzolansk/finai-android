@@ -70,7 +70,7 @@ fun HomeScreen(
     onOpenSimulator: () -> Unit,
     onOpenBudgets: () -> Unit,
     onOpenAgenda: () -> Unit,
-    onOpenChat: () -> Unit,
+    onAskAbout: (com.finai.app.domain.AssistantTopic) -> Unit,
     onNewIncomeEntry: () -> Unit,
 ) {
     LazyColumn(
@@ -103,7 +103,7 @@ fun HomeScreen(
         item { NextWeekSection(week, onOpenAgenda) }
 
         if (showCoach && behaviorPattern != null) {
-            item { CoachCard(behaviorPattern, coachInsight, onOpenChat) }
+            item { CoachCard(behaviorPattern, coachInsight) { onAskAbout(com.finai.app.domain.AssistantTopics.behaviorPattern(behaviorPattern)) } }
         }
     }
 }
