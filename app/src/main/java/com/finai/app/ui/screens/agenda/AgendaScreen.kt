@@ -49,8 +49,9 @@ import com.finai.app.data.model.Bill
 import com.finai.app.data.model.BillStatus
 import com.finai.app.domain.MONTH_ABBREV_PT
 import com.finai.app.domain.MONTH_NAMES_PT
-import com.finai.app.domain.avatarColorsOf
-import com.finai.app.domain.initialsOf
+import com.finai.app.domain.DebtSchedule
+import com.finai.app.domain.PayCycle
+import com.finai.app.ui.components.EntryGlyph
 import com.finai.app.domain.toLocalDate
 import com.finai.app.ui.components.ConfirmDeleteDialog
 import com.finai.app.ui.components.ScreenContentPadding
@@ -362,13 +363,44 @@ private fun Tags(tags: List<Tag>, extra: String? = null) {
     }
 }
 
+/** Ícone do item: diz o que ele é (casa, dívida, salário…) em vez de iniciais do nome. */
+private class ItemIcon(val glyph: String, val bg: Color, val ink: Color)
+
+private val DebtIcon = ItemIcon("installment", Color(0xFFFFF1F2), Color(0xFFBE123C))
+private val InvoiceIcon = ItemIcon("card", Color(0xFFF5F3FF), Color(0xFF6D28D9))
+private val IncomeIcon = ItemIcon("wallet", Color(0xFFECFDF5), Color(0xFF047857))
+private val SalaryIcon = ItemIcon("briefcase", Color(0xFFECFDF5), Color(0xFF047857))
+private val TransferIcon = ItemIcon("transfer", Color(0xFFEEF2FF), Color(0xFF4F46E5))
+private val BillIcon = ItemIcon("calendar", Color(0xFFF4F4F5), Color(0xFF3F3F46))
+
+/** Um tom por categoria, o mesmo glifo da tela de lançamento. */
+private fun categoryIcon(categoria: String): ItemIcon = when (categoria) {
+    "Alimentação" -> ItemIcon(categoria, Color(0xFFFEFCE8), Color(0xFFA16207))
+    "Transporte" -> ItemIcon(categoria, Color(0xFFEFF6FF), Color(0xFF1D4ED8))
+    "Moradia" -> ItemIcon(categoria, Color(0xFFFFF7ED), Color(0xFFC2410C))
+    "Saúde" -> ItemIcon(categoria, Color(0xFFF0FDFA), Color(0xFF0F766E))
+    "Lazer" -> ItemIcon(categoria, Color(0xFFECFEFF), Color(0xFF0E7490))
+    "Educação" -> ItemIcon(categoria, Color(0xFFF7FEE7), Color(0xFF4D7C0F))
+    "Compras" -> ItemIcon(categoria, Color(0xFFFDF2F8), Color(0xFFBE185D))
+    "Serviços" -> ItemIcon(categoria, Color(0xFFF1F5F9), Color(0xFF334155))
+    else -> ItemIcon(categoria, Color(0xFFF4F4F5), Color(0xFF3F3F46))
+}
+
+private fun iconFor(t: TransacaoEntity): ItemIcon = when {
+    t.origem == DebtSchedule.PAYMENT_ORIGIN -> DebtIcon
+    t.tipo == "Receita" && PayCycle.isSalary(t) -> SalaryIcon
+    t.tipo == "Receita" -> IncomeIcon
+    t.tipo == "Transferencia" -> TransferIcon
+    else -> categoryIcon(t.categoria)
+}
+
 @Composable
-private fun Avatar(initials: String, tint: Color, ink: Color) {
+private fun Avatar(icon: ItemIcon) {
     Box(
-        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(tint),
+        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(icon.bg),
         contentAlignment = Alignment.Center,
     ) {
-        Text(initials, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = ink)
+        EntryGlyph(icon.glyph, icon.ink, size = 19)
     }
 }
 
@@ -425,13 +457,12 @@ private fun RowCard(
  */
 @Composable
 private fun DebtInstallmentRow(parcela: DebtInstallment, onPay: () -> Unit, onEdit: () -> Unit, modifier: Modifier = Modifier) {
-    val (tint, ink) = avatarColorsOf(parcela.divida.nome)
     RowCard(
         modifier,
         borderColor = if (parcela.atrasada) Color(0xFFFECDD3) else FinaiColors.BorderHairline,
         onClick = if (parcela.isNext) onPay else null,
     ) {
-        Avatar(initialsOf(parcela.divida.nome), tint, ink)
+        Avatar(DebtIcon)
         Column(modifier = Modifier.weight(1f)) {
             Text(parcela.divida.nome, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
             Tags(listOf(Tag.Divida), if (parcela.numero != null) "${parcela.numero} de ${parcela.total}" else null)
@@ -469,7 +500,13 @@ private fun BillRow(
 ) {
     val estaPaga = bill.status == BillStatus.Paid
     RowCard(modifier, onClick = { onTogglePaga(bill.id, !estaPaga) }) {
-        Avatar(bill.initials, bill.tint, bill.ink)
+        Avatar(
+            when {
+                onOpenItems != null -> InvoiceIcon
+                bill.aReceber -> IncomeIcon
+                else -> BillIcon
+            },
+        )
         Column(modifier = Modifier.weight(1f)) {
             Text(bill.name, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
             Tags(listOfNotNull(
@@ -520,9 +557,8 @@ private fun TransacaoRow(
     onDelete: (TransacaoEntity) -> Unit,
 ) {
     val receita = transacao.tipo == "Receita"
-    val (tint, ink) = if (receita) Color(0xFFECFDF5) to Color(0xFF047857) else avatarColorsOf(transacao.descricao)
     RowCard(modifier, borderColor = FinaiColors.BorderFaint) {
-        Avatar(initialsOf(transacao.descricao), tint, ink)
+        Avatar(iconFor(transacao))
         Column(modifier = Modifier.weight(1f)) {
             Text(transacao.descricao, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
             Tags(
