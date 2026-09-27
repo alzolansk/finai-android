@@ -257,6 +257,7 @@ fun FinaiApp(
                             onEditConta = { bill -> editingContaId = bill.id },
                             onOpenInvoice = { contaId -> openedInvoiceContaId = contaId },
                             onToggleExtra = financeViewModel::setTransacaoExtra,
+                            onEditDebt = { id -> editingDividaId = id },
                         )
                     }
                     composable(FinaiDestination.Goals.route) {

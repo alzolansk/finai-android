@@ -78,6 +78,11 @@ data class Bill(
     val initials: String,
     val tint: Color,
     val ink: Color,
+    /** Vencimento — a Agenda agrupa a lista por dia. */
+    val date: java.time.LocalDate? = null,
+    val recorrente: Boolean = false,
+    val aReceber: Boolean = false,
+    val valorCentavos: Long = 0,
 )
 
 data class Debt(

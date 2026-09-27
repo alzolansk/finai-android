@@ -120,7 +120,10 @@ private val palette = listOf(
     Color(0xFFFFFBEB) to Color(0xFFB45309),
 )
 
-private fun initialsOf(nome: String): String =
+/** Cor de fundo/tinta do avatar de um item, estável pelo nome (mesma paleta das contas). */
+fun avatarColorsOf(nome: String): Pair<Color, Color> = palette[(nome.hashCode() and Int.MAX_VALUE) % palette.size]
+
+fun initialsOf(nome: String): String =
     nome.trim().split(Regex("\\s+")).take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
         .ifEmpty { "?" }
 
@@ -132,7 +135,7 @@ fun ContaEntity.toUiBill(today: LocalDate = LocalDate.now()): Bill {
         EffectiveBillStatus.PENDENTE -> BillStatus.Pending
         EffectiveBillStatus.PREVISTO -> BillStatus.Expected
     }
-    val (tint, ink) = palette[(nome.hashCode() and Int.MAX_VALUE) % palette.size]
+    val (tint, ink) = avatarColorsOf(nome)
     val amountLabel = formatBrl0(centsToReais(valorCentavos)).let { if (tipo == "a_receber") "+ $it" else it }
     val kindLabel = when {
         tipo == "a_receber" && recorrente -> "Entrada fixa"
@@ -149,6 +152,10 @@ fun ContaEntity.toUiBill(today: LocalDate = LocalDate.now()): Bill {
         initials = initialsOf(nome),
         tint = tint,
         ink = ink,
+        date = vencimento.toLocalDate(),
+        recorrente = recorrente,
+        aReceber = tipo == "a_receber",
+        valorCentavos = valorCentavos,
     )
 }
 
