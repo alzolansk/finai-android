@@ -57,8 +57,8 @@ object DebtCalculator {
             // aqui estendia a data — "4 parcelas até dez/26" virava "livre em abr/27".
             if (d.parcelasTotais > 0 && d.parcelasRestantes > 0) {
                 val last = DebtSchedule.lastInstallmentMonth(d, today) ?: return@mapNotNull null
-                val day = d.proximoVencimento?.toLocalDate()?.dayOfMonth ?: 1
-                return@mapNotNull DebtSchedule.dueDateIn(last, day)
+                val anchor = d.proximoVencimento?.toLocalDate()
+                return@mapNotNull anchor?.let { monthlyOccurrence(it, last) } ?: last.atDay(1)
             }
             // No parcela defined for an open balance (e.g. a revolving card) means there is no
             // schedule that ever pays it off — that must sink the whole projection, not be skipped.

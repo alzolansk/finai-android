@@ -621,8 +621,11 @@ Ciclo do salário — branch `experimento` (26/09/2026):
   `SafeToSpendCalculator.fromCycle` (livre − metas ÷ dias até o salário) quando há ciclo.
 - **Recorrência de fim de mês** (`monthlyOccurrence` em `domain/TransactionEntry.kt`): série
   que começa no último dia do mês (30/09, 28/02) segue o último dia (31/10, 30/11); qualquer
-  outro dia continua igual. Vale para lançamentos recorrentes e salário do ciclo; parcelas
-  de dívida (`DebtSchedule.dueDateIn`) ainda usam dia fixo — pendente de decisão do usuário.
+  outro dia continua igual. Vale para lançamentos recorrentes, salário do ciclo e parcelas
+  de dívida (projeção, "Paguei a parcela" e "Livre em"). **Limitação:** a dívida só guarda o
+  próximo vencimento, não o dia contratado — uma dívida de dia fixo 29/30 que, ao pagar,
+  cai num fim de mês (30/11, 28/02) passa a seguir o fim de mês. Corrigir exige um campo
+  `diaVencimento` (migração Room) — fazer ao juntar no `main`, não no branch experimental.
 - `PayCycleTest` (14 testes). Não conferido em aparelho.
 
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play

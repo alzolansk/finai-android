@@ -35,6 +35,21 @@ class DebtScheduleTest {
         assertEquals(LocalDate.of(2027, 2, 28), DebtSchedule.installmentInMonth(d, YearMonth.of(2027, 2), today)!!.vencimento)
     }
 
+    /** Picpay/Tablet "vence dia 30" cadastrados em setembro: é todo último dia do mês. */
+    @Test fun dueOnLastDayOfMonthFollowsMonthEnd() {
+        val d = loan(restantes = 6, due = LocalDate.of(2026, 9, 30))
+        fun em(y: Int, m: Int) = DebtSchedule.installmentInMonth(d, YearMonth.of(y, m), today)!!.vencimento
+        assertEquals(LocalDate.of(2026, 10, 31), em(2026, 10))
+        assertEquals(LocalDate.of(2026, 11, 30), em(2026, 11))
+        assertEquals(LocalDate.of(2027, 2, 28), em(2027, 2))
+        // Pagar a parcela mantém o fim de mês.
+        val paga = DebtSchedule.afterPayment(d, today)
+        assertEquals(LocalDate.of(2026, 10, 31), paga.proximoVencimento!!.toLocalDate())
+        assertEquals(LocalDate.of(2026, 11, 30), DebtSchedule.afterPayment(paga, today).proximoVencimento!!.toLocalDate())
+        // "Livre em" também cai no fim do mês da última parcela.
+        assertEquals(LocalDate.of(2027, 2, 28), DebtCalculator.summarize(listOf(d.copy(taxaJurosMensalBasisPoints = 0)), today).debtFreeDate)
+    }
+
     @Test fun overdueInstallmentStaysInItsMonthAndIsFlagged() {
         val d = loan(due = LocalDate.of(2026, 8, 10))
         val aug = DebtSchedule.installmentInMonth(d, YearMonth.of(2026, 8), today)!!

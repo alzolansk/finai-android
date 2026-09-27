@@ -22,6 +22,8 @@ data class DebtInstallment(
 /**
  * Projeta as parcelas restantes de cada dívida nos meses em que vencem, a partir de
  * [DividaEntity.proximoVencimento] — uma por mês até acabar [DividaEntity.parcelasRestantes].
+ * Vencimento no último dia do mês (30/09) segue o fim de mês (31/10, 30/11), como os
+ * lançamentos recorrentes ([monthlyOccurrence]).
  * Nada é gravado por parcela: pagar uma avança o vencimento em um mês e decrementa o
  * restante ([afterPayment]), e a projeção inteira anda junto.
  *
@@ -40,7 +42,7 @@ object DebtSchedule {
         val anchorMonth = anchor?.let(YearMonth::from) ?: YearMonth.from(today)
         val offset = ChronoUnit.MONTHS.between(anchorMonth, month).toInt()
         if (offset < 0 || offset >= divida.parcelasRestantes) return null
-        val vencimento = anchor?.let { dueDateIn(month, it.dayOfMonth) }
+        val vencimento = anchor?.let { monthlyOccurrence(it, month) }
         val total = divida.parcelasTotais.takeIf { it >= divida.parcelasRestantes && it > 0 }
         // A última parcela não passa do que ainda está em aberto (evita somar centavos a mais).
         val isLast = offset == divida.parcelasRestantes - 1
@@ -76,7 +78,7 @@ object DebtSchedule {
         val anchor = divida.proximoVencimento?.toLocalDate()
         // Sem vencimento conhecido a parcela paga era a do mês corrente; a próxima cai no mês
         // seguinte, no mesmo dia de hoje — é o melhor palpite honesto até o usuário editar.
-        val next = anchor?.let { dueDateIn(YearMonth.from(it).plusMonths(1), it.dayOfMonth) }
+        val next = anchor?.let { monthlyOccurrence(it, YearMonth.from(it).plusMonths(1)) }
             ?: dueDateIn(YearMonth.from(today).plusMonths(1), today.dayOfMonth)
         val restantes = divida.parcelasRestantes - 1
         return divida.copy(
@@ -86,6 +88,6 @@ object DebtSchedule {
         )
     }
 
-    /** Dia 29–31 num mês mais curto cai no último dia — mesma regra das recorrências. */
+    /** Dia fixo; 29–31 num mês mais curto cai no último dia. Parcela ancorada no fim do mês usa [monthlyOccurrence]. */
     fun dueDateIn(month: YearMonth, day: Int): LocalDate = month.atDay(day.coerceAtMost(month.lengthOfMonth()))
 }

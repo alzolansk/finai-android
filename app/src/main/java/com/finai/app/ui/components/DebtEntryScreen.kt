@@ -189,7 +189,7 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
                             Text("Já pagas precisa ser menor que o total — senão a dívida está quitada.", color = Color(0xFFBE123C), fontSize = 12.sp)
                         }
                         EntryField("calendar", "Próxima parcela vence em",
-                            date?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))?.let { "$it · todo dia ${date.dayOfMonth}" } ?: "Escolher data",
+                            date?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))?.let { "$it · ${debtDayLabel(date)}" } ?: "Escolher data",
                             placeholder = date == null) { focus.clearFocus(); leaveKeypad(); sheet = "date" }
                     }
 
@@ -228,7 +228,7 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
                             .border(1.dp, Color(0xFFA7F3D0), EntryShape).padding(14.dp)) {
                             Text("Faltam $restantes parcela${if (restantes > 1) "s" else ""} de R$ ${debtAmountText(parcelaCents)}",
                                 color = Color(0xFF065F46), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text("Aparece na Agenda todo dia ${date.dayOfMonth} até ${MONTH_NAMES_PT[ultima.monthValue - 1].lowercase()} de ${ultima.year}.",
+                            Text("Aparece na Agenda ${debtDayLabel(date)} até ${MONTH_NAMES_PT[ultima.monthValue - 1].lowercase()} de ${ultima.year}.",
                                 color = Color(0xFF047857), fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
                         }
                     }
@@ -353,3 +353,7 @@ private fun StepButton(glyph: String, description: String, enabled: Boolean, onC
         }
     }
 }
+
+/** Vencimento no último dia do mês vira "todo fim de mês" (DebtSchedule segue o fim de mês). */
+private fun debtDayLabel(date: java.time.LocalDate): String =
+    if (date.dayOfMonth == date.lengthOfMonth()) "todo último dia do mês" else "todo dia ${date.dayOfMonth}"
