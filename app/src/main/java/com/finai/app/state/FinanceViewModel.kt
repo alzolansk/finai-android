@@ -23,6 +23,7 @@ import com.finai.app.domain.DebtCalculator
 import com.finai.app.domain.GoalCalculator
 import com.finai.app.domain.GoalPlan
 import com.finai.app.domain.SafeToSpendCalculator
+import com.finai.app.domain.SafeToSpendResult
 import com.finai.app.domain.SavingsCapacityCalculator
 import com.finai.app.domain.SubscriptionCalculator
 import com.finai.app.domain.formatMonthYearShort
@@ -131,7 +132,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     private fun buildState(s: Snapshot, orcamentos: List<OrcamentoCategoriaEntity>): FinanceUiState {
         val today = LocalDate.now()
-        val monthlyCapacityCents = SavingsCapacityCalculator.monthlyCapacityCents(s.contas, s.dividas)
+        val monthlyCapacityCents = SavingsCapacityCalculator.monthlyCapacityCents(s.contas, s.transacoes, s.dividas, today)
         val goalPlans = GoalCalculator.plan(s.objetivos, monthlyCapacityCents, today)
         // Cartão novo: um erro aqui não pode levar a Início inteira junto (o .catch do
         // combine deixaria a tela congelada no estado anterior).
@@ -195,16 +196,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             saldoCents = saldoCents,
             saldoLabel = formatBrl(saldoCents / 100.0),
             payCycle = payCycle,
-            safeNote = when {
-                payCycle != null && safe.slackThisMonthCents >= 0 ->
-                    "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} até o salário do dia ${safe.lastDayOfMonth}, já descontadas contas, parcelas e metas."
-                payCycle != null ->
-                    "Faltam ${formatBrl0(-safe.slackThisMonthCents / 100.0)} para cobrir contas e metas até o salário do dia ${safe.lastDayOfMonth}."
-                safe.slackThisMonthCents >= 0 ->
-                    "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} até o dia ${safe.lastDayOfMonth}, já descontadas contas e metas."
-                else ->
-                    "Você já comprometeu ${formatBrl0(-safe.slackThisMonthCents / 100.0)} a mais do que entra este mês."
-            },
+            safeNote = safeNoteFor(safe, payCycle != null, aporteMensalMetasCents(goalPlans)),
             nextWeekBills = weekBills,
             timeline = timelineExtras.map { it.toUiTimelineEntry() },
             timelineNote = if (timelineExtras.isEmpty())
@@ -214,6 +206,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             behaviorPattern = BehaviorCoach.detect(s.transacoes, today).firstOrNull(),
             monthlyCapacityCents = monthlyCapacityCents,
             monthlyCapacityLabel = formatBrl0(monthlyCapacityCents / 100.0),
+            goalsNeededCents = goalPlans.sumOf { it.monthlyContributionNeededCents },
+            goalsFundedCents = goalPlans.sumOf { it.monthlyContributionFundedCents },
             allBillsAndIncome = s.contas,
             debts = debtSummary.ordered.map { it.toUiDebt() },
             debtTotalLabel = formatBrl0(debtSummary.totalOpenCents / 100.0),
@@ -233,8 +227,28 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         )
     }
 
+    /**
+     * Separa "falta dinheiro para as contas" de "a meta não cabe". Antes as duas
+     * coisas viravam um único "Faltam R$ X para cobrir contas e metas", e a IA
+     * lia o aporte das metas como um rombo no mês.
+     */
+    private fun safeNoteFor(safe: SafeToSpendResult, byCycle: Boolean, reservedForGoalsCents: Long): String {
+        val until = if (byCycle) "até o salário do dia ${safe.lastDayOfMonth}" else "até o dia ${safe.lastDayOfMonth}"
+        val billsSlack = safe.slackThisMonthCents + reservedForGoalsCents
+        return when {
+            billsSlack < 0 ->
+                "Faltam ${formatBrl0(-billsSlack / 100.0)} para cobrir as contas $until."
+            safe.slackThisMonthCents < 0 ->
+                "As contas estão cobertas $until, mas o aporte das metas não cabe inteiro agora."
+            reservedForGoalsCents > 0 ->
+                "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} $until, já descontadas as contas e o aporte das metas."
+            else ->
+                "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} $until, já descontadas as contas."
+        }
+    }
+
     private fun aporteMensalMetasCents(plans: List<GoalPlan>): Long =
-        plans.sumOf { it.monthlyContributionNeededCents }
+        plans.sumOf { it.monthlyContributionFundedCents }
 
     private fun greetingFor(time: LocalTime): String = when {
         time.hour < 12 -> "Bom dia"

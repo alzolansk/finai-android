@@ -9,6 +9,12 @@ data class GoalPlan(
     val objetivo: ObjetivoEntity,
     val progress: Float,
     val monthlyContributionNeededCents: Long,
+    /**
+     * Parte do aporte necessário que cabe na capacidade de poupança (depois das
+     * metas de maior prioridade). É o que "Pode gastar hoje" reserva: meta que não
+     * cabe não pode virar uma falta de dinheiro para as contas.
+     */
+    val monthlyContributionFundedCents: Long = monthlyContributionNeededCents,
     val status: GoalStatus,
     val etaLabel: String,
 )
@@ -37,6 +43,7 @@ object GoalCalculator {
                 remainingCapacity > 0 -> GoalStatus.Reassess
                 else -> GoalStatus.Priority
             }
+            val funded = needed.coerceAtMost(remainingCapacity.coerceAtLeast(0))
             remainingCapacity = (remainingCapacity - needed).coerceAtLeast(0)
 
             GoalPlan(
@@ -44,6 +51,7 @@ object GoalCalculator {
                 progress = if (goal.valorAlvoCentavos <= 0) 0f
                 else (goal.valorGuardadoCentavos.toFloat() / goal.valorAlvoCentavos).coerceIn(0f, 1f),
                 monthlyContributionNeededCents = needed,
+                monthlyContributionFundedCents = funded,
                 status = status,
                 etaLabel = formatMonthYearLong(prazo),
             )

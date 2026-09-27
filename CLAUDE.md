@@ -723,6 +723,14 @@ IA mais integrada: formatação, conversas, contexto (27/09/2026):
 - 147 testes JVM verdes; migração coberta em `FinaiDatabaseMigrationTest` (compilado, não executado).
   **Não conferido em emulador nem com chave real nesta rodada.** Os formatos pedidos no prompt
   dependem do modelo. As telas têm fallback se ele não seguir, mas vale conferir com o Gemini real.
+- **Falso "faltam R$ 2.053" corrigido** (resolve a pendência (b) do ciclo do salário). A
+  capacidade de poupança lia só `ContaEntity` recorrente (sem UI), ignorava salário e contas
+  lançados como transação e saía negativa. Agora `SavingsCapacityCalculator` usa o balanço do mês
+  de `MonthCashFlow` (o mesmo da Agenda e da Início), sem receitas `extra`.
+  `GoalPlan.monthlyContributionFundedCents` é a parte do aporte que cabe. "Pode gastar hoje"
+  reserva só essa parte, e `safeNote` separa "faltam R$ X para as contas" de "a meta não cabe".
+  O resumo da IA diz quanto as metas pedem e quanto cabe, com a regra: meta que não cabe não é
+  falta de dinheiro.
 
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja

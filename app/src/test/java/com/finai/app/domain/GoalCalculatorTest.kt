@@ -40,6 +40,18 @@ class GoalCalculatorTest {
     }
 
     @Test
+    fun `so a parte do aporte que cabe na capacidade fica reservada`() {
+        val g1 = ObjetivoEntity(tipo = "A", nome = "A", valorAlvoCentavos = 1_000_000, valorGuardadoCentavos = 0, prazo = today.plusMonths(10).toEpochMillis(), prioridade = 1)
+        val g2 = ObjetivoEntity(tipo = "B", nome = "B", valorAlvoCentavos = 1_000_000, valorGuardadoCentavos = 0, prazo = today.plusMonths(10).toEpochMillis(), prioridade = 2)
+        val plans = GoalCalculator.plan(listOf(g1, g2), monthlyCapacityCents = 150_000, today = today)
+        val needed = plans[0].monthlyContributionNeededCents
+        assertEquals(needed, plans[0].monthlyContributionFundedCents)
+        assertEquals(150_000L - needed, plans[1].monthlyContributionFundedCents)
+        // Sem capacidade, nada fica reservado — a meta não vira "falta" no Pode gastar hoje.
+        assertEquals(0L, GoalCalculator.plan(listOf(g1), monthlyCapacityCents = -50_000, today = today).single().monthlyContributionFundedCents)
+    }
+
+    @Test
     fun `progress is clamped between 0 and 1`() {
         val overfunded = ObjetivoEntity(tipo = "A", nome = "A", valorAlvoCentavos = 100_000, valorGuardadoCentavos = 500_000, prazo = today.plusMonths(1).toEpochMillis(), prioridade = 1)
         val plan = GoalCalculator.plan(listOf(overfunded), monthlyCapacityCents = 0, today = today).single()

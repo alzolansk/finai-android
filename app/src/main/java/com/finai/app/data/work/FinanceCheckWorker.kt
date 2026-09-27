@@ -69,7 +69,7 @@ class FinanceCheckWorker(
         val assinaturas = repository.assinaturas.first()
         val orcamentos = repository.orcamentosDoMes(monthKey(today)).first()
 
-        val monthlyCapacityCents = SavingsCapacityCalculator.monthlyCapacityCents(contas, dividas)
+        val monthlyCapacityCents = SavingsCapacityCalculator.monthlyCapacityCents(contas, transacoes, dividas, today)
         val goalPlans = GoalCalculator.plan(objetivos, monthlyCapacityCents, today)
         val transacoesDoMes = transacoes.filter { it.data in monthRangeMillis(today) }
         val budgetProgress = BudgetCalculator.forCategories(orcamentos, transacoesDoMes, today)

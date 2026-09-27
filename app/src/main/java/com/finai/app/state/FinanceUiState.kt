@@ -59,6 +59,9 @@ data class FinanceUiState(
     // Objetivos
     val monthlyCapacityCents: Long = 0,
     val monthlyCapacityLabel: String = "",
+    /** Soma do aporte mensal que as metas pedem, e quanto disso cabe na capacidade. */
+    val goalsNeededCents: Long = 0,
+    val goalsFundedCents: Long = 0,
 
     // Agenda
     val allBillsAndIncome: List<ContaEntity> = emptyList(),
@@ -90,7 +93,20 @@ fun FinanceUiState.toAiSummaryText(): String = buildString {
     appendLine("Números calculados hoje, ${java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))}.")
     appendLine("Pode gastar hoje: $safeTodayLabel. $safeNote")
     if (saldoLabel.isNotBlank()) appendLine("Balanço do mês (recebimentos − contas a pagar): $saldoLabel.")
-    appendLine("Capacidade de poupança mensal: $monthlyCapacityLabel.")
+    payCycle?.let { cycle ->
+        appendLine(
+            "Até o próximo salário (${cycle.proximo.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM"))}): " +
+                "${com.finai.app.util.formatBrl0(cycle.livreCents / 100.0)} livres depois das contas e parcelas do período.",
+        )
+    }
+    appendLine("Sobra mensal para metas (balanço do mês sem entradas extras): $monthlyCapacityLabel.")
+    if (goalsNeededCents > 0) {
+        appendLine(
+            "Metas pedem ${com.finai.app.util.formatBrl0(goalsNeededCents / 100.0)}/mês no total; cabem " +
+                "${com.finai.app.util.formatBrl0(goalsFundedCents / 100.0)}. Aporte de meta que não cabe é meta a replanejar, " +
+                "não conta a pagar nem falta de dinheiro no mês.",
+        )
+    }
     if (debts.isNotEmpty()) {
         appendLine("Dívidas: total em aberto $debtTotalLabel, juros $debtInterestLabel/mês, livre em $debtFreeLabel.")
     }

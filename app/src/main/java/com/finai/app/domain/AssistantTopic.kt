@@ -81,9 +81,13 @@ object AssistantTopics {
         },
     )
 
-    fun decision(decision: String) = AssistantTopic(
-        question = "Me ajuda com isto: ${decision.trimEnd('.')}.",
-        context = "Sugestão da seção \"Decisões para você\" da tela Início: \"$decision\". " +
-            "Explique o impacto de seguir essa sugestão e o primeiro passo concreto.",
-    )
+    fun decision(decision: String): AssistantTopic {
+        // A pergunta aparece no balão do usuário, que não formata Markdown.
+        val plain = AiReplyFormat.plain(decision).replace('\n', ' ').trimEnd('.')
+        return AssistantTopic(
+            question = "Me ajuda com isto: $plain.",
+            context = "Sugestão da seção \"Decisões para você\" da tela Início: \"$plain\". " +
+                "Explique o impacto de seguir essa sugestão e o primeiro passo concreto.",
+        )
+    }
 }
