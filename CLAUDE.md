@@ -606,13 +606,15 @@ Saldo = Agenda, "Livre em" pelo contrato, nova logo (26/09/2026):
   ícone adaptativo com a folha em `mipmap-*/ic_launcher_foreground.png` sobre fundo branco.
 - 121 testes JVM verdes. Não conferido em aparelho.
 
-Ciclo do salário — branch `experimento` (26/09/2026):
+Ciclo do salário e recorrência de fim de mês (26–27/09/2026, feito no branch `experimento`,
+já mergeado no `main`):
 - **`domain/PayCycle.kt`**: "até o próximo salário", segunda camada ao lado do balanço do
   mês. Salário = receita com "salário"/"holerite" na descrição, avulsa ou recorrente
   (sem acento/caixa; "13º"/"férias"/extra ficam de fora); sem nenhuma, a maior receita
-  recorrente. Pelo nome e não por flag para não migrar o Room no branch experimental
-  (voltar ao `main` v7 com banco v8 apagaria os dados). Sem salário futuro lançado, o
-  próximo é estimado em +1 mês. O usuário não quer informar saldo de banco. Ciclo = [último salário, véspera do próximo);
+  recorrente. Pelo nome e não por flag porque o experimento não podia migrar o Room
+  (voltar a um APK v7 com banco v8 apagaria os dados). Sem salário futuro lançado, o
+  próximo é estimado em +1 mês. O usuário não quer informar saldo de banco.
+  Ciclo = [último salário, véspera do próximo);
   entradas do ciclo − saídas (gastos, contas pelo vencimento, parcelas; vencido não pago
   do ciclo anterior entra como devido hoje). Sobra do ciclo anterior **não** é carregada.
   `shortfall` acha o primeiro dia em que o saldo corrido fica negativo.
@@ -625,8 +627,15 @@ Ciclo do salário — branch `experimento` (26/09/2026):
   de dívida (projeção, "Paguei a parcela" e "Livre em"). **Limitação:** a dívida só guarda o
   próximo vencimento, não o dia contratado — uma dívida de dia fixo 29/30 que, ao pagar,
   cai num fim de mês (30/11, 28/02) passa a seguir o fim de mês. Corrigir exige um campo
-  `diaVencimento` (migração Room) — fazer ao juntar no `main`, não no branch experimental.
-- `PayCycleTest` (14 testes). Não conferido em aparelho.
+  `diaVencimento` (migração Room).
+- 137 testes JVM verdes. Conferido pelo usuário no celular (APK `pessoal`), não em emulador.
+- **Pendências combinadas com o usuário:** (a) campo `diaVencimento` em `DividaEntity` e
+  marcação explícita "é salário" na receita — as duas pedem Room 7→8, marcar como salário
+  na migração as receitas cujo nome já casa com `PayCycle.isSalary`; (b) "Pode gastar
+  hoje" desconta o aporte mensal das metas (R$ 2.052 no caso dele) mesmo quando os cartões
+  de meta dizem "sem capacidade de poupança" — o usuário não entendeu a divergência e
+  pediu para voltar nisso depois; (c) Limites não aparece na barra de baixo (só pelo
+  "Ajustar limites" do cartão preto) — o usuário não achava a tela.
 
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
