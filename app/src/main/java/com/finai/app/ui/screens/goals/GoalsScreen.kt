@@ -22,6 +22,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.width
+import com.finai.app.domain.AiPromptBuilder
+import com.finai.app.domain.AiReplyFormat
+import com.finai.app.ui.components.AiRichText
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -133,6 +137,38 @@ fun GoalsScreen(
     }
 }
 
+/**
+ * "Agora / Próximo passo / Risco" ([AiPromptBuilder.goalInsight]). Se o
+ * modelo não seguir o formato, mostra o texto inteiro formatado.
+ */
+@Composable
+private fun GoalInsightBody(text: String) {
+    val rows = remember(text) { AiReplyFormat.labeled(text, AiPromptBuilder.GOAL_INSIGHT_LABELS) }
+    if (rows == null) {
+        AiRichText(text, modifier = Modifier.padding(top = 5.dp))
+        return
+    }
+    Column(modifier = Modifier.padding(top = 7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        rows.forEach { (label, body) ->
+            val risk = label == "Risco"
+            val calm = risk && body.lowercase().startsWith("nenhum")
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text(
+                    label.uppercase(),
+                    fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 12.sp,
+                    color = when {
+                        risk && !calm -> Color(0xFFB45309)
+                        label == "Próximo passo" -> FinaiColors.EmeraldDark
+                        else -> FinaiColors.TextMuted
+                    },
+                    modifier = Modifier.width(64.dp).padding(top = 3.dp),
+                )
+                AiRichText(body, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
 @Composable
 private fun GoalCard(
     goal: Goal,
@@ -158,6 +194,13 @@ private fun GoalCard(
                     goal.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
                     modifier = Modifier.padding(top = 4.dp),
                 )
+                if (goal.description.isNotBlank()) {
+                    Text(
+                        goal.description, fontSize = 11.5.sp, lineHeight = 16.sp, color = FinaiColors.TextTertiary,
+                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
             }
             PillTag(goal.badge.label, goal.badge.bg, goal.badge.fg)
         }
@@ -177,12 +220,17 @@ private fun GoalCard(
                 .padding(12.dp),
         ) {
             Text("LEITURA DA IA", fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted)
-            val insightText = when (insight) {
-                is AiText.Ready -> insight.text
-                is AiText.Unavailable -> insight.reason
-                AiText.Loading, null -> "Analisando este objetivo com IA..."
+            when (insight) {
+                is AiText.Ready -> GoalInsightBody(insight.text)
+                is AiText.Unavailable -> Text(
+                    insight.reason, fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
+                    modifier = Modifier.padding(top = 5.dp),
+                )
+                AiText.Loading, null -> Text(
+                    "Analisando este objetivo com IA...", fontSize = 12.sp, color = FinaiColors.TextTertiary,
+                    modifier = Modifier.padding(top = 5.dp),
+                )
             }
-            com.finai.app.ui.components.AiRichText(insightText, modifier = Modifier.padding(top = 5.dp))
         }
         Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             androidx.compose.foundation.layout.Box(

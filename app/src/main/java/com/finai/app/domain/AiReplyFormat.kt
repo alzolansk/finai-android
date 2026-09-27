@@ -85,6 +85,56 @@ object AiReplyFormat {
         }.trim()
     }
 
+    /**
+     * Resposta pedida em linhas rotuladas ("Agora: …", "Próximo passo: …") →
+     * pares rótulo/texto na ordem de [labels]. Aceita o rótulo em negrito, com
+     * marcador de lista, sem acento ou com outra caixa; linha sem rótulo
+     * continua o item anterior. `null` quando nenhum rótulo aparece — aí a
+     * tela mostra o texto inteiro, sem estrutura.
+     */
+    fun labeled(raw: String, labels: List<String>): List<Pair<String, String>>? {
+        val found = linkedMapOf<String, StringBuilder>()
+        var current: String? = null
+        HIGHLIGHT.replace(raw, "").lines().forEach { rawLine ->
+            val line = rawLine.trim().replace(BULLET, "").trim()
+            if (line.isEmpty()) return@forEach
+            val match = LABELED_LINE.find(line)
+            val label = match?.let { m -> labels.firstOrNull { fold(it) == fold(m.groupValues[1]) } }
+            if (label != null) {
+                current = label
+                found.getOrPut(label) { StringBuilder() }.append(match.groupValues[2].trim())
+            } else {
+                current?.let { found.getValue(it).append(' ').append(line) }
+            }
+        }
+        if (found.isEmpty()) return null
+        return labels.mapNotNull { label -> found[label]?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { label to it } }
+    }
+
+    data class Decision(val action: String, val reason: String?)
+
+    /**
+     * "Decisões para você" ([AiPromptBuilder.decisions]): uma decisão por
+     * linha, "ação | porquê". Linha sem "|" vira decisão sem porquê — é o
+     * caso de "está tudo sob controle".
+     */
+    fun decisions(raw: String): List<Decision> =
+        HIGHLIGHT.replace(raw, "").lines()
+            .map { it.trim().replace(HEADING, "").replace(BULLET, "").trim() }
+            .filter { it.isNotEmpty() }
+            .map { line ->
+                val parts = line.split('|', limit = 2)
+                Decision(
+                    action = parts[0].trim().trimEnd('.', ':').replace("**", ""),
+                    reason = parts.getOrNull(1)?.trim()?.takeIf { it.isNotEmpty() },
+                )
+            }
+            .filter { it.action.isNotEmpty() }
+            .take(3)
+
+    private fun fold(text: String): String =
+        java.text.Normalizer.normalize(text.lowercase().trim(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+
     private fun inline(text: String): List<Span> {
         val spans = mutableListOf<Span>()
         var last = 0
@@ -123,7 +173,8 @@ object AiReplyFormat {
     }
 
     private val HIGHLIGHT = Regex("""\{\{([^|{}\n]{1,40})\|([^{}\n]{1,40})\}\}""")
-    private val HEADING = Regex("""^#{1,6}\s*""")
+    private val LABELED_LINE = Regex("""^[*_]{0,2}([\p{L} ]{2,20}?)[*_]{0,2}\s*[:–—-]\s*[*_]{0,2}\s*(.+)$""")
+    private val HEADING =Regex("""^#{1,6}\s*""")
     private val QUOTE = Regex("""^>\s*""")
     private val HORIZONTAL_RULE = Regex("""^([-*_]\s*){3,}$""")
     private val BULLET = Regex("""^([-*•·]|\d{1,2}[.)])\s+""")

@@ -16,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
@@ -54,9 +55,10 @@ internal fun parseAmountOrNull(text: String): Double? = text.replace(",", ".").t
 fun AddGoalDialog(
     initial: ObjetivoEntity? = null,
     onDismiss: () -> Unit,
-    onConfirm: (nome: String, tipo: String, valorAlvo: Double, valorGuardado: Double, prazo: LocalDate, prioridade: Int) -> Unit,
+    onConfirm: (nome: String, tipo: String, valorAlvo: Double, valorGuardado: Double, prazo: LocalDate, prioridade: Int, descricao: String) -> Unit,
 ) {
     var nome by remember { mutableStateOf(initial?.nome ?: "") }
+    var descricao by remember { mutableStateOf(initial?.descricao ?: "") }
     var tipo by remember { mutableStateOf(initial?.tipo ?: "Compra") }
     var valorAlvo by remember { mutableStateOf(initial?.let { (it.valorAlvoCentavos / 100.0).toString() } ?: "") }
     var valorGuardado by remember { mutableStateOf(initial?.let { (it.valorGuardadoCentavos / 100.0).toString() } ?: "0") }
@@ -71,7 +73,10 @@ fun AddGoalDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial != null) "Editar objetivo" else "Novo objetivo") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 OutlinedTextField(nome, { nome = it }, label = { Text("Nome") }, singleLine = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("Viagem", "Compra", "Reserva").forEach { t ->
@@ -82,13 +87,21 @@ fun AddGoalDialog(
                 OutlinedTextField(valorGuardado, { valorGuardado = it }, label = { Text("Já guardado (R$)") }, singleLine = true, isError = !guardadoOk)
                 OutlinedTextField(prazoTexto, { prazoTexto = it }, label = { Text("Prazo (dd/mm/aaaa)") }, singleLine = true, isError = !prazoOk)
                 OutlinedTextField(prioridade, { prioridade = it }, label = { Text("Prioridade (1 = mais alta)") }, singleLine = true, isError = !prioridadeOk)
+                // Opcional. É o que dá profundidade à leitura da IA: por que a meta existe,
+                // o que fica de fora dela, quanto o prazo pode mudar.
+                OutlinedTextField(
+                    descricao, { descricao = it.take(300) },
+                    label = { Text("Descrição (opcional)") },
+                    placeholder = { Text("Ex.: viagem com amiga; passagem fica fora da meta; dá para ir até junho de 2028") },
+                    minLines = 2, maxLines = 4,
+                )
             }
         },
         confirmButton = {
             TextButton(
                 enabled = nome.isNotBlank() && alvoOk && guardadoOk && prazoOk && prioridadeOk,
                 onClick = {
-                    onConfirm(nome.trim(), tipo, parseAmountOrNull(valorAlvo)!!, parseAmountOrNull(valorGuardado)!!, parseDateOrNull(prazoTexto)!!, prioridade.toInt())
+                    onConfirm(nome.trim(), tipo, parseAmountOrNull(valorAlvo)!!, parseAmountOrNull(valorGuardado)!!, parseDateOrNull(prazoTexto)!!, prioridade.toInt(), descricao.trim())
                 },
             ) { Text("Salvar") }
         },

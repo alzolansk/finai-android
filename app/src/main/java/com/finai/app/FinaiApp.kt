@@ -567,10 +567,10 @@ fun FinaiApp(
         if (showAddGoal) {
             AddGoalDialog(
                 onDismiss = { showAddGoal = false },
-                onConfirm = { nome, tipo, valorAlvo, valorGuardado, prazo, prioridade ->
+                onConfirm = { nome, tipo, valorAlvo, valorGuardado, prazo, prioridade, descricao ->
                     financeViewModel.saveObjetivo(
                         ObjetivoEntity(
-                            tipo = tipo, nome = nome,
+                            tipo = tipo, nome = nome, descricao = descricao,
                             valorAlvoCentavos = Math.round(valorAlvo * 100),
                             valorGuardadoCentavos = Math.round(valorGuardado * 100),
                             prazo = prazo.toEpochMillis(),
@@ -586,10 +586,10 @@ fun FinaiApp(
             AddGoalDialog(
                 initial = objetivo,
                 onDismiss = { editingObjetivoId = null },
-                onConfirm = { nome, tipo, valorAlvo, valorGuardado, prazo, prioridade ->
+                onConfirm = { nome, tipo, valorAlvo, valorGuardado, prazo, prioridade, descricao ->
                     financeViewModel.saveObjetivo(
                         objetivo.copy(
-                            tipo = tipo, nome = nome,
+                            tipo = tipo, nome = nome, descricao = descricao,
                             valorAlvoCentavos = Math.round(valorAlvo * 100),
                             valorGuardadoCentavos = Math.round(valorGuardado * 100),
                             prazo = prazo.toEpochMillis(),

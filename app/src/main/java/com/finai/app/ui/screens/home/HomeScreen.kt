@@ -38,6 +38,11 @@ import com.finai.app.data.model.TimelineEntry
 import com.finai.app.data.model.WeekBill
 import com.finai.app.domain.BehaviorPattern
 import com.finai.app.ui.components.AiRichText
+import com.finai.app.ui.components.rememberAiAnnotated
+import androidx.compose.runtime.remember
+import com.finai.app.domain.AiReplyFormat
+import com.finai.app.domain.AssistantTopic
+import com.finai.app.domain.AssistantTopics
 import com.finai.app.ui.components.AiTextPalette
 import com.finai.app.domain.MONTH_NAMES_PT
 import com.finai.app.domain.PayCycle
@@ -96,7 +101,7 @@ fun HomeScreen(
 
         item { SafeToSpendCard(safeToday, safeTodayLabel, safeNote, onOpenSimulator, onOpenBudgets) }
 
-        item { DecisionsCard(decisions) }
+        item { DecisionsCard(decisions, onAskAbout) }
 
         item { TimelineSection(timeline, timelineNote, onNewIncomeEntry) }
 
@@ -434,7 +439,7 @@ private fun SafeToSpendCard(
  * composable only renders whatever state it's in.
  */
 @Composable
-private fun DecisionsCard(decisions: AiText?) {
+private fun DecisionsCard(decisions: AiText?, onAskAbout: (AssistantTopic) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -461,20 +466,60 @@ private fun DecisionsCard(decisions: AiText?) {
                 decisions.reason, fontSize = 11.5.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 10.dp),
             )
             is AiText.Ready -> {
-                val lines = decisions.text.lines().map { it.trim().trimStart('-', '•', '*', ' ') }.filter { it.isNotBlank() }
-                Column(modifier = Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (lines.isEmpty()) {
-                        Text(decisions.text, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
-                    } else {
-                        lines.forEach { line ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("•", fontSize = 12.5.sp, color = FinaiColors.EmeraldDark)
-                                Text(com.finai.app.ui.components.rememberAiAnnotated(line), fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
-                            }
+                // Uma linha só, sem "porquê", é o "está tudo sob controle": texto, não decisão.
+                val items = remember(decisions.text) {
+                    AiReplyFormat.decisions(decisions.text).takeUnless { it.size == 1 && it[0].reason == null }.orEmpty()
+                }
+                Column(modifier = Modifier.padding(top = 6.dp)) {
+                    if (items.isEmpty()) {
+                        AiRichText(decisions.text, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    items.forEachIndexed { index, decision ->
+                        if (index > 0) {
+                            Box(Modifier.fillMaxWidth().height(1.dp).background(FinaiColors.BorderFaint))
                         }
+                        DecisionRow(decision, onAsk = {
+                            onAskAbout(AssistantTopics.decision(listOfNotNull(decision.action, decision.reason).joinToString(". ")))
+                        })
                     }
                 }
             }
+        }
+    }
+}
+
+/** Uma decisão: ação em destaque, o porquê embaixo, e o atalho para conversar sobre ela. */
+@Composable
+private fun DecisionRow(decision: AiReplyFormat.Decision, onAsk: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onAsk)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                rememberAiAnnotated(decision.action),
+                fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
+            )
+            decision.reason?.let {
+                Text(
+                    rememberAiAnnotated(it),
+                    fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(99.dp))
+                .background(FinaiColors.EmeraldSoftBg)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Conversar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark)
         }
     }
 }

@@ -54,6 +54,33 @@ class AiReplyFormatTest {
     }
 
     @Test
+    fun `leitura do objetivo aceita rotulo em negrito, sem acento e com continuacao`() {
+        val raw = "**Agora:** a passagem fica fora, então os R\$ 20 mil são só a viagem.\n" +
+            "- proximo passo - guardar R\$ 700 este mês\n" +
+            "Risco: abril já é antes do limite;\ndá para esticar o prazo."
+        val rows = AiReplyFormat.labeled(raw, AiPromptBuilder.GOAL_INSIGHT_LABELS)!!
+        assertEquals(listOf("Agora", "Próximo passo", "Risco"), rows.map { it.first })
+        assertEquals("guardar R\$ 700 este mês", rows[1].second)
+        assertEquals("abril já é antes do limite; dá para esticar o prazo.", rows[2].second)
+    }
+
+    @Test
+    fun `leitura sem rotulos devolve null para a tela mostrar o texto inteiro`() {
+        assertEquals(null, AiReplyFormat.labeled("Você está no caminho.", AiPromptBuilder.GOAL_INSIGHT_LABELS))
+    }
+
+    @Test
+    fun `decisoes separam acao e porque`() {
+        val decisions = AiReplyFormat.decisions(
+            "1. **Quite o empréstimo do Bradesco** | custa R\$ 337 de juros por mês.\n- Cancele a Netflix | sem uso há 60 dias",
+        )
+        assertEquals("Quite o empréstimo do Bradesco", decisions[0].action)
+        assertEquals("custa R\$ 337 de juros por mês.", decisions[0].reason)
+        assertEquals("Cancele a Netflix", decisions[1].action)
+        assertEquals(null, AiReplyFormat.decisions("Está tudo sob controle.").single().reason)
+    }
+
+    @Test
     fun `texto sem marcacao passa intacto`() {
         val raw = "Oi! Posso ajudar com gastos, dívidas ou objetivos."
         assertEquals(raw, AiReplyFormat.plain(raw))

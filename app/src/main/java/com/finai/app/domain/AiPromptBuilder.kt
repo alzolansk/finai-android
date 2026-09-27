@@ -31,15 +31,29 @@ object AiPromptBuilder {
         "diga o que fazer. Nunca invente valores que não estejam no contexto. " +
         "Não recomende produtos financeiros de terceiros nem dê conselho de investimento específico."
 
+    /** Rótulos das três linhas da leitura do objetivo, na ordem em que a tela mostra. */
+    val GOAL_INSIGHT_LABELS = listOf("Agora", "Próximo passo", "Risco")
+
     fun goalInsight(goal: Goal, monthlyCapacityLabel: String, otherActiveGoals: Int): AiRequest {
         val prompt = buildString {
             appendLine("Objetivo: \"${goal.name}\" (${goal.kind}).")
+            if (goal.description.isNotBlank()) {
+                appendLine("Descrição escrita pelo usuário (o porquê da meta, o que fica fora dela, flexibilidade do prazo): ${goal.description.trim()}")
+            }
             appendLine("Guardado: ${formatBrl0(goal.saved)} de ${formatBrl0(goal.target)} (${(goal.progress * 100).toInt()}%).")
             appendLine("Previsão atual: ${goal.eta}.")
-            appendLine("Status calculado localmente: ${goal.badge.label}.")
+            appendLine("Status calculado localmente: ${goal.badge.label}. ${goal.note}")
             appendLine("Capacidade de poupança mensal total do usuário: $monthlyCapacityLabel.")
             if (otherActiveGoals > 0) appendLine("Essa capacidade é dividida com outro(s) $otherActiveGoals objetivo(s) ativo(s).")
-            append("Escreva de 1 a 2 frases curtas explicando a situação real desse objetivo específico e o que fazer a seguir.")
+            appendLine()
+            appendLine("O usuário já vê na tela o valor guardado, o alvo, o percentual e a previsão — não repita esses números.")
+            if (goal.description.isNotBlank()) {
+                appendLine("Use a descrição para interpretar: o que o dinheiro cobre de fato, se o prazo tem folga, o que importa para ele.")
+            }
+            appendLine("Responda com exatamente 3 linhas, cada uma com uma frase curta, neste formato:")
+            appendLine("Agora: o que a situação significa de verdade para este objetivo.")
+            appendLine("Próximo passo: uma ação concreta para este mês.")
+            append("Risco: o que pode atrasar ou atrapalhar, ou \"nenhum relevante\" se não houver.")
         }
         return AiRequest(AiTask.GOAL_INSIGHT, "$SYSTEM_BASE Você escreve a \"leitura da IA\" de um objetivo financeiro.", prompt)
     }
@@ -110,8 +124,11 @@ object AiPromptBuilder {
                 appendLine("- Nada fora do esperado neste momento.")
             }
             append(
-                "Com base só nisso, escreva até 3 sugestões curtas e acionáveis para essa semana, uma por linha, sem numeração, " +
-                    "sem introdução nem conclusão. Se não houver nada relevante, diga em 1 frase que está tudo sob controle.",
+                "Com base só nisso, escreva até 3 decisões para esta semana, da mais importante para a menos, uma por linha, " +
+                    "no formato \"ação | porquê\": a ação é um verbo no imperativo e o alvo específico (até 8 palavras, " +
+                    "nada genérico como \"reveja seus gastos\"); o porquê é uma frase curta com o fato que justifica. " +
+                    "Sem numeração, sem introdução nem conclusão. Se não houver nada relevante, responda uma única frase " +
+                    "dizendo que está tudo sob controle, sem o \"|\".",
             )
         }
         return AiRequest(AiTask.DECISIONS, "$SYSTEM_BASE Você escreve as sugestões da seção \"Decisões para você\" da tela inicial.", prompt)
