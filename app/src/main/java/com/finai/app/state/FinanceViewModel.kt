@@ -133,7 +133,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     private fun buildState(s: Snapshot, orcamentos: List<OrcamentoCategoriaEntity>): FinanceUiState {
         val today = LocalDate.now()
         val monthlyCapacityCents = SavingsCapacityCalculator.monthlyCapacityCents(s.contas, s.transacoes, s.dividas, today)
-        val goalPlans = GoalCalculator.plan(s.objetivos, monthlyCapacityCents, today)
+        val savingsProjection = com.finai.app.domain.SavingsProjection.of(
+            s.contas, s.transacoes, s.dividas, com.finai.app.domain.SavingsProjection.horizonFor(s.objetivos, today), today,
+        )
+        val goalPlans = GoalCalculator.plan(s.objetivos, monthlyCapacityCents, today, savingsProjection)
         // Cartão novo: um erro aqui não pode levar a Início inteira junto (o .catch do
         // combine deixaria a tela congelada no estado anterior).
         val payCycle = runCatching { com.finai.app.domain.PayCycle.of(s.contas, s.transacoes, s.dividas, today) }
@@ -207,6 +210,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             monthlyCapacityCents = monthlyCapacityCents,
             monthlyCapacityLabel = formatBrl0(monthlyCapacityCents / 100.0),
             goalsNeededCents = goalPlans.sumOf { it.monthlyContributionNeededCents },
+            savingsProjection = savingsProjection,
             goalsFundedCents = goalPlans.sumOf { it.monthlyContributionFundedCents },
             allBillsAndIncome = s.contas,
             debts = debtSummary.ordered.map { it.toUiDebt() },

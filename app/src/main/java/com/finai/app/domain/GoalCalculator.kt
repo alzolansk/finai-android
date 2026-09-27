@@ -2,6 +2,7 @@ package com.finai.app.domain
 
 import com.finai.app.data.local.entity.ObjetivoEntity
 import java.time.LocalDate
+import java.time.YearMonth
 
 enum class GoalStatus { OnTrack, Reassess, Priority }
 
@@ -17,32 +18,58 @@ data class GoalPlan(
     val monthlyContributionFundedCents: Long = monthlyContributionNeededCents,
     val status: GoalStatus,
     val etaLabel: String,
+    /** Quanto falta guardar. */
+    val missingCents: Long = 0,
+    /**
+     * Sobra projetada do mês corrente até o prazo ([SavingsProjection]), já
+     * descontado o que as metas de maior prioridade usam. Nulo sem projeção.
+     */
+    val projectedAvailableCents: Long? = null,
 )
 
 /**
- * Progresso de metas — planning.md §3.3/§6. No AI here: status is a
- * deterministic comparison between what each goal needs per month (to hit
- * its own deadline) and the monthly savings capacity left after
- * higher-priority goals already claimed their share.
+ * Progresso de metas — planning.md §3.3/§6. No AI here, só comparação
+ * determinística.
+ *
+ * Com [SavingsProjection], o status compara o que falta guardar com a sobra
+ * projetada de todos os meses até o prazo (depois das metas de maior
+ * prioridade). É o que responde "até 2028 eu consigo?". Sem projeção (testes
+ * antigos), compara o aporte mensal com a capacidade do mês corrente.
+ *
+ * O aporte "reservado" ([GoalPlan.monthlyContributionFundedCents]) continua
+ * limitado à capacidade do mês corrente: é dinheiro de agora, e é ele que o
+ * "Pode gastar hoje" desconta.
  */
 object GoalCalculator {
     fun plan(
         objetivos: List<ObjetivoEntity>,
         monthlyCapacityCents: Long,
         today: LocalDate = LocalDate.now(),
+        projection: SavingsProjection? = null,
     ): List<GoalPlan> {
         var remainingCapacity = monthlyCapacityCents
+        var consumedByHigherPriority = 0L
         return objetivos.sortedBy { it.prioridade }.map { goal ->
             val prazo = goal.prazo.toLocalDate()
             val months = monthsUntil(prazo, today)
             val missing = (goal.valorAlvoCentavos - goal.valorGuardadoCentavos).coerceAtLeast(0)
             val needed = missing / months
 
-            val status = when {
-                remainingCapacity >= needed -> GoalStatus.OnTrack
-                remainingCapacity > 0 -> GoalStatus.Reassess
-                else -> GoalStatus.Priority
+            val available = projection?.let { it.cumulativeThrough(YearMonth.from(prazo)) - consumedByHigherPriority }
+            val status = if (available != null) {
+                when {
+                    missing == 0L || available >= missing -> GoalStatus.OnTrack
+                    available > 0 -> GoalStatus.Reassess
+                    else -> GoalStatus.Priority
+                }
+            } else {
+                when {
+                    remainingCapacity >= needed -> GoalStatus.OnTrack
+                    remainingCapacity > 0 -> GoalStatus.Reassess
+                    else -> GoalStatus.Priority
+                }
             }
+            if (available != null) consumedByHigherPriority += missing.coerceAtMost(available.coerceAtLeast(0))
             val funded = needed.coerceAtMost(remainingCapacity.coerceAtLeast(0))
             remainingCapacity = (remainingCapacity - needed).coerceAtLeast(0)
 
@@ -54,6 +81,8 @@ object GoalCalculator {
                 monthlyContributionFundedCents = funded,
                 status = status,
                 etaLabel = formatMonthYearLong(prazo),
+                missingCents = missing,
+                projectedAvailableCents = available,
             )
         }
     }

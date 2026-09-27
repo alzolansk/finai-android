@@ -61,6 +61,8 @@ data class FinanceUiState(
     val monthlyCapacityLabel: String = "",
     /** Soma do aporte mensal que as metas pedem, e quanto disso cabe na capacidade. */
     val goalsNeededCents: Long = 0,
+    /** Balanço projetado mês a mês até o prazo da meta mais distante. */
+    val savingsProjection: com.finai.app.domain.SavingsProjection? = null,
     val goalsFundedCents: Long = 0,
 
     // Agenda
@@ -99,7 +101,18 @@ fun FinanceUiState.toAiSummaryText(): String = buildString {
                 "${com.finai.app.util.formatBrl0(cycle.livreCents / 100.0)} livres depois das contas e parcelas do período.",
         )
     }
-    appendLine("Sobra mensal para metas (balanço do mês sem entradas extras): $monthlyCapacityLabel.")
+    appendLine("Sobra deste mês (balanço do mês sem entradas extras): $monthlyCapacityLabel. É só o mês atual, não o potencial dos próximos.")
+    savingsProjection?.let { p ->
+        val next12 = p.months.take(12)
+        appendLine(
+            "Sobra projetada nos próximos ${next12.size} meses (balanço de cada mês somado): " +
+                "${com.finai.app.util.formatBrl0(next12.sumOf { it.balanceCents } / 100.0)}, média de " +
+                "${com.finai.app.util.formatBrl0(next12.sumOf { it.balanceCents } / 100.0 / next12.size.coerceAtLeast(1))}/mês.",
+        )
+        p.estimatedSalaryCents?.let { s ->
+            appendLine("Nos meses sem salário lançado, a projeção repete o último salário (${com.finai.app.util.formatBrl0(s / 100.0)}) como estimativa.")
+        }
+    }
     if (goalsNeededCents > 0) {
         appendLine(
             "Metas pedem ${com.finai.app.util.formatBrl0(goalsNeededCents / 100.0)}/mês no total; cabem " +

@@ -43,11 +43,21 @@ fun GoalPlan.toUiGoal(): Goal {
         GoalStatus.Reassess -> GoalBadge.Reassess
         GoalStatus.Priority -> GoalBadge.Priority
     }
-    val note = when (status) {
-        GoalStatus.OnTrack -> "${formatBrl0(centsToReais(monthlyContributionNeededCents))}/mês mantém a data."
-        GoalStatus.Reassess -> "Concorre com outros objetivos pela mesma capacidade de poupança."
-        GoalStatus.Priority -> "Sem capacidade de poupança disponível este mês para este objetivo."
+    val available = projectedAvailableCents
+    val note = when {
+        status == GoalStatus.OnTrack -> "${formatBrl0(centsToReais(monthlyContributionNeededCents))}/mês mantém a data."
+        available != null && status == GoalStatus.Reassess ->
+            "Até $etaLabel, a sobra projetada cobre ${formatBrl0(centsToReais(available))} dos ${formatBrl0(centsToReais(missingCents))} que faltam."
+        available != null ->
+            "Até $etaLabel, a sobra projetada não alcança esta meta depois das de maior prioridade."
+        status == GoalStatus.Reassess -> "Concorre com outros objetivos pela mesma capacidade de poupança."
+        else -> "Sem capacidade de poupança disponível este mês para este objetivo."
     }
+    val projectionNote = available?.let {
+        "Sobra projetada do mês atual até $etaLabel, somando o balanço de cada mês e já descontadas as metas de " +
+            "maior prioridade: ${formatBrl0(centsToReais(it))}. Faltam ${formatBrl0(centsToReais(missingCents))} para esta meta " +
+            "(${formatBrl0(centsToReais(monthlyContributionNeededCents))}/mês até o prazo)."
+    }.orEmpty()
     return Goal(
         id = objetivo.id.toString(),
         kind = objetivo.tipo,
@@ -59,6 +69,7 @@ fun GoalPlan.toUiGoal(): Goal {
         note = note,
         action = "Registrar aporte",
         description = objetivo.descricao,
+        projectionNote = projectionNote,
     )
 }
 

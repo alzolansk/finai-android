@@ -43,9 +43,11 @@ object AiPromptBuilder {
             appendLine("Guardado: ${formatBrl0(goal.saved)} de ${formatBrl0(goal.target)} (${(goal.progress * 100).toInt()}%).")
             appendLine("Previsão atual: ${goal.eta}.")
             appendLine("Status calculado localmente: ${goal.badge.label}. ${goal.note}")
-            appendLine("Capacidade de poupança mensal total do usuário: $monthlyCapacityLabel.")
-            if (otherActiveGoals > 0) appendLine("Essa capacidade é dividida com outro(s) $otherActiveGoals objetivo(s) ativo(s).")
+            appendLine("Sobra deste mês (só o mês atual): $monthlyCapacityLabel.")
+            if (goal.projectionNote.isNotBlank()) appendLine(goal.projectionNote)
+            if (otherActiveGoals > 0) appendLine("Há outro(s) $otherActiveGoals objetivo(s) ativo(s) dividindo a mesma sobra.")
             appendLine()
+            appendLine("Julgue a meta pela sobra projetada até o prazo, não só pela sobra deste mês.")
             appendLine("O usuário já vê na tela o valor guardado, o alvo, o percentual e a previsão — não repita esses números.")
             if (goal.description.isNotBlank()) {
                 appendLine("Use a descrição para interpretar: o que o dinheiro cobre de fato, se o prazo tem folga, o que importa para ele.")

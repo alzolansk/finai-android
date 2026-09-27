@@ -29,6 +29,8 @@ data class Goal(
     val action: String,
     /** Descrição escrita pelo usuário (por que a meta existe, flexibilidade do prazo...). */
     val description: String = "",
+    /** Sobra projetada até o prazo, em texto — vai para a IA ([com.finai.app.domain.SavingsProjection]). */
+    val projectionNote: String = "",
 ) {
     val progress: Float get() = (saved / target).toFloat().coerceIn(0f, 1f)
 }

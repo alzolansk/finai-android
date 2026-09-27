@@ -130,7 +130,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val goalInsightJobs = mutableMapOf<String, Job>()
 
     fun ensureGoalInsight(goal: Goal, monthlyCapacityLabel: String, otherActiveGoals: Int) {
-        val cacheKey = listOf(goal.name, goal.kind, goal.description, goal.saved, goal.target, goal.eta, goal.badge.name, monthlyCapacityLabel, otherActiveGoals)
+        val cacheKey = listOf(goal.name, goal.kind, goal.description, goal.projectionNote, goal.saved, goal.target, goal.eta, goal.badge.name, monthlyCapacityLabel, otherActiveGoals)
             .joinToString("|")
         if (goalInsightKeys[goal.id] == cacheKey) return
         goalInsightKeys[goal.id] = cacheKey

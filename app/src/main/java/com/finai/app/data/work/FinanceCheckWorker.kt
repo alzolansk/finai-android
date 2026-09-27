@@ -70,7 +70,10 @@ class FinanceCheckWorker(
         val orcamentos = repository.orcamentosDoMes(monthKey(today)).first()
 
         val monthlyCapacityCents = SavingsCapacityCalculator.monthlyCapacityCents(contas, transacoes, dividas, today)
-        val goalPlans = GoalCalculator.plan(objetivos, monthlyCapacityCents, today)
+        val projection = com.finai.app.domain.SavingsProjection.of(
+            contas, transacoes, dividas, com.finai.app.domain.SavingsProjection.horizonFor(objetivos, today), today,
+        )
+        val goalPlans = GoalCalculator.plan(objetivos, monthlyCapacityCents, today, projection)
         val transacoesDoMes = transacoes.filter { it.data in monthRangeMillis(today) }
         val budgetProgress = BudgetCalculator.forCategories(orcamentos, transacoesDoMes, today)
         val subscriptionInsights = SubscriptionCalculator.insights(assinaturas, today)

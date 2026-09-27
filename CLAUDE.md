@@ -731,6 +731,14 @@ IA mais integrada: formatação, conversas, contexto (27/09/2026):
   reserva só essa parte, e `safeNote` separa "faltam R$ X para as contas" de "a meta não cabe".
   O resumo da IA diz quanto as metas pedem e quanto cabe, com a regra: meta que não cabe não é
   falta de dinheiro.
+- **Metas julgadas pela sobra projetada até o prazo** (`domain/SavingsProjection.kt`): balanço de
+  cada mês (`MonthCashFlow`), do mês atual até a meta mais distante (mínimo 12 meses). Parcelas de
+  dívida pesam só enquanto existem, e lançamentos futuros e extras contam. **Salário avulso:**
+  depois do último salário lançado, mês sem salário recebe o valor do último como estimativa (o
+  resumo da IA avisa). `GoalCalculator.plan(..., projection)` define o status pela sobra acumulada
+  até o prazo, descontadas as metas de maior prioridade. O aporte reservado no "Pode gastar hoje"
+  continua limitado ao mês atual. A IA recebe a sobra do mês ("só o mês atual"), a projetada de
+  12 meses e, por meta, a projetada até o prazo (`Goal.projectionNote`).
 
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja

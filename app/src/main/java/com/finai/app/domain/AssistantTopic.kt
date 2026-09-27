@@ -35,9 +35,10 @@ object AssistantTopics {
             if (goal.description.isNotBlank()) appendLine("Descrição do usuário: ${goal.description.trim()}")
             appendLine("Guardado: ${formatBrl0(goal.saved)} de ${formatBrl0(goal.target)}. Previsão atual: ${goal.eta}.")
             appendLine("Situação calculada: ${goal.badge.label}. ${goal.note}")
-            appendLine("Capacidade de poupança mensal: $monthlyCapacityLabel.")
+            appendLine("Sobra deste mês (só o mês atual): $monthlyCapacityLabel.")
+            if (goal.projectionNote.isNotBlank()) appendLine(goal.projectionNote)
             append(
-                "Compare dois ou três cenários (aporte mensal diferente, prazo diferente, meta ajustada) e diga qual " +
+                "Julgue pela sobra projetada até o prazo, não só pela deste mês. Compare dois ou três cenários (aporte mensal diferente, prazo diferente, meta ajustada) e diga qual " +
                     "faz mais sentido considerando a descrição.",
             )
         },
