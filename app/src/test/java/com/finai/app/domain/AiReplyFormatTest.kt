@@ -81,6 +81,13 @@ class AiReplyFormatTest {
     }
 
     @Test
+    fun `destaque com chave simples ou colchete tambem vira cartao`() {
+        val reply = AiReplyFormat.parse("{Meta mensal|R\$ 1.053}\n[Sobra projetada | R\$ 60.380]\nDá para fazer.")
+        assertEquals(listOf("Meta mensal" to "R\$ 1.053", "Sobra projetada" to "R\$ 60.380"), reply.highlights.map { it.label to it.value })
+        assertEquals("Dá para fazer.", text(reply.blocks.single()))
+    }
+
+    @Test
     fun `texto sem marcacao passa intacto`() {
         val raw = "Oi! Posso ajudar com gastos, dívidas ou objetivos."
         assertEquals(raw, AiReplyFormat.plain(raw))

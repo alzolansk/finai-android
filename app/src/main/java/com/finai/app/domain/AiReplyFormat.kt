@@ -172,7 +172,10 @@ object AiReplyFormat {
         return spans
     }
 
-    private val HIGHLIGHT = Regex("""\{\{([^|{}\n]{1,40})\|([^{}\n]{1,40})\}\}""")
+    // O prompt pede {{rótulo|valor}}, mas em respostas de continuação os modelos
+    // escrevem {rótulo|valor} ou [rótulo|valor]. O "|" dentro é o que distingue
+    // o destaque de texto comum (link de Markdown não tem "|").
+    private val HIGHLIGHT = Regex("""[{\[]{1,2}\s*([^|{}\[\]\n]{1,40}?)\s*\|\s*([^|{}\[\]\n]{1,40}?)\s*[}\]]{1,2}""")
     private val LABELED_LINE = Regex("""^[*_]{0,2}([\p{L} ]{2,20}?)[*_]{0,2}\s*[:–—-]\s*[*_]{0,2}\s*(.+)$""")
     private val HEADING =Regex("""^#{1,6}\s*""")
     private val QUOTE = Regex("""^>\s*""")
