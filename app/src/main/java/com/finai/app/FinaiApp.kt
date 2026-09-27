@@ -72,6 +72,7 @@ import com.finai.app.state.toAiSummaryText
 import com.finai.app.ui.components.AddContaDialog
 import com.finai.app.ui.components.DebtEntryScreen
 import com.finai.app.ui.components.AddGoalDialog
+import com.finai.app.ui.components.CelebrationOverlay
 import com.finai.app.domain.AssistantTopic
 import com.finai.app.domain.AssistantTopics
 import com.finai.app.ui.components.TransactionEntryScreen
@@ -131,6 +132,7 @@ fun FinaiApp(
     val coachInsight by aiViewModel.coachInsight.collectAsState()
     val importState by importViewModel.uiState.collectAsState()
     val persistenceError by financeViewModel.persistenceError.collectAsState()
+    val celebration by financeViewModel.celebration.collectAsState()
     val onboardingComplete by viewModel.onboardingComplete.collectAsState()
     val initialSetupComplete by viewModel.initialSetupComplete.collectAsState()
     val knownAccounts by viewModel.knownAccounts.collectAsState()
@@ -286,6 +288,7 @@ fun FinaiApp(
                         }
                         GoalsScreen(
                             goals = financeState.goals,
+                            completedGoals = financeState.completedGoals,
                             monthlyCapacityLabel = financeState.monthlyCapacityLabel,
                             goalInsights = goalInsights,
                             onNewGoal = { showAddGoal = true },
@@ -312,6 +315,9 @@ fun FinaiApp(
                             onDeleteDebt = { debt -> financeViewModel.deleteDividaById(debt.id) },
                             onPayInstallment = { debt -> financeViewModel.pagarParcela(debt.id) },
                             onRehearseCall = { askAbout(AssistantTopics.debtCall(financeState.debts)) },
+                            paidDebts = financeState.paidDebts,
+                            onPayOff = { debt, registrar -> financeViewModel.quitarDivida(debt.id, registrar) },
+                            onDeletePaidDebt = { paid -> financeViewModel.deleteDividaById(paid.id) },
                         )
                     }
                     composable(FinaiDestination.Budgets.route) {
@@ -689,10 +695,22 @@ fun FinaiApp(
         // Segunda trava, independente da ordem em que os tratadores foram
         // registrados: com qualquer camada aberta por cima, a navegação entre
         // telas não reage ao voltar.
-        val anyLayerOpen = overlayOpen || showAddTransaction || openedInvoiceContaId != null ||
+        val anyLayerOpen = overlayOpen || celebration != null || showAddTransaction || openedInvoiceContaId != null ||
             showAddDivida || editingDivida != null || onboardingComplete == false ||
             (onboardingComplete == true && initialSetupComplete == false)
         SideEffect { navController.enableOnBackPressed(!anyLayerOpen) }
+
+        // Meta concluída / dívida quitada: por cima de tudo, fecha com toque ou voltar.
+        AnimatedVisibility(
+            visible = celebration != null,
+            enter = fadeIn(finaiTween(FinaiMotion.Standard)),
+            exit = fadeOut(finaiTween(FinaiMotion.Quick)),
+        ) {
+            // Guarda o último valor para a animação de saída não piscar vazia.
+            var shown by remember { mutableStateOf(celebration) }
+            celebration?.let { shown = it }
+            shown?.let { CelebrationOverlay(it, onDismiss = financeViewModel::dismissCelebration) }
+        }
 
         if (onboardingComplete == false) {
             OnboardingTour(

@@ -31,6 +31,10 @@ data class Goal(
     val description: String = "",
     /** Sobra projetada até o prazo, em texto — vai para a IA ([com.finai.app.domain.SavingsProjection]). */
     val projectionNote: String = "",
+    /** "Concluída em set/2026"; nulo enquanto a meta está em andamento. */
+    val completedLabel: String? = null,
+    /** Quanto passou do alvo (aportes depois de concluída). */
+    val exceeded: Double = 0.0,
 ) {
     val progress: Float get() = (saved / target).toFloat().coerceIn(0f, 1f)
 }
@@ -100,6 +104,15 @@ data class Debt(
     val progressPct: Float,
     val barColor: Color,
     val hasParcelaFixa: Boolean = false,
+)
+
+data class PaidDebt(
+    val id: Long,
+    val name: String,
+    /** Valor original do contrato (ou "—" se não informado). */
+    val originalLabel: String,
+    val paidLabel: String,
+    val detail: String,
 )
 
 data class Budget(

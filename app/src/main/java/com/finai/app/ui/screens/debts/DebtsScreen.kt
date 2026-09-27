@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finai.app.data.ai.AiText
 import com.finai.app.data.model.Debt
+import com.finai.app.data.model.PaidDebt
+import androidx.compose.material.icons.filled.TaskAlt
 import com.finai.app.ui.components.ConfirmDeleteDialog
 import com.finai.app.ui.components.FadeInAppear
 import com.finai.app.ui.components.ProgressTrack
@@ -64,8 +66,15 @@ fun DebtsScreen(
     onDeleteDebt: (Debt) -> Unit,
     onPayInstallment: (Debt) -> Unit,
     onRehearseCall: () -> Unit,
+    paidDebts: List<PaidDebt> = emptyList(),
+    onPayOff: (Debt, registrarPagamento: Boolean) -> Unit = { _, _ -> },
+    onDeletePaidDebt: (PaidDebt) -> Unit = {},
 ) {
     var pendingDelete by remember { mutableStateOf<Debt?>(null) }
+    // Confirmação antes de pagar: um toque por engano em "Paguei a parcela" avançava a dívida.
+    var pendingPay by remember { mutableStateOf<Debt?>(null) }
+    var pendingPayOff by remember { mutableStateOf<Debt?>(null) }
+    var pendingDeletePaid by remember { mutableStateOf<PaidDebt?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
@@ -151,7 +160,12 @@ fun DebtsScreen(
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                         modifier = Modifier.animateContentSize(finaiTween(FinaiMotion.Standard)),
                     ) {
-                        debts.forEach { debt -> DebtRow(debt, onEdit = { onEditDebt(debt) }, onDelete = { pendingDelete = debt }, onPay = { onPayInstallment(debt) }) }
+                        debts.forEach { debt ->
+                            DebtRow(
+                                debt, onEdit = { onEditDebt(debt) }, onDelete = { pendingDelete = debt },
+                                onPay = { pendingPay = debt }, onPayOff = { pendingPayOff = debt },
+                            )
+                        }
                     }
                 }
             }
@@ -215,6 +229,58 @@ fun DebtsScreen(
                 }
             }
         }
+
+        if (paidDebts.isNotEmpty()) {
+            item {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    Text("Dívidas quitadas", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                    Text(
+                        "${paidDebts.size} " + (if (paidDebts.size == 1) "quitada" else "quitadas") + " · seu histórico, fora de todas as contas",
+                        fontSize = 12.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+            items(paidDebts.size) { i -> PaidDebtRow(paidDebts[i], onDelete = { pendingDeletePaid = paidDebts[i] }) }
+        }
+    }
+
+    pendingPay?.let { debt ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingPay = null },
+            title = { Text("Registrar pagamento?") },
+            text = {
+                Text(
+                    "Uma parcela de \"${debt.name}\" vira um gasto de hoje na Agenda e a dívida avança uma parcela. " +
+                        "Para desfazer, exclua esse gasto na Agenda.",
+                )
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { onPayInstallment(debt); pendingPay = null }) { Text("Paguei") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingPay = null }) { Text("Cancelar") } },
+        )
+    }
+
+    pendingPayOff?.let { debt ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingPayOff = null },
+            title = { Text("Quitar \"${debt.name}\"?") },
+            text = {
+                Text(
+                    "Registrar ${debt.amount} como pagamento de hoje? Se você já lançou esse pagamento, escolha \"Só marcar\". " +
+                        "A dívida vai para \"Dívidas quitadas\".",
+                )
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { onPayOff(debt, true); pendingPayOff = null }) { Text("Registrar e quitar") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { onPayOff(debt, false); pendingPayOff = null }) { Text("Só marcar") } },
+        )
+    }
+
+    pendingDeletePaid?.let { paid ->
+        ConfirmDeleteDialog(
+            title = "Apagar do histórico?",
+            description = "\"${paid.name}\" sai da lista de dívidas quitadas. Os pagamentos já lançados continuam na Agenda.",
+            onDismiss = { pendingDeletePaid = null },
+            onConfirm = { onDeletePaidDebt(paid); pendingDeletePaid = null },
+        )
     }
 
     pendingDelete?.let { debt ->
@@ -228,7 +294,39 @@ fun DebtsScreen(
 }
 
 @Composable
-private fun DebtRow(debt: Debt, onEdit: () -> Unit, onDelete: () -> Unit, onPay: () -> Unit) {
+private fun PaidDebtRow(paid: PaidDebt, onDelete: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(FinaiColors.Surface)
+            .border(1.dp, FinaiColors.EmeraldSoftBorder, RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(FinaiColors.EmeraldSoftBg),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Filled.TaskAlt, contentDescription = null, tint = FinaiColors.EmeraldDark, modifier = Modifier.size(18.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(paid.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+            Text("${paid.paidLabel} · ${paid.detail}", fontSize = 11.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 1.dp))
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(paid.originalLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextSecondary)
+            Text(
+                "Apagar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted,
+                modifier = Modifier.padding(top = 3.dp).clickable(onClick = onDelete),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DebtRow(debt: Debt, onEdit: () -> Unit, onDelete: () -> Unit, onPay: () -> Unit, onPayOff: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(
             modifier = Modifier.size(26.dp).clip(RoundedCornerShape(9.dp)).background(FinaiColors.SurfaceMuted),
@@ -251,6 +349,10 @@ private fun DebtRow(debt: Debt, onEdit: () -> Unit, onDelete: () -> Unit, onPay:
                         modifier = Modifier.clickable(onClick = onPay),
                     )
                 }
+                Text(
+                    "Quitar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark,
+                    modifier = Modifier.clickable(onClick = onPayOff),
+                )
                 Text(
                     "Editar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextSecondary,
                     modifier = Modifier.clickable(onClick = onEdit),

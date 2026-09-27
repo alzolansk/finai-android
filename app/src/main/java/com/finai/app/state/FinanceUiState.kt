@@ -41,7 +41,11 @@ data class FinanceUiState(
     val rawTransacoes: List<TransacaoEntity> = emptyList(),
 
     // Home
+    /** Metas em andamento. As concluídas ficam em [completedGoals]. */
     val goals: List<Goal> = emptyList(),
+    val completedGoals: List<Goal> = emptyList(),
+    /** Dívidas quitadas — histórico na tela Dívidas, fora de toda conta. */
+    val paidDebts: List<com.finai.app.data.model.PaidDebt> = emptyList(),
     val safeToday: SafeToSpendResult? = null,
     val safeTodayLabel: String = "",
     val safeNote: String = "",
@@ -126,6 +130,8 @@ fun FinanceUiState.toAiSummaryText(): String = buildString {
     if (goals.isNotEmpty()) {
         appendLine("Objetivos ativos: " + goals.joinToString { "${it.name} (${(it.progress * 100).toInt()}%, ${it.badge.label})" } + ".")
     }
+    if (completedGoals.isNotEmpty()) appendLine("Metas já concluídas: " + completedGoals.joinToString { it.name } + ".")
+    if (paidDebts.isNotEmpty()) appendLine("Dívidas já quitadas (fora das contas): " + paidDebts.joinToString { it.name } + ".")
     val over = budgets.filter { it.spent > it.limit }
     if (over.isNotEmpty()) {
         appendLine("Categorias de orçamento estouradas: " + over.joinToString { it.name } + ".")

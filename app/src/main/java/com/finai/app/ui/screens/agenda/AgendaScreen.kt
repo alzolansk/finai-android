@@ -215,8 +215,12 @@ fun AgendaScreen(
 
     pendingDeleteTransaction?.let { transacao ->
         ConfirmDeleteDialog(
-            title = "Excluir lançamento?",
-            description = "${transacao.descricao} · ${com.finai.app.util.formatBrl(transacao.valorCentavos / 100.0)} será removido permanentemente.",
+            title = if (transacao.origem == DebtSchedule.PAYMENT_ORIGIN) "Desfazer pagamento?" else "Excluir lançamento?",
+            description = if (transacao.origem == DebtSchedule.PAYMENT_ORIGIN) {
+                "Desfaz o pagamento de ${transacao.descricao} (${com.finai.app.util.formatBrl(transacao.valorCentavos / 100.0)}): a parcela volta para a dívida, em aberto."
+            } else {
+                "${transacao.descricao} · ${com.finai.app.util.formatBrl(transacao.valorCentavos / 100.0)} será removido permanentemente."
+            },
             onDismiss = { pendingDeleteTransaction = null },
             onConfirm = { onDeleteTransaction(transacao); pendingDeleteTransaction = null },
         )

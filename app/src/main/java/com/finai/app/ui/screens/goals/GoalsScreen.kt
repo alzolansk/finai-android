@@ -16,6 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,6 +53,7 @@ import com.finai.app.util.formatBrl0
 @Composable
 fun GoalsScreen(
     goals: List<Goal>,
+    completedGoals: List<Goal>,
     monthlyCapacityLabel: String,
     goalInsights: Map<String, AiText>,
     onNewGoal: () -> Unit,
@@ -101,7 +104,7 @@ fun GoalsScreen(
                     Text("por mês", fontSize = 12.sp, color = FinaiColors.TextOnDarkMuted)
                 }
                 Text(
-                    "Renda recorrente menos contas fixas recorrentes e parcelas de dívida cadastradas.",
+                    "Balanço deste mês na Agenda, sem entradas extras. As metas também contam com a sobra projetada dos próximos meses até o prazo.",
                     fontSize = 12.sp, lineHeight = 18.sp, color = FinaiColors.TextOnDarkMuted,
                     modifier = Modifier.padding(top = 8.dp),
                 )
@@ -112,7 +115,8 @@ fun GoalsScreen(
             item {
                 FadeInAppear {
                     Text(
-                        "Nenhum objetivo cadastrado ainda. Toque em \"+\" para criar o primeiro.",
+                        if (completedGoals.isEmpty()) "Nenhum objetivo cadastrado ainda. Toque em \"+\" para criar o primeiro."
+                        else "Nenhuma meta em andamento. Toque em \"+\" para criar a próxima.",
                         fontSize = 13.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(vertical = 12.dp),
                     )
                 }
@@ -124,6 +128,25 @@ fun GoalsScreen(
                 goal, goalInsights[goal.id], onContribute, onEdit, { pendingDelete = goal }, onSimulate,
                 modifier = Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard)),
             )
+        }
+
+        if (completedGoals.isNotEmpty()) {
+            item(key = "completed-header") {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    Text("Metas concluídas", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                    Text(
+                        "${completedGoals.size} " + (if (completedGoals.size == 1) "conquista" else "conquistas") +
+                            " · aportes continuam valendo",
+                        fontSize = 12.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+            items(completedGoals, key = { "done-" + it.id }) { goal ->
+                CompletedGoalCard(
+                    goal, onContribute = { onContribute(goal) }, onEdit = { onEdit(goal) }, onDelete = { pendingDelete = goal },
+                    modifier = Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard)),
+                )
+            }
         }
     }
 
@@ -164,6 +187,62 @@ private fun GoalInsightBody(text: String) {
                     modifier = Modifier.width(64.dp).padding(top = 3.dp),
                 )
                 AiRichText(body, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** Meta concluída: compacta, com data, total guardado e o que passou do alvo. */
+@Composable
+private fun CompletedGoalCard(
+    goal: Goal,
+    onContribute: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val travel = goal.kind.equals("Viagem", ignoreCase = true)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(FinaiColors.Surface)
+            .border(1.dp, FinaiColors.EmeraldSoftBorder, RoundedCornerShape(18.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(if (travel) Color(0xFFE0F2FE) else Color(0xFFFEF3C7)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (travel) Icons.Filled.FlightTakeoff else Icons.Filled.EmojiEvents,
+                contentDescription = null,
+                tint = if (travel) Color(0xFF0284C7) else Color(0xFFD97706),
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(goal.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            Text(
+                "${goal.completedLabel ?: "Concluída"} · ${formatBrl0(goal.saved)} guardados",
+                fontSize = 11.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+            )
+            if (goal.exceeded > 0) {
+                Text(
+                    "+${formatBrl0(goal.exceeded)} além do alvo de ${formatBrl0(goal.target)}",
+                    fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("Registrar aporte", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark, modifier = Modifier.clickable(onClick = onContribute))
+                Text("Editar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextSecondary, modifier = Modifier.clickable(onClick = onEdit))
+                Text("Excluir", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE11D48), modifier = Modifier.clickable(onClick = onDelete))
             }
         }
     }

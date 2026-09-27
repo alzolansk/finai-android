@@ -24,6 +24,11 @@ import com.finai.app.domain.GoalCalculator
 import com.finai.app.domain.GoalPlan
 import com.finai.app.domain.SafeToSpendCalculator
 import com.finai.app.domain.SafeToSpendResult
+import com.finai.app.domain.Celebration
+import com.finai.app.domain.CelebrationStyle
+import com.finai.app.domain.Completion
+import com.finai.app.domain.toPaidDebt
+import com.finai.app.domain.celebrationStyleFor
 import com.finai.app.domain.SavingsCapacityCalculator
 import com.finai.app.domain.SubscriptionCalculator
 import com.finai.app.domain.formatMonthYearShort
@@ -79,6 +84,32 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val persistenceError: StateFlow<String?> = _persistenceError.asStateFlow()
 
     fun dismissPersistenceError() { _persistenceError.value = null }
+
+    /** Meta concluída / dívida quitada agora há pouco — desenhada por cima de tudo em FinaiApp. */
+    private val _celebration = MutableStateFlow<Celebration?>(null)
+    val celebration: StateFlow<Celebration?> = _celebration.asStateFlow()
+
+    fun dismissCelebration() { _celebration.value = null }
+
+    private fun celebrateGoal(objetivo: ObjetivoEntity) {
+        val extra = objetivo.valorGuardadoCentavos - objetivo.valorAlvoCentavos
+        _celebration.value = Celebration(
+            style = celebrationStyleFor(objetivo.tipo),
+            title = if (celebrationStyleFor(objetivo.tipo) == CelebrationStyle.Travel) "Viagem garantida!" else "Meta concluída!",
+            name = objetivo.nome,
+            detail = "${formatBrl0(objetivo.valorGuardadoCentavos / 100.0)} guardados" +
+                if (extra > 0) " · ${formatBrl0(extra / 100.0)} além do alvo" else "",
+        )
+    }
+
+    private fun celebrateDebt(divida: DividaEntity) {
+        _celebration.value = Celebration(
+            style = CelebrationStyle.DebtFree,
+            title = "Dívida quitada!",
+            name = divida.nome,
+            detail = if (divida.valorOriginalCentavos > 0) "${formatBrl0(divida.valorOriginalCentavos / 100.0)} pagos até o fim" else "Uma a menos na lista",
+        )
+    }
 
     /**
      * Roda uma escrita no Room sem deixar uma falha derrubar o app. [acao] é
@@ -144,7 +175,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             .getOrNull()
         val safe = payCycle?.let { SafeToSpendCalculator.fromCycle(it, aporteMensalMetasCents(goalPlans)) }
             ?: SafeToSpendCalculator.calculate(s.contas, s.transacoes, aporteMensalMetasCents(goalPlans), today)
-        val debtSummary = DebtCalculator.summarize(s.dividas, today)
+        // Quitadas saem da estratégia, do total e da negociação; ficam só no histórico.
+        val (paidDividas, activeDividas) = s.dividas.partition(Completion::isPaid)
+        val debtSummary = DebtCalculator.summarize(activeDividas, today)
         val transacoesDoMes = s.transacoes.transactionsInMonth(today)
         val budgetProgress = BudgetCalculator.forCategories(orcamentos, transacoesDoMes, today)
         val subscriptionInsights = SubscriptionCalculator.insights(s.assinaturas, today)
@@ -193,7 +226,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             rawOrcamentos = orcamentos,
             rawTransacoesDoMes = transacoesDoMes,
             rawTransacoes = s.transacoes,
-            goals = goalPlans.map { it.toUiGoal() },
+            goals = goalPlans.filterNot { Completion.isDone(it.objetivo) }.map { it.toUiGoal() },
+            completedGoals = goalPlans.filter { Completion.isDone(it.objetivo) }
+                .sortedByDescending { it.objetivo.concluidoEm ?: 0L }
+                .map { it.toUiGoal() },
+            paidDebts = paidDividas.sortedByDescending { it.quitadaEm ?: 0L }.map { it.toPaidDebt() },
             safeToday = safe,
             safeTodayLabel = formatBrl(safe.safeTodayCents / 100.0),
             saldoCents = saldoCents,
@@ -300,7 +337,19 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         repository.salvarTransacao(transacao.copy(extra = extra, recorrente = if (extra) false else transacao.recorrente))
     }
 
-    fun deleteTransacao(transacao: TransacaoEntity) = launchSafely("excluir o lançamento") { repository.excluirTransacao(transacao) }
+    /**
+     * Excluir o gasto de um pagamento de parcela ("Tablet · parcela 9 de 12") desfaz o
+     * pagamento: a parcela volta para a dívida. Era o único jeito de corrigir um "Paguei a
+     * parcela" tocado por engano — antes, excluir o gasto sumia com o valor e a dívida
+     * continuava avançada.
+     */
+    fun deleteTransacao(transacao: TransacaoEntity) = launchSafely("excluir o lançamento") {
+        repository.excluirTransacao(transacao)
+        val nome = com.finai.app.domain.DebtSchedule.debtNameOf(transacao) ?: return@launchSafely
+        val divida = uiState.value.rawDividas.firstOrNull { it.nome.trim() == nome } ?: return@launchSafely
+        val update = Completion.onDebtSaved(divida, com.finai.app.domain.DebtSchedule.undoPayment(divida, transacao), System.currentTimeMillis())
+        repository.salvarDivida(update.divida)
+    }
 
     // ── manual entry: contas ───────────────────────────────────
     fun saveConta(conta: ContaEntity) = launchSafely("salvar a conta") { repository.salvarConta(conta) }
@@ -321,7 +370,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // ── manual entry: objetivos ─────────────────────────────────
-    fun saveObjetivo(objetivo: ObjetivoEntity) = launchSafely("salvar o objetivo") { repository.salvarObjetivo(objetivo) }
+    fun saveObjetivo(objetivo: ObjetivoEntity) = launchSafely("salvar o objetivo") {
+        val before = uiState.value.rawObjetivos.firstOrNull { it.id == objetivo.id && objetivo.id != 0L }
+        val update = Completion.onGoalSaved(before, objetivo, System.currentTimeMillis())
+        repository.salvarObjetivo(update.objetivo)
+        if (update.celebrate) celebrateGoal(update.objetivo)
+    }
     fun deleteObjetivo(objetivo: ObjetivoEntity) = launchSafely("excluir o objetivo") { repository.excluirObjetivo(objetivo) }
 
     fun deleteObjetivoById(id: Long) {
@@ -333,12 +387,51 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun contribuirParaObjetivo(objetivoId: Long, valorReais: Double) {
         launchSafely("registrar a contribuição") {
             val objetivo = uiState.value.rawObjetivos.firstOrNull { it.id == objetivoId } ?: return@launchSafely
-            repository.salvarObjetivo(objetivo.copy(valorGuardadoCentavos = objetivo.valorGuardadoCentavos + Math.round(valorReais * 100)))
+            // Aporte continua valendo depois de concluída: o excedente fica visível no histórico.
+            val update = Completion.onGoalSaved(
+                objetivo,
+                objetivo.copy(valorGuardadoCentavos = objetivo.valorGuardadoCentavos + Math.round(valorReais * 100)),
+                System.currentTimeMillis(),
+            )
+            repository.salvarObjetivo(update.objetivo)
+            if (update.celebrate) celebrateGoal(update.objetivo)
         }
     }
 
     // ── manual entry: dívidas ───────────────────────────────────
-    fun saveDivida(divida: DividaEntity) = launchSafely("salvar a dívida") { repository.salvarDivida(divida) }
+    fun saveDivida(divida: DividaEntity) = launchSafely("salvar a dívida") {
+        val before = uiState.value.rawDividas.firstOrNull { it.id == divida.id && divida.id != 0L }
+        val update = Completion.onDebtSaved(before, divida, System.currentTimeMillis())
+        repository.salvarDivida(update.divida)
+        if (update.celebrate) celebrateDebt(update.divida)
+    }
+
+    /**
+     * Quita o que falta de uma vez (antecipação, ou dívida sem parcela fixa). Com
+     * [registrarPagamento], o saldo restante vira um gasto de hoje — mesma lógica de
+     * "Paguei a parcela"; sem ele, só marca (o usuário já lançou o pagamento).
+     */
+    fun quitarDivida(dividaId: Long, registrarPagamento: Boolean) {
+        launchSafely("quitar a dívida") {
+            val divida = uiState.value.rawDividas.firstOrNull { it.id == dividaId } ?: return@launchSafely
+            if (registrarPagamento && divida.valorAbertoCentavos > 0) {
+                repository.salvarTransacao(
+                    TransacaoEntity(
+                        data = LocalDate.now().toEpochMillis(),
+                        descricao = "${divida.nome} · quitação",
+                        valorCentavos = divida.valorAbertoCentavos,
+                        categoria = com.finai.app.domain.DebtSchedule.PAYMENT_CATEGORY,
+                        contaOrigem = "",
+                        recorrente = false,
+                        origem = com.finai.app.domain.DebtSchedule.PAYMENT_ORIGIN,
+                    ),
+                )
+            }
+            val update = Completion.onDebtSaved(divida, Completion.payOff(divida), System.currentTimeMillis())
+            repository.salvarDivida(update.divida)
+            if (update.celebrate) celebrateDebt(update.divida)
+        }
+    }
     fun deleteDivida(divida: DividaEntity) = launchSafely("excluir a dívida") { repository.excluirDivida(divida) }
 
     fun deleteDividaById(id: Long) {
@@ -373,7 +466,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 ),
             )
             // Avança o vencimento junto: a Agenda projeta as parcelas seguintes a partir dele.
-            repository.salvarDivida(com.finai.app.domain.DebtSchedule.afterPayment(divida, hoje))
+            val update = Completion.onDebtSaved(divida, com.finai.app.domain.DebtSchedule.afterPayment(divida, hoje), System.currentTimeMillis())
+            repository.salvarDivida(update.divida)
+            if (update.celebrate) celebrateDebt(update.divida)
         }
     }
 

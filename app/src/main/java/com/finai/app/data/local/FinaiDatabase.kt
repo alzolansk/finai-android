@@ -44,7 +44,7 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
         UsoProvedorIaEntity::class,
         NotificacaoEnviadaEntity::class,
     ],
-    version = 8,
+    version = 9,
     // Fase 6: o schema de cada versão passa a ser exportado para
     // `app/schemas/` e versionado no git. É o que permite escrever (e testar)
     // uma migração sem adivinhar o DDL que o Room gerou na versão anterior —
@@ -143,7 +143,15 @@ abstract class FinaiDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+        /** Metas concluídas e dívidas quitadas ganham data, para o histórico nas telas. */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `objetivos` ADD COLUMN `concluidoEm` INTEGER")
+                db.execSQL("ALTER TABLE `dividas` ADD COLUMN `quitadaEm` INTEGER")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
 
         @Volatile private var instance: FinaiDatabase? = null
 

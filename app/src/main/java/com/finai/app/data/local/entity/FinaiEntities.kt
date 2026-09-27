@@ -69,6 +69,8 @@ data class ObjetivoEntity(
     val prioridade: Int,
     /** Por que a meta existe, flexibilidade do prazo, o que está fora dela — contexto para a leitura da IA. */
     @androidx.room.ColumnInfo(defaultValue = "''") val descricao: String = "",
+    /** Quando o valor guardado alcançou o alvo (epoch millis). Nulo se ainda em andamento. */
+    val concluidoEm: Long? = null,
 )
 
 @Entity(tableName = "dividas")
@@ -88,6 +90,8 @@ data class DividaEntity(
      * Nulo em dívidas cadastradas antes da v6 ou sem parcela fixa.
      */
     val proximoVencimento: Long? = null,
+    /** Quando a dívida foi quitada (epoch millis) — ela sai da lista ativa e fica no histórico. */
+    val quitadaEm: Long? = null,
 )
 
 @Entity(tableName = "orcamento_categorias", primaryKeys = ["categoria", "mesReferencia"])

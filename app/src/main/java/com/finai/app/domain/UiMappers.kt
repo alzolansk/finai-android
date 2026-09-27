@@ -70,8 +70,25 @@ fun GoalPlan.toUiGoal(): Goal {
         action = "Registrar aporte",
         description = objetivo.descricao,
         projectionNote = projectionNote,
+        completedLabel = if (Completion.isDone(objetivo)) {
+            objetivo.concluidoEm?.let { "Concluída em ${monthShort(it)}" } ?: "Concluída"
+        } else null,
+        exceeded = centsToReais((objetivo.valorGuardadoCentavos - objetivo.valorAlvoCentavos).coerceAtLeast(0)),
     )
 }
+
+private fun monthShort(millis: Long): String {
+    val d = millis.toLocalDate()
+    return "${MONTH_NAMES_PT[d.monthValue - 1].take(3).lowercase()}/${d.year}"
+}
+
+fun com.finai.app.data.local.entity.DividaEntity.toPaidDebt() = com.finai.app.data.model.PaidDebt(
+    id = id,
+    name = nome,
+    originalLabel = if (valorOriginalCentavos > 0) formatBrl0(centsToReais(valorOriginalCentavos)) else "—",
+    paidLabel = quitadaEm?.let { "Quitada em ${monthShort(it)}" } ?: "Quitada",
+    detail = if (parcelasTotais > 0) "$parcelasTotais parcelas" else DebtCalculator.rateLabel(taxaJurosMensalBasisPoints),
+)
 
 fun DebtPlan.toUiDebt(): Debt {
     val (rateColor, barColor) = toneColors(
