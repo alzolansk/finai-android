@@ -701,6 +701,29 @@ Botão voltar do sistema fecha a camada de cima (27/09/2026):
   As quatro abas da barra continuam trocando entre si, e voltar numa aba leva à Início.
 - Conferido no emulador Pixel 6 API 34 (chat, "+", simulador, avisos, Limites a partir de um aviso).
 
+IA mais integrada: formatação, conversas, contexto (27/09/2026):
+- **`domain/AiReplyFormat.kt`** (Kotlin puro, `AiReplyFormatTest`) lê qualquer resposta de IA:
+  `**negrito**` vira ênfase, título/asterisco solto somem, R$ e % são marcados (negativo à parte),
+  `{{rótulo|valor}}` vira cartão de destaque (só o chat pede). `ui/components/AiRichText.kt`
+  desenha isso em todo texto de IA (chat, objetivos, decisões, coach, simulador, roteiro).
+  Notificação usa `AiReplyFormat.plain`. `SYSTEM_BASE` pede no máximo dois valores e que a IA
+  interprete em vez de repetir números da tela; "oi" não cita valores.
+- **Chat em conversas** (**Room 7→8**, `MIGRATION_7_8`): `mensagens_chat.conversaId` (histórico
+  antigo = conversa 0) e `contexto`. O prompt leva só a conversa atual, e o resumo leva a data de
+  hoje. Antes, mensagens antigas com números velhos iam no prompt, e isso parecia número inventado.
+  Chat tem "Nova conversa" e "Conversas anteriores" (reabrir, apagar). O ícone da topbar continua a
+  conversa de hoje ou começa uma nova.
+- **Botões contextuais** (`domain/AssistantTopic.kt`): "Conversar sobre isso" (coach), "Simular"
+  (objetivo), "Ensaiar a ligação" (dívida: a IA faz o papel do atendente), "Perguntar" (simulador)
+  e "Conversar" em cada decisão → `AppViewModel.askAbout`: conversa nova, pergunta já enviada, e o
+  contexto invisível do card vai no prompt da conversa inteira.
+- **`ObjetivoEntity.descricao`** (mesma migração): campo opcional no diálogo, que aparece no card.
+  A leitura da IA vem em "Agora / Próximo passo / Risco" (`AiReplyFormat.labeled`, com fallback
+  para o texto inteiro). "Decisões para você" vem em "ação | porquê" (`AiReplyFormat.decisions`).
+- 147 testes JVM verdes; migração coberta em `FinaiDatabaseMigrationTest` (compilado, não executado).
+  **Não conferido em emulador nem com chave real nesta rodada.** Os formatos pedidos no prompt
+  dependem do modelo. As telas têm fallback se ele não seguir, mas vale conferir com o Gemini real.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/
