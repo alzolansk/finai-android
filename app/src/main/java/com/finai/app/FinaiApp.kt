@@ -316,7 +316,6 @@ fun FinaiApp(
                             onPayInstallment = { debt -> financeViewModel.pagarParcela(debt.id) },
                             onRehearseCall = { askAbout(AssistantTopics.debtCall(financeState.debts)) },
                             paidDebts = financeState.paidDebts,
-                            onPayOff = { debt, registrar -> financeViewModel.quitarDivida(debt.id, registrar) },
                             onDeletePaidDebt = { paid -> financeViewModel.deleteDividaById(paid.id) },
                         )
                     }

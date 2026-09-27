@@ -44,10 +44,6 @@ object Completion {
             celebrate = before != null,
         )
     }
-
-    /** Quitar de uma vez o que falta (antecipação ou dívida sem parcela fixa). */
-    fun payOff(divida: DividaEntity): DividaEntity =
-        divida.copy(valorAbertoCentavos = 0, parcelasRestantes = 0, proximoVencimento = null)
 }
 
 /** Comemoração mostrada por cima de tudo ao concluir uma meta ou quitar uma dívida. */

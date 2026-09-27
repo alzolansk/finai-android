@@ -406,32 +406,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         if (update.celebrate) celebrateDebt(update.divida)
     }
 
-    /**
-     * Quita o que falta de uma vez (antecipação, ou dívida sem parcela fixa). Com
-     * [registrarPagamento], o saldo restante vira um gasto de hoje — mesma lógica de
-     * "Paguei a parcela"; sem ele, só marca (o usuário já lançou o pagamento).
-     */
-    fun quitarDivida(dividaId: Long, registrarPagamento: Boolean) {
-        launchSafely("quitar a dívida") {
-            val divida = uiState.value.rawDividas.firstOrNull { it.id == dividaId } ?: return@launchSafely
-            if (registrarPagamento && divida.valorAbertoCentavos > 0) {
-                repository.salvarTransacao(
-                    TransacaoEntity(
-                        data = LocalDate.now().toEpochMillis(),
-                        descricao = "${divida.nome} · quitação",
-                        valorCentavos = divida.valorAbertoCentavos,
-                        categoria = com.finai.app.domain.DebtSchedule.PAYMENT_CATEGORY,
-                        contaOrigem = "",
-                        recorrente = false,
-                        origem = com.finai.app.domain.DebtSchedule.PAYMENT_ORIGIN,
-                    ),
-                )
-            }
-            val update = Completion.onDebtSaved(divida, Completion.payOff(divida), System.currentTimeMillis())
-            repository.salvarDivida(update.divida)
-            if (update.celebrate) celebrateDebt(update.divida)
-        }
-    }
     fun deleteDivida(divida: DividaEntity) = launchSafely("excluir a dívida") { repository.excluirDivida(divida) }
 
     fun deleteDividaById(id: Long) {

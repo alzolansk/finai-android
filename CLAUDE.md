@@ -740,6 +740,23 @@ IA mais integrada: formatação, conversas, contexto (27/09/2026):
   continua limitado ao mês atual. A IA recebe a sobra do mês ("só o mês atual"), a projetada de
   12 meses e, por meta, a projetada até o prazo (`Goal.projectionNote`).
 
+Metas concluídas e dívidas quitadas (27/09/2026):
+- **Room 8→9** (`MIGRATION_8_9`): `objetivos.concluidoEm`, `dividas.quitadaEm`. As regras ficam em
+  `domain/Completion.kt`: meta concluída = guardado ≥ alvo; dívida quitada = parcelas do contrato
+  zeradas ou saldo zero. A transição grava a data e dispara a comemoração. Subir o alvo reabre a meta.
+- **Não existe botão "Quitar"** (o usuário pediu para tirar). A dívida é quitada só quando a última
+  parcela é paga ("Paguei a parcela", que agora pede confirmação).
+- `ui/components/CelebrationOverlay.kt`: viagem (tipo "Viagem") = avião em arco com rastro
+  pontilhado e nuvens; outras metas = troféu + confete; dívida = selo de feito + confete. A
+  comemoração vem de `FinanceViewModel.celebration` e fecha com toque ou voltar.
+- Telas: "Metas concluídas" (aceita aporte, mostra o que passou do alvo) e "Dívidas quitadas"
+  (histórico, fora de total/estratégia/negociação/projeção).
+- **Desfazer pagamento:** excluir na Agenda o gasto "X · parcela N de M" chama
+  `DebtSchedule.undoPayment` (a parcela volta, o vencimento recua um mês e a dívida sai de quitadas).
+  O elo é o nome da dívida, porque o gasto não guarda o id.
+- Conferido no emulador Pixel 6 API 34: as três comemorações, as duas listas e o desfazer.
+  Screenshots via `adb emu screenrecord screenshot` (o `screencap` saiu branco com a GPU swiftshader).
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

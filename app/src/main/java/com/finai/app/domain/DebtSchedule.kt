@@ -74,31 +74,20 @@ object DebtSchedule {
     const val PAYMENT_ORIGIN = "divida"
 
     /**
-     * Nome da dívida gravado no gasto do pagamento ("Tablet · parcela 9 de 12",
-     * "Tablet · quitação"). O gasto não guarda o id da dívida; o nome é o elo.
+     * Nome da dívida gravado no gasto do pagamento ("Tablet · parcela 9 de 12").
+     * O gasto não guarda o id da dívida; o nome é o elo.
      */
     fun debtNameOf(payment: TransacaoEntity): String? =
         payment.takeIf { it.origem == PAYMENT_ORIGIN }?.descricao?.substringBeforeLast(" · ")?.trim()?.takeIf { it.isNotEmpty() }
 
     /**
      * Desfaz um pagamento registrado por engano (excluir o gasto na Agenda): a
-     * parcela volta ao saldo e às restantes, e o vencimento volta um mês. Numa
-     * quitação, o valor volta inteiro e as parcelas são recontadas pelo saldo.
+     * parcela volta ao saldo e às restantes, e o vencimento volta um mês. Se era
+     * a última, a dívida sai de "Dívidas quitadas" e volta para a lista ativa.
      */
     fun undoPayment(divida: DividaEntity, payment: TransacaoEntity): DividaEntity {
         val aberto = divida.valorAbertoCentavos + payment.valorCentavos
         val paidOn = payment.data.toLocalDate()
-        if (payment.descricao.endsWith("quitação")) {
-            val restantes = if (divida.valorParcelaCentavos > 0) {
-                ((aberto + divida.valorParcelaCentavos - 1) / divida.valorParcelaCentavos).toInt()
-                    .let { if (divida.parcelasTotais > 0) it.coerceAtMost(divida.parcelasTotais) else it }
-            } else 0
-            return divida.copy(
-                valorAbertoCentavos = aberto,
-                parcelasRestantes = restantes,
-                proximoVencimento = if (restantes > 0) paidOn.toEpochMillis() else null,
-            )
-        }
         val current = divida.proximoVencimento?.toLocalDate()
         // Sem próximo vencimento, a parcela desfeita era a última: volta a vencer no dia do pagamento.
         val previous = current?.let { monthlyOccurrence(it, YearMonth.from(it).minusMonths(1)) } ?: paidOn

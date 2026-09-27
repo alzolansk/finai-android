@@ -67,13 +67,11 @@ fun DebtsScreen(
     onPayInstallment: (Debt) -> Unit,
     onRehearseCall: () -> Unit,
     paidDebts: List<PaidDebt> = emptyList(),
-    onPayOff: (Debt, registrarPagamento: Boolean) -> Unit = { _, _ -> },
     onDeletePaidDebt: (PaidDebt) -> Unit = {},
 ) {
     var pendingDelete by remember { mutableStateOf<Debt?>(null) }
     // Confirmação antes de pagar: um toque por engano em "Paguei a parcela" avançava a dívida.
     var pendingPay by remember { mutableStateOf<Debt?>(null) }
-    var pendingPayOff by remember { mutableStateOf<Debt?>(null) }
     var pendingDeletePaid by remember { mutableStateOf<PaidDebt?>(null) }
 
     LazyColumn(
@@ -163,7 +161,7 @@ fun DebtsScreen(
                         debts.forEach { debt ->
                             DebtRow(
                                 debt, onEdit = { onEditDebt(debt) }, onDelete = { pendingDelete = debt },
-                                onPay = { pendingPay = debt }, onPayOff = { pendingPayOff = debt },
+                                onPay = { pendingPay = debt },
                             )
                         }
                     }
@@ -259,21 +257,6 @@ fun DebtsScreen(
         )
     }
 
-    pendingPayOff?.let { debt ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { pendingPayOff = null },
-            title = { Text("Quitar \"${debt.name}\"?") },
-            text = {
-                Text(
-                    "Registrar ${debt.amount} como pagamento de hoje? Se você já lançou esse pagamento, escolha \"Só marcar\". " +
-                        "A dívida vai para \"Dívidas quitadas\".",
-                )
-            },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = { onPayOff(debt, true); pendingPayOff = null }) { Text("Registrar e quitar") } },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { onPayOff(debt, false); pendingPayOff = null }) { Text("Só marcar") } },
-        )
-    }
-
     pendingDeletePaid?.let { paid ->
         ConfirmDeleteDialog(
             title = "Apagar do histórico?",
@@ -326,7 +309,7 @@ private fun PaidDebtRow(paid: PaidDebt, onDelete: () -> Unit) {
 }
 
 @Composable
-private fun DebtRow(debt: Debt, onEdit: () -> Unit, onDelete: () -> Unit, onPay: () -> Unit, onPayOff: () -> Unit) {
+private fun DebtRow(debt: Debt, onEdit: () -> Unit, onDelete: () -> Unit, onPay: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(
             modifier = Modifier.size(26.dp).clip(RoundedCornerShape(9.dp)).background(FinaiColors.SurfaceMuted),
@@ -349,10 +332,6 @@ private fun DebtRow(debt: Debt, onEdit: () -> Unit, onDelete: () -> Unit, onPay:
                         modifier = Modifier.clickable(onClick = onPay),
                     )
                 }
-                Text(
-                    "Quitar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark,
-                    modifier = Modifier.clickable(onClick = onPayOff),
-                )
                 Text(
                     "Editar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextSecondary,
                     modifier = Modifier.clickable(onClick = onEdit),
