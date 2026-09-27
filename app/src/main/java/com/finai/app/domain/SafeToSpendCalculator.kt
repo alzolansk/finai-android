@@ -66,6 +66,22 @@ object SafeToSpendCalculator {
         )
     }
 
+    /**
+     * Com salário recorrente cadastrado, o dinheiro precisa durar até o próximo salário,
+     * não até o fim do mês: folga = livre do ciclo − aporte das metas, dividida pelos dias
+     * que faltam para ele cair. [SafeToSpendResult.lastDayOfMonth] vira o dia do salário.
+     */
+    fun fromCycle(cycle: PayCycle, aporteMensalMetasCents: Long): SafeToSpendResult {
+        val slack = cycle.livreCents - aporteMensalMetasCents
+        return SafeToSpendResult(
+            safeTodayCents = (slack / cycle.diasAteProximo).coerceAtLeast(0),
+            slackThisMonthCents = slack,
+            daysRemaining = cycle.diasAteProximo,
+            monthProgressFraction = cycle.progress,
+            lastDayOfMonth = cycle.proximo.dayOfMonth,
+        )
+    }
+
     /** [ContaEntity.vencimento] is what "the month" is measured against here. */
     private fun ContaEntity.data(): Long = vencimento
 }

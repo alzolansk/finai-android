@@ -133,7 +133,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val today = LocalDate.now()
         val monthlyCapacityCents = SavingsCapacityCalculator.monthlyCapacityCents(s.contas, s.dividas)
         val goalPlans = GoalCalculator.plan(s.objetivos, monthlyCapacityCents, today)
-        val safe = SafeToSpendCalculator.calculate(s.contas, s.transacoes, aporteMensalMetasCents(goalPlans), today)
+        val payCycle = com.finai.app.domain.PayCycle.of(s.contas, s.transacoes, s.dividas, today)
+        val safe = payCycle?.let { SafeToSpendCalculator.fromCycle(it, aporteMensalMetasCents(goalPlans)) }
+            ?: SafeToSpendCalculator.calculate(s.contas, s.transacoes, aporteMensalMetasCents(goalPlans), today)
         val debtSummary = DebtCalculator.summarize(s.dividas, today)
         val transacoesDoMes = s.transacoes.transactionsInMonth(today)
         val budgetProgress = BudgetCalculator.forCategories(orcamentos, transacoesDoMes, today)
@@ -188,10 +190,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             safeTodayLabel = formatBrl(safe.safeTodayCents / 100.0),
             saldoCents = saldoCents,
             saldoLabel = formatBrl(saldoCents / 100.0),
-            safeNote = if (safe.slackThisMonthCents >= 0)
-                "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} até o dia ${safe.lastDayOfMonth}, já descontadas contas e metas."
-            else
-                "Você já comprometeu ${formatBrl0(-safe.slackThisMonthCents / 100.0)} a mais do que entra este mês.",
+            payCycle = payCycle,
+            safeNote = when {
+                payCycle != null && safe.slackThisMonthCents >= 0 ->
+                    "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} até o salário do dia ${safe.lastDayOfMonth}, já descontadas contas, parcelas e metas."
+                payCycle != null ->
+                    "Faltam ${formatBrl0(-safe.slackThisMonthCents / 100.0)} para cobrir contas e metas até o salário do dia ${safe.lastDayOfMonth}."
+                safe.slackThisMonthCents >= 0 ->
+                    "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} até o dia ${safe.lastDayOfMonth}, já descontadas contas e metas."
+                else ->
+                    "Você já comprometeu ${formatBrl0(-safe.slackThisMonthCents / 100.0)} a mais do que entra este mês."
+            },
             nextWeekBills = weekBills,
             timeline = timelineExtras.map { it.toUiTimelineEntry() },
             timelineNote = if (timelineExtras.isEmpty())

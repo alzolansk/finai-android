@@ -606,6 +606,18 @@ Saldo = Agenda, "Livre em" pelo contrato, nova logo (26/09/2026):
   ícone adaptativo com a folha em `mipmap-*/ic_launcher_foreground.png` sobre fundo branco.
 - 121 testes JVM verdes. Não conferido em aparelho.
 
+Ciclo do salário — branch `experimento` (26/09/2026):
+- **`domain/PayCycle.kt`**: "até o próximo salário", segunda camada ao lado do balanço do
+  mês. Salário = maior Receita recorrente não-extra (não há campo "salário"; escolha do
+  usuário foi não informar saldo de banco). Ciclo = [último salário, véspera do próximo);
+  entradas do ciclo − saídas (gastos, contas pelo vencimento, parcelas; vencido não pago
+  do ciclo anterior entra como devido hoje). Sobra do ciclo anterior **não** é carregada.
+  `shortfall` acha o primeiro dia em que o saldo corrido fica negativo.
+- Início: novo `PayCycleCard` (livre, entradas/já saiu/a pagar, alerta de falta); o antigo
+  "Saldo atual" virou "Balanço de <mês>". "Pode gastar hoje" usa
+  `SafeToSpendCalculator.fromCycle` (livre − metas ÷ dias até o salário) quando há ciclo.
+- `PayCycleTest` (10 testes). Não conferido em aparelho.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

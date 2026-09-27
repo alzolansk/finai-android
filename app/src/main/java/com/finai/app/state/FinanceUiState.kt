@@ -45,7 +45,9 @@ data class FinanceUiState(
     val safeToday: SafeToSpendResult? = null,
     val safeTodayLabel: String = "",
     val safeNote: String = "",
-    /** Saldo agregado (receitas - gastos, transferência neutra) de todas as transações já lançadas. */
+    /** Ciclo entre salários ([com.finai.app.domain.PayCycle]); nulo sem receita recorrente cadastrada. */
+    val payCycle: com.finai.app.domain.PayCycle? = null,
+    /** Balanço do mês corrente — recebimentos − contas a pagar, a mesma conta da Agenda (MonthCashFlow). */
     val saldoCents: Long = 0,
     val saldoLabel: String = "",
     val nextWeekBills: List<WeekBill> = emptyList(),

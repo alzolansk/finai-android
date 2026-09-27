@@ -213,6 +213,7 @@ fun FinaiApp(
                             goals = financeState.goals,
                             saldoLabel = financeState.saldoLabel,
                             saldoPositivo = financeState.saldoCents >= 0,
+                            payCycle = financeState.payCycle,
                             safeToday = financeState.safeToday,
                             safeTodayLabel = financeState.safeTodayLabel,
                             safeNote = financeState.safeNote,
