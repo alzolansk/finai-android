@@ -20,6 +20,15 @@ object TransactionEntry {
     fun canSave(cents: String, category: String) = (cents.toLongOrNull() ?: 0) > 0 && category in categories
 }
 
+/**
+ * Ocorrência mensal de uma série iniciada em [start]. Começar no último dia do mês
+ * (30/09, 28/02) quer dizer "todo fim de mês": vira 31/10, 30/11, 31/12. Fora isso é o
+ * mesmo dia, e 29–31 num mês mais curto cai no último dia dele.
+ */
+fun monthlyOccurrence(start: LocalDate, month: YearMonth): LocalDate =
+    if (start.dayOfMonth == start.lengthOfMonth()) month.atEndOfMonth()
+    else month.atDay(start.dayOfMonth.coerceAtMost(month.lengthOfMonth()))
+
 /** Recurring entries retain their Room id: the monthly occurrence is a projection, not a duplicate insert. */
 fun List<TransacaoEntity>.transactionsInMonth(date: LocalDate): List<TransacaoEntity> {
     val month = YearMonth.from(date)
@@ -28,7 +37,7 @@ fun List<TransacaoEntity>.transactionsInMonth(date: LocalDate): List<TransacaoEn
         when {
             YearMonth.from(start) == month -> entry
             entry.recorrente && YearMonth.from(start) < month -> entry.copy(
-                data = month.atDay(start.dayOfMonth.coerceAtMost(month.lengthOfMonth())).toEpochMillis())
+                data = monthlyOccurrence(start, month).toEpochMillis())
             else -> null
         }
     }

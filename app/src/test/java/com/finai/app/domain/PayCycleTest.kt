@@ -16,7 +16,7 @@ class PayCycleTest {
             data = date.toEpochMillis(), descricao = desc, valorCentavos = cents, categoria = "Outros",
             contaOrigem = "Carteira", recorrente = recorrente, origem = "manual", tipo = tipo.name, extra = extra)
 
-    private fun salario(cents: Long = 600_000, desde: LocalDate = LocalDate.of(2026, 6, 30)) =
+    private fun salario(cents: Long = 600_000, desde: LocalDate = LocalDate.of(2026, 7, 30)) =
         tx(desde, cents, TransactionType.Receita, recorrente = true, desc = "Salário")
 
     private fun conta(nome: String, cents: Long, vence: LocalDate, status: String = "pendente") = ContaEntity(

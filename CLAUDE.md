@@ -619,7 +619,11 @@ Ciclo do salário — branch `experimento` (26/09/2026):
 - Início: novo `PayCycleCard` (livre, entradas/já saiu/a pagar, alerta de falta); o antigo
   "Saldo atual" virou "Balanço de <mês>". "Pode gastar hoje" usa
   `SafeToSpendCalculator.fromCycle` (livre − metas ÷ dias até o salário) quando há ciclo.
-- `PayCycleTest` (10 testes). Não conferido em aparelho.
+- **Recorrência de fim de mês** (`monthlyOccurrence` em `domain/TransactionEntry.kt`): série
+  que começa no último dia do mês (30/09, 28/02) segue o último dia (31/10, 30/11); qualquer
+  outro dia continua igual. Vale para lançamentos recorrentes e salário do ciclo; parcelas
+  de dívida (`DebtSchedule.dueDateIn`) ainda usam dia fixo — pendente de decisão do usuário.
+- `PayCycleTest` (14 testes). Não conferido em aparelho.
 
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja

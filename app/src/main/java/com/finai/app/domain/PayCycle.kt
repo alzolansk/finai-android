@@ -106,7 +106,7 @@ data class PayCycle(
             val cur = YearMonth.from(today)
             return (-1L..1L).map { cur.plusMonths(it) }
                 .filter { it >= YearMonth.from(first) }
-                .map { DebtSchedule.dueDateIn(it, first.dayOfMonth) } + first
+                .map { monthlyOccurrence(first, it) } + first
         }
 
         fun of(

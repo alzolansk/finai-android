@@ -55,4 +55,18 @@ class TransactionEntryTest {
         assertEquals(day, entries.single().data.toLocalDate())
         assertTrue(listOf(entry("Gasto")).transactionsInMonth(day.plusMonths(1)).isEmpty())
     }
+
+    /** O caso real: contas lançadas recorrentes em 30/09 querem dizer "todo último dia". */
+    @Test fun seriesStartingOnMonthEndFollowsMonthEnd() {
+        val trinta = LocalDate.of(2026, 9, 30)
+        val conta = entry("Gasto", true).copy(data = trinta.toEpochMillis())
+        fun em(y: Int, m: Int) = listOf(conta).transactionsInMonth(LocalDate.of(y, m, 1)).single().data.toLocalDate()
+        assertEquals(LocalDate.of(2026, 10, 31), em(2026, 10))
+        assertEquals(LocalDate.of(2026, 11, 30), em(2026, 11))
+        assertEquals(LocalDate.of(2027, 2, 28), em(2027, 2))
+        // Dia 30 num mês de 31 não é fim de mês: continua dia 30.
+        val dia30 = entry("Gasto", true).copy(data = LocalDate.of(2026, 10, 30).toEpochMillis())
+        assertEquals(LocalDate.of(2026, 11, 30), listOf(dia30).transactionsInMonth(LocalDate.of(2026, 11, 1)).single().data.toLocalDate())
+        assertEquals(LocalDate.of(2026, 12, 30), listOf(dia30).transactionsInMonth(LocalDate.of(2026, 12, 1)).single().data.toLocalDate())
+    }
 }
