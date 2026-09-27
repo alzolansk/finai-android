@@ -7,7 +7,10 @@ import com.finai.app.data.ai.AiProvider
 import com.finai.app.data.ai.AiRequest
 import com.finai.app.data.ai.AiResponse
 import com.finai.app.data.ai.AiRouter
+import com.finai.app.data.ai.AiTask
 import com.finai.app.data.ai.AiText
+import com.finai.app.data.ai.AiFailureKind
+import com.finai.app.data.ai.ProviderUsageStore
 import com.finai.app.data.ai.ProviderId
 import com.finai.app.data.model.Budget
 import com.finai.app.domain.BehaviorPattern
@@ -24,7 +27,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The app's AI layer (planning.md §9 Fase 2/3): every screen that needs
@@ -40,6 +45,20 @@ import kotlinx.coroutines.launch
  * would change the answer, so a recomposition or a Room re-emit that doesn't
  * actually change those numbers doesn't re-spend API quota.
  */
+sealed interface ConnectionTest {
+    data object Running : ConnectionTest
+    data object Ok : ConnectionTest
+    data class Failed(val reason: String) : ConnectionTest
+}
+
+private const val CONNECTION_TEST_TIMEOUT_MS = 20_000L
+
+private val CONNECTION_TEST_REQUEST = AiRequest(
+    task = AiTask.CHAT,
+    systemInstruction = "Responda apenas com a palavra OK.",
+    prompt = "Teste de conexão.",
+)
+
 class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     private val keyStore = AiKeyStore.get(application)
@@ -52,8 +71,56 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         ProviderId.entries.filterIndexed { i, _ -> !keys[i].isNullOrBlank() }.toSet()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
-    fun setProviderKey(id: ProviderId, key: String) = keyStore.setKey(id, key)
-    fun clearProviderKey(id: ProviderId) = keyStore.clearKey(id)
+    fun setProviderKey(id: ProviderId, key: String) {
+        keyStore.setKey(id, key)
+        _connectionTests.update { it - id }
+    }
+
+    fun clearProviderKey(id: ProviderId) {
+        keyStore.clearKey(id)
+        _connectionTests.update { it - id }
+    }
+
+    private val usageStore = ProviderUsageStore.get(application)
+
+    /** Provedores que responderam 429 hoje — o roteador os pula até a meia-noite. */
+    val exhaustedToday: StateFlow<Set<ProviderId>> = usageStore.exhaustedTodayFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    private val _connectionTests = MutableStateFlow<Map<ProviderId, ConnectionTest>>(emptyMap())
+    val connectionTests: StateFlow<Map<ProviderId, ConnectionTest>> = _connectionTests
+
+    /**
+     * "Testar conexão" das Configurações: uma chamada mínima direto no
+     * adaptador do provedor, sem roteador nem cache — o que se quer saber é se
+     * *esta* chave responde. O prompt não carrega nenhum dado financeiro. Um
+     * 429 aqui marca o provedor como esgotado do dia, igual ao roteador faria.
+     */
+    fun testProvider(id: ProviderId) {
+        if (_connectionTests.value[id] == ConnectionTest.Running) return
+        _connectionTests.update { it + (id to ConnectionTest.Running) }
+        viewModelScope.launch {
+            val adapter = AiRouter.adapterFor(getApplication(), id)
+            usageStore.recordAttempt(id)
+            // O timeout do HttpURLConnection não cobre a resolução de DNS: sem
+            // rede de verdade, a chamada pode ficar bloqueada por minutos. O
+            // `await` é cancelável mesmo com a thread de IO presa, então a
+            // tela sempre recebe um resultado.
+            val call = async { adapter.generate(CONNECTION_TEST_REQUEST) }
+            val result = when (val response = withTimeoutOrNull(CONNECTION_TEST_TIMEOUT_MS) { call.await() }) {
+                null -> {
+                    call.cancel()
+                    ConnectionTest.Failed("Sem resposta do ${id.displayName} em 20 segundos. Confira a conexão com a internet.")
+                }
+                is AiResponse.Success -> ConnectionTest.Ok
+                is AiResponse.Unavailable -> {
+                    if (response.kind == AiFailureKind.RATE_LIMITED) usageStore.markExhaustedToday(id)
+                    ConnectionTest.Failed(response.reason)
+                }
+            }
+            _connectionTests.update { it + (id to result) }
+        }
+    }
 
     // ── objetivos: "leitura da IA" por objetivo ─────────────────────────
     private val _goalInsights = MutableStateFlow<Map<String, AiText>>(emptyMap())

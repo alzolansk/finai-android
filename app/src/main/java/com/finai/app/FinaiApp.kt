@@ -66,13 +66,13 @@ import com.finai.app.ui.components.AddGoalDialog
 import com.finai.app.ui.components.TransactionEntryScreen
 import com.finai.app.domain.transactionsInMonth
 import androidx.compose.runtime.saveable.rememberSaveable
-import com.finai.app.ui.components.ApiKeySettingsScreen
+import com.finai.app.ui.components.SettingsScreen
+import com.finai.app.ui.components.rememberOnResume
 import com.finai.app.ui.components.BudgetLimitDialog
 import com.finai.app.ui.components.BuySimulatorContent
 import com.finai.app.ui.components.ChatOverlay
 import com.finai.app.ui.components.ContributionDialog
 import com.finai.app.ui.components.FinaiBottomNav
-import com.finai.app.ui.components.FinaiSettingsTopBar
 import com.finai.app.ui.components.FinaiTopBar
 import com.finai.app.ui.components.InitialSetupWizard
 import com.finai.app.ui.components.NotificationsCard
@@ -169,12 +169,9 @@ fun FinaiApp(
 
     Box(modifier = Modifier.fillMaxSize().background(FinaiColors.Background)) {
         Column(modifier = Modifier.fillMaxSize().then(if (showAddTransaction) Modifier.clearAndSetSemantics {} else Modifier)) {
-            if (current == FinaiDestination.AiSettings) {
-                FinaiSettingsTopBar(
-                    title = current.screenLabel,
-                    onNavigateBack = { navController.navigateUp() },
-                )
-            } else {
+            // Configurações desenha a própria topbar: o título e o "voltar"
+            // acompanham a subpágina aberta dentro dela.
+            if (current != FinaiDestination.AiSettings) {
                 FinaiTopBar(
                     screenLabel = current.screenLabel,
                     notifCount = financeState.alerts.size,
@@ -328,12 +325,18 @@ fun FinaiApp(
                     }
                     composable(FinaiDestination.AiSettings.route) {
                         val context = LocalContext.current
-                        ApiKeySettingsScreen(
+                        val exhaustedAiProviders by aiViewModel.exhaustedToday.collectAsState()
+                        val aiConnectionTests by aiViewModel.connectionTests.collectAsState()
+                        SettingsScreen(
+                            onExit = { navController.navigateUp() },
                             configuredProviders = configuredAiProviders,
-                            onSave = aiViewModel::setProviderKey,
-                            onClear = aiViewModel::clearProviderKey,
-                            notificationsEnabled = remember { FinaiNotifier(context).hasNotificationPermission() },
-                            onTestNotifications = { FinanceCheckWorker.runOnce(context) },
+                            exhaustedProviders = exhaustedAiProviders,
+                            connectionTests = aiConnectionTests,
+                            onSaveKey = aiViewModel::setProviderKey,
+                            onClearKey = aiViewModel::clearProviderKey,
+                            onTestProvider = aiViewModel::testProvider,
+                            notificationsEnabled = rememberOnResume { FinaiNotifier(context).hasNotificationPermission() },
+                            onRunNotificationCheck = { FinanceCheckWorker.runOnce(context) },
                             onRestartTour = viewModel::restartOnboarding,
                             knownAccounts = knownAccounts,
                             onAddAccount = { name -> viewModel.addKnownAccounts(setOf(name)) },

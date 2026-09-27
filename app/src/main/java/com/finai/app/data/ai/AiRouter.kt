@@ -121,15 +121,23 @@ class AiRouter(
     companion object {
         private const val TAG = "AiRouter"
 
-        private fun defaultAdapters(context: Context): List<Pair<ProviderId, AiProvider>> {
+        private fun defaultAdapters(context: Context): List<Pair<ProviderId, AiProvider>> =
+            ProviderId.entries.map { it to adapterFor(context, it) }
+
+        /**
+         * O adaptador de um provedor só, fora do roteador — usado pelo "Testar
+         * conexão" das Configurações, que precisa saber se *aquela* chave
+         * funciona, sem fallback nem cache escondendo a resposta.
+         */
+        fun adapterFor(context: Context, id: ProviderId): AiProvider {
             val keyStore = AiKeyStore.get(context)
-            return listOf(
-                ProviderId.GEMINI to GeminiAiProvider(keyStore),
-                ProviderId.GROQ to GroqAiProvider(keyStore),
-                ProviderId.OPENROUTER to OpenRouterAiProvider(keyStore),
-                ProviderId.MISTRAL to MistralAiProvider(keyStore),
-                ProviderId.CEREBRAS to CerebrasAiProvider(keyStore),
-            )
+            return when (id) {
+                ProviderId.GEMINI -> GeminiAiProvider(keyStore)
+                ProviderId.GROQ -> GroqAiProvider(keyStore)
+                ProviderId.OPENROUTER -> OpenRouterAiProvider(keyStore)
+                ProviderId.MISTRAL -> MistralAiProvider(keyStore)
+                ProviderId.CEREBRAS -> CerebrasAiProvider(keyStore)
+            }
         }
     }
 }

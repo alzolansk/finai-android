@@ -8,7 +8,10 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.finai.app.util.FinaiLog
 import java.io.IOException
 import java.time.LocalDate
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 private val Context.aiUsageDataStore by preferencesDataStore(name = "finai_ai_usage")
 
@@ -72,6 +75,22 @@ class ProviderUsageStore private constructor(context: Context) : UsageTracker {
         FinaiLog.w(TAG, "Não foi possível ler a cota de ${provider.displayName}", e)
         false
     }
+
+    /**
+     * Provedores marcados como esgotados hoje — só para a tela de
+     * Configurações mostrar "cota esgotada hoje" em vez de "em uso". A data é
+     * lida a cada emissão; se a meia-noite passar com a tela aberta, o estado
+     * só se corrige na próxima escrita, o que é aceitável para um rótulo.
+     */
+    fun exhaustedTodayFlow(): Flow<Set<ProviderId>> = dataStore.data
+        .map { prefs ->
+            val today = LocalDate.now().toString()
+            ProviderId.entries.filter { prefs[exhaustedDateKey(it)] == today }.toSet()
+        }
+        .catch { e ->
+            FinaiLog.w(TAG, "Não foi possível ler a cota dos provedores", e)
+            emit(emptySet())
+        }
 
     companion object {
         private const val TAG = "ProviderUsageStore"

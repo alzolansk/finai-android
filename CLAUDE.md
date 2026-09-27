@@ -639,6 +639,34 @@ já mergeado no `main`):
   pediu para voltar nisso depois; (c) Limites não aparece na barra de baixo (só pelo
   "Ajustar limites" do cartão preto) — o usuário não achava a tela.
 
+Configurações viraram central de gerenciamento (27/09/2026):
+- **`ui/components/SettingsScreen.kt`** (antes `AiSettingsDialog.kt`, as menções acima a esse
+  arquivo e a `DataPrivacySection` são históricas) — a página principal só mostra *estado*:
+  quatro linhas compactas (IA e assistente, Notificações, Contas e cartões, Privacidade e
+  dados) com subtítulo de status e chevron, mais "Rever tour guiado" num grupo "Ajuda" à
+  parte (saiu de "Dados e privacidade"). Formulário só aparece dentro da subpágina.
+- Subpáginas ficam num `rememberSaveable` dentro da própria tela, não em rotas do NavHost
+  (pilha rasa: principal → IA → provedor); por isso a tela desenha a própria
+  `FinaiSettingsTopBar` e `FinaiApp` não desenha topbar nessa rota. `BackHandler` volta um nível.
+- **IA e assistente**: "<provedor> está em uso" + explicação do fallback automático, lista
+  numerada na ordem fixa do `AiRouter` com selo Em uso / Reserva / Sem cota hoje. "Em uso" =
+  primeiro com chave e não esgotado hoje (`ProviderUsageStore.exhaustedTodayFlow`, novo).
+  **Ordem não é configurável** — continua a de planning.md §7.3.
+- **Página do provedor**: conectado não mostra campo — "Chave configurada ••••" + Trocar,
+  "Testar conexão" e "Desconectar" (com confirmação). Sem chave: campo + "Conectar", que
+  salva e já testa; link de onde tirar a chave; modelo gratuito usado (lido de `DEFAULT_MODEL`).
+- **Testar conexão** (`AiViewModel.testProvider`, `AiRouter.adapterFor`): chamada mínima direto
+  no adaptador, sem roteador/cache, sem dado financeiro no prompt; 429 marca esgotado do dia.
+  Limite de 20s via `async` + `withTimeoutOrNull`, porque **o timeout do `HttpURLConnection`
+  não cobre DNS** — no emulador sem DNS a chamada ficava presa indefinidamente
+  (`InetAddress.getAllByName`). O mesmo vale para as chamadas normais do `AiRouter`, que não
+  foram mexidas: numa rede sem DNS o "carregando" da IA pode durar muito.
+- Notificações: permissão relida a cada ON_RESUME (`rememberOnResume`), linha que abre os
+  ajustes do sistema, "Verificar agora" (o antigo "Testar agora").
+- Nota: o `DEFAULT_MODEL` do Gemini hoje é `gemini-3.5-flash-lite` (a seção da Fase 3 cita outro).
+- Build e 137 testes JVM verdes; telas conferidas no emulador Pixel 6 API 34 (sem rede real,
+  então o teste de conexão só foi visto no caminho de falha).
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/
