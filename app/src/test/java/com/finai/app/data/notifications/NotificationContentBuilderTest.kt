@@ -5,6 +5,7 @@ import com.finai.app.data.ai.AiProvider
 import com.finai.app.data.ai.AiRequest
 import com.finai.app.data.ai.AiResponse
 import com.finai.app.data.ai.AiTask
+import com.finai.app.domain.AlertKind
 import com.finai.app.domain.AlertSeverity
 import com.finai.app.domain.BehaviorPattern
 import com.finai.app.domain.BehaviorPatternKind
@@ -35,7 +36,7 @@ class NotificationContentBuilderTest {
     }
 
     private fun alert(id: String, title: String = "Título", body: String = "Corpo") =
-        FinanceAlert(id, AlertSeverity.Urgent, title, body)
+        FinanceAlert(id, AlertSeverity.Urgent, title, body, AlertKind.Bill)
 
     @Test
     fun `um unico alerta usa o titulo do proprio alerta e o texto da IA quando disponivel`() = runTest {

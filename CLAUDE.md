@@ -667,6 +667,25 @@ Configurações viraram central de gerenciamento (27/09/2026):
 - Build e 137 testes JVM verdes; telas conferidas no emulador Pixel 6 API 34 (sem rede real,
   então o teste de conexão só foi visto no caminho de falha).
 
+Painel de avisos refeito + versionCode automático (27/09/2026):
+- **`NotificationsPanel`** (`ui/components/NotificationsOverlay.kt`, substitui `NotificationsCard`):
+  antes o cartão ficava a 12 dp do topo da tela, **sob a barra de status**. Agora abre logo
+  abaixo da topbar (`statusBarsPadding` + `TopBarContentHeight`), com uma seta apontando o
+  sino e crescendo a partir dele (`scaleIn` com `TransformOrigin` no centro do sino, medido
+  por `FinaiTopBar.onBellCenterX`). Cabeçalho com resumo ("1 pede ação agora · 2 para
+  acompanhar") e botão X, grupos por urgência (Agir agora / Acompanhar / Boas notícias),
+  linhas com ícone por tipo e "Ver na Agenda"/"Ver em Limites"/"Ver objetivos". Tocar leva
+  à tela. Voltar do sistema fecha.
+- `FinanceAlert` ganhou `kind: AlertKind` (Bill, Budget, Subscription, Income, Goal), definido
+  em `AlertCalculator`, para o painel não depender do formato do id.
+- **Ícone do app não atualizava no celular**: os recursos estavam certos; o `versionCode` era
+  fixo em 1, e launchers (o da Samsung em especial) guardam o ícone em cache por
+  pacote + versionCode. Agora `versionCode` = número de commits (`git rev-list --count HEAD`,
+  fallback 1). **Consequência:** um APK gerado de um commit mais antigo tem versionCode menor
+  e o Android recusa instalar por cima; é preciso desinstalar, o que apaga os dados.
+- Build e 137 testes JVM verdes. **Não conferido em emulador nem no celular** (o emulador foi
+  encerrado por falta de memória).
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

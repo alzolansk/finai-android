@@ -28,6 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -46,9 +48,13 @@ private val BrandLeafDeep = Color(0xFF0B6B3A)
 
 /** Botão quadrado da topbar no verde da marca: fundo em degradê suave, contorno e ícone da folha. */
 @Composable
-private fun BrandIconButton(onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit) {
+private fun BrandIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit,
+) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(36.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Brush.linearGradient(listOf(BrandLeafMist, BrandLeafWash)))
@@ -72,6 +78,7 @@ fun FinaiTopBar(
     onOpenChat: () -> Unit,
     onOpenAiSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    onBellCenterX: (Float) -> Unit = {},
 ) {
     Row(
         modifier = modifier
@@ -100,7 +107,11 @@ fun FinaiTopBar(
             BrandIconButton(onClick = onOpenAiSettings) {
                 Icon(Icons.Outlined.Settings, contentDescription = "Configurações", tint = BrandLeafDeep, modifier = Modifier.size(20.dp))
             }
-            BrandIconButton(onClick = onOpenNotifications) {
+            // O painel de avisos aponta a seta para o centro do sino e cresce a partir dele.
+            BrandIconButton(
+                onClick = onOpenNotifications,
+                modifier = Modifier.onGloballyPositioned { onBellCenterX(it.boundsInRoot().center.x) },
+            ) {
                 Icon(Icons.Outlined.Notifications, contentDescription = "Avisos", tint = BrandLeafDeep, modifier = Modifier.size(20.dp))
                 // A new alert popping the badge in (rather than just appearing) is the one
                 // place a little spring feels right — it's rare and meant to catch the eye.

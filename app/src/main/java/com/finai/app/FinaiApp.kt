@@ -1,6 +1,14 @@
 package com.finai.app
 
 import androidx.compose.animation.AnimatedVisibility
+import com.finai.app.domain.AlertKind
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -75,7 +83,8 @@ import com.finai.app.ui.components.ContributionDialog
 import com.finai.app.ui.components.FinaiBottomNav
 import com.finai.app.ui.components.FinaiTopBar
 import com.finai.app.ui.components.InitialSetupWizard
-import com.finai.app.ui.components.NotificationsCard
+import com.finai.app.ui.components.NotificationsPanel
+import com.finai.app.ui.components.TopBarContentHeight
 import com.finai.app.ui.components.OnboardingTour
 import com.finai.app.ui.components.QuickActionSheet
 import com.finai.app.ui.screens.agenda.AgendaScreen
@@ -141,6 +150,7 @@ fun FinaiApp(
     }
 
     var showAddTransaction by rememberSaveable { mutableStateOf(false) }
+    var bellCenterX by remember { mutableStateOf<Float?>(null) }
     // Único ponto de entrada pra lançar algo novo (planning.md §11: "Conta" deixou de ter
     // um "+" próprio — tudo que o usuário cadastra passa por aqui, e é isso que faz o
     // resumo da Agenda refletir o que foi lançado). initialType só é aplicado se a tela
@@ -178,6 +188,7 @@ fun FinaiApp(
                     onOpenNotifications = viewModel::openNotifications,
                     onOpenChat = viewModel::openChat,
                     onOpenAiSettings = { navController.navigate(FinaiDestination.AiSettings.route) { launchSingleTop = true } },
+                    onBellCenterX = { bellCenterX = it },
                 )
             }
             Box(modifier = Modifier.weight(1f)) {
@@ -460,17 +471,44 @@ fun FinaiApp(
         ) {
             Scrim(onDismiss = viewModel::closeNotifications)
         }
+        // Painel de avisos: fica logo abaixo da topbar (nunca sob a barra de
+        // status) e cresce a partir do sino, com a seta apontando para ele.
+        val density = LocalDensity.current
+        val configuration = LocalConfiguration.current
+        val panelMargin = 12.dp
+        val panelWidthPx = with(density) { (configuration.screenWidthDp.dp - panelMargin * 2).toPx() }
+        val caretX = bellCenterX?.let { with(density) { (it - panelMargin.toPx()).toDp() } }
+        val panelOrigin = TransformOrigin(
+            pivotFractionX = bellCenterX?.let { ((it - with(density) { panelMargin.toPx() }) / panelWidthPx).coerceIn(0f, 1f) } ?: 0.6f,
+            pivotFractionY = 0f,
+        )
+        BackHandler(enabled = uiState.notifsOpen) { viewModel.closeNotifications() }
         AnimatedVisibility(
             visible = uiState.notifsOpen,
-            enter = fadeIn(finaiTween(FinaiMotion.Standard)) + slideInVertically(finaiTween(FinaiMotion.Standard)) { -it / 6 },
-            exit = fadeOut(finaiTween(FinaiMotion.Quick)) + slideOutVertically(finaiTween(FinaiMotion.Quick)) { -it / 6 },
+            enter = fadeIn(finaiTween(FinaiMotion.Standard)) +
+                scaleIn(finaiTween(FinaiMotion.Standard), initialScale = 0.9f, transformOrigin = panelOrigin),
+            exit = fadeOut(finaiTween(FinaiMotion.Quick)) +
+                scaleOut(finaiTween(FinaiMotion.Quick), targetScale = 0.95f, transformOrigin = panelOrigin),
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 12.dp, start = 16.dp, end = 16.dp),
+                .statusBarsPadding()
+                .padding(top = TopBarContentHeight - 6.dp, start = panelMargin, end = panelMargin),
         ) {
-            NotificationsCard(
+            NotificationsPanel(
                 alerts = financeState.alerts,
+                caretX = caretX,
+                maxListHeight = (configuration.screenHeightDp * 0.6f).dp,
                 onClose = viewModel::closeNotifications,
+                onOpenAlert = { alert ->
+                    viewModel.closeNotifications()
+                    navigateTo(
+                        when (alert.kind) {
+                            AlertKind.Bill, AlertKind.Income -> FinaiDestination.Agenda
+                            AlertKind.Budget, AlertKind.Subscription -> FinaiDestination.Budgets
+                            AlertKind.Goal -> FinaiDestination.Goals
+                        },
+                    )
+                },
             )
         }
 

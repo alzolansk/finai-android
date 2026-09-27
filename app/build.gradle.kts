@@ -20,6 +20,16 @@ val keystoreProperties = Properties().apply {
 }
 val hasReleaseSigning = keystoreProperties.getProperty("storeFile")?.isNotBlank() == true
 
+// versionCode = número de commits. Com ele fixo em 1, instalar um APK novo por
+// cima do antigo não contava como versão nova para o launcher: vários (o da
+// Samsung em especial) guardam o ícone em cache por pacote + versionCode, e o
+// ícone novo da folha não aparecia nem depois de reiniciar o celular. Sem git
+// disponível (ex.: cópia do código sem .git), cai para 1.
+val gitCommitCount: Int = runCatching {
+    providers.exec { commandLine("git", "rev-list", "--count", "HEAD") }
+        .standardOutput.asText.get().trim().toInt()
+}.getOrDefault(1)
+
 android {
     namespace = "com.finai.app"
     compileSdk = 34
@@ -28,7 +38,7 @@ android {
         applicationId = "com.finai.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
+        versionCode = gitCommitCount
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
