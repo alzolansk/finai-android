@@ -628,7 +628,9 @@ já mergeado no `main`):
   próximo vencimento, não o dia contratado — uma dívida de dia fixo 29/30 que, ao pagar,
   cai num fim de mês (30/11, 28/02) passa a seguir o fim de mês. Corrigir exige um campo
   `diaVencimento` (migração Room).
-- 137 testes JVM verdes. Conferido pelo usuário no celular (APK `pessoal`), não em emulador.
+- 137 testes JVM verdes. O cartão do ciclo foi visto funcionando no celular do usuário
+  (APK `pessoal`); a regra de fim de mês (lançamentos e dívidas) ainda não foi confirmada
+  por ele. Nada conferido em emulador.
 - **Pendências combinadas com o usuário:** (a) campo `diaVencimento` em `DividaEntity` e
   marcação explícita "é salário" na receita — as duas pedem Room 7→8, marcar como salário
   na migração as receitas cujo nome já casa com `PayCycle.isSalary`; (b) "Pode gastar
