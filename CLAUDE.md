@@ -608,8 +608,11 @@ Saldo = Agenda, "Livre em" pelo contrato, nova logo (26/09/2026):
 
 Ciclo do salário — branch `experimento` (26/09/2026):
 - **`domain/PayCycle.kt`**: "até o próximo salário", segunda camada ao lado do balanço do
-  mês. Salário = maior Receita recorrente não-extra (não há campo "salário"; escolha do
-  usuário foi não informar saldo de banco). Ciclo = [último salário, véspera do próximo);
+  mês. Salário = receita com "salário"/"holerite" na descrição, avulsa ou recorrente
+  (sem acento/caixa; "13º"/"férias"/extra ficam de fora); sem nenhuma, a maior receita
+  recorrente. Pelo nome e não por flag para não migrar o Room no branch experimental
+  (voltar ao `main` v7 com banco v8 apagaria os dados). Sem salário futuro lançado, o
+  próximo é estimado em +1 mês. O usuário não quer informar saldo de banco. Ciclo = [último salário, véspera do próximo);
   entradas do ciclo − saídas (gastos, contas pelo vencimento, parcelas; vencido não pago
   do ciclo anterior entra como devido hoje). Sobra do ciclo anterior **não** é carregada.
   `shortfall` acha o primeiro dia em que o saldo corrido fica negativo.
