@@ -182,7 +182,7 @@ private fun GoalCard(
                 is AiText.Unavailable -> insight.reason
                 AiText.Loading, null -> "Analisando este objetivo com IA..."
             }
-            Text(insightText, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody, modifier = Modifier.padding(top = 5.dp))
+            com.finai.app.ui.components.AiRichText(insightText, modifier = Modifier.padding(top = 5.dp))
         }
         Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             androidx.compose.foundation.layout.Box(

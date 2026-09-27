@@ -3,6 +3,7 @@ package com.finai.app.data.notifications
 import com.finai.app.data.ai.AiProvider
 import com.finai.app.data.ai.AiResponse
 import com.finai.app.domain.AiPromptBuilder
+import com.finai.app.domain.AiReplyFormat
 import com.finai.app.domain.BehaviorPattern
 import com.finai.app.domain.FinanceAlert
 
@@ -34,14 +35,14 @@ class NotificationContentBuilder(private val provider: AiProvider) {
             alerts.joinToString(" ") { it.title + "." }
         }
         return when (val response = provider.generate(AiPromptBuilder.proactiveAlerts(alerts))) {
-            is AiResponse.Success -> NotificationContent(fallbackTitle, response.text)
+            is AiResponse.Success -> NotificationContent(fallbackTitle, AiReplyFormat.plain(response.text))
             is AiResponse.Unavailable -> NotificationContent(fallbackTitle, fallbackBody)
         }
     }
 
     suspend fun forCoach(pattern: BehaviorPattern): NotificationContent =
         when (val response = provider.generate(AiPromptBuilder.behaviorCoach(pattern))) {
-            is AiResponse.Success -> NotificationContent(pattern.title, response.text)
+            is AiResponse.Success -> NotificationContent(pattern.title, AiReplyFormat.plain(response.text))
             is AiResponse.Unavailable -> NotificationContent(pattern.title, pattern.detail)
         }
 }

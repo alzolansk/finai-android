@@ -85,7 +85,11 @@ data class FinanceUiState(
  * transactions or account nicknames.
  */
 fun FinanceUiState.toAiSummaryText(): String = buildString {
+    // A data deixa explícito que é um retrato de agora: números citados em
+    // mensagens antigas podem ser de outro momento.
+    appendLine("Números calculados hoje, ${java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))}.")
     appendLine("Pode gastar hoje: $safeTodayLabel. $safeNote")
+    if (saldoLabel.isNotBlank()) appendLine("Balanço do mês (recebimentos − contas a pagar): $saldoLabel.")
     appendLine("Capacidade de poupança mensal: $monthlyCapacityLabel.")
     if (debts.isNotEmpty()) {
         appendLine("Dívidas: total em aberto $debtTotalLabel, juros $debtInterestLabel/mês, livre em $debtFreeLabel.")

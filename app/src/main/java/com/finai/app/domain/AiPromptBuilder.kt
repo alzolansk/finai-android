@@ -20,8 +20,15 @@ import com.finai.app.util.formatBrl0
  */
 object AiPromptBuilder {
 
+    // As regras de formato existem porque a resposta é desenhada por
+    // AiReplyFormat: negrito e valores em R$ ganham destaque, o resto do
+    // Markdown é descartado. Pedir poucos números é regra de produto — a tela
+    // já mostra os valores; a IA escolhe o que muda a decisão e interpreta.
     private const val SYSTEM_BASE = "Você é o assistente financeiro do app FinAI. Responda sempre em português do Brasil, " +
-        "de forma curta e direta, citando os números fornecidos abaixo. Nunca invente valores que não estejam no contexto. " +
+        "de forma curta e direta. Texto simples: nada de títulos (#), tabelas ou blocos de código; use **negrito** " +
+        "em no máximo dois trechos; use lista com \"- \" só para passos. Escreva valores como R$ 1.234 (negativos como -R$ 1.234). " +
+        "Cite no máximo dois valores, os que mais pesam na decisão; não repita números só para descrevê-los — interprete e " +
+        "diga o que fazer. Nunca invente valores que não estejam no contexto. " +
         "Não recomende produtos financeiros de terceiros nem dê conselho de investimento específico."
 
     fun goalInsight(goal: Goal, monthlyCapacityLabel: String, otherActiveGoals: Int): AiRequest {
@@ -209,11 +216,23 @@ object AiPromptBuilder {
         )
     }
 
-    fun chat(financeSummary: String, history: List<ChatMessage>, question: String): AiRequest {
+    /**
+     * [history] é só a conversa atual — cada conversa começa limpa, para a IA
+     * não misturar o assunto (nem os números) de conversas de outros dias.
+     * [topicContext] vem do botão que abriu a conversa ("Conversar sobre
+     * isso", "Ensaiar a ligação"...): o usuário vê só a pergunta, a IA recebe
+     * também os dados do card de origem.
+     */
+    fun chat(financeSummary: String, history: List<ChatMessage>, question: String, topicContext: String? = null): AiRequest {
         val historyText = history.takeLast(8).joinToString("\n") { m ->
-            (if (m.role == ChatRole.Me) "Usuário" else "FinAI") + ": " + m.text
+            (if (m.role == ChatRole.Me) "Usuário" else "FinAI") + ": " + AiReplyFormat.plain(m.text)
         }
         val prompt = buildString {
+            if (!topicContext.isNullOrBlank()) {
+                appendLine("Assunto desta conversa (o usuário abriu o chat a partir deste ponto do app):")
+                appendLine(topicContext.trim())
+                appendLine()
+            }
             appendLine("Resumo financeiro atual do usuário:")
             append(financeSummary)
             if (historyText.isNotBlank()) {
@@ -226,8 +245,13 @@ object AiPromptBuilder {
         }
         return AiRequest(
             AiTask.CHAT,
-            "$SYSTEM_BASE Você é o assistente de chat livre do app, respondendo perguntas sobre as finanças do usuário e " +
-                "citando os números do resumo quando fizer sentido.",
+            "$SYSTEM_BASE Você é o assistente de chat do app e responde perguntas sobre as finanças do usuário. " +
+                "Cumprimento ou conversa sem pergunta financeira: responda em 1 ou 2 frases, sem citar nenhum valor, e " +
+                "ofereça ajuda com gastos, dívidas ou objetivos. " +
+                "Quando a resposta girar em torno de valores, comece com um ou dois destaques, cada um numa linha, no formato " +
+                "{{rótulo curto|R$ 1.234}} (rótulo de até 3 palavras), e depois explique em até 4 frases o que eles significam " +
+                "e qual a próxima ação, sem repetir os valores dos destaques. " +
+                "Os números do resumo são os de agora; se a conversa anterior citar valores diferentes, valem os do resumo.",
             prompt,
         )
     }

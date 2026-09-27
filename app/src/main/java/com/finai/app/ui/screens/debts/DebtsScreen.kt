@@ -195,7 +195,7 @@ fun DebtsScreen(
                             ) {
                                 Text((index + 1).toString(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                             }
-                            Text(text, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
+                            Text(com.finai.app.ui.components.rememberAiAnnotated(text), fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
                         }
                     }
                 }

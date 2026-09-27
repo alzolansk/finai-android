@@ -162,10 +162,7 @@ fun BuySimulatorContent(
                 verdict.label, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold,
                 color = Color.White, modifier = Modifier.padding(top = 6.dp),
             )
-            Text(
-                explain, fontSize = 12.5.sp, lineHeight = 18.sp,
-                color = Color.White.copy(alpha = 0.82f), modifier = Modifier.padding(top = 8.dp),
-            )
+            AiRichText(explain, palette = AiTextPalette.OnDark, modifier = Modifier.padding(top = 8.dp))
         }
 
         Column(modifier = Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

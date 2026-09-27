@@ -37,6 +37,8 @@ import com.finai.app.data.model.Goal
 import com.finai.app.data.model.TimelineEntry
 import com.finai.app.data.model.WeekBill
 import com.finai.app.domain.BehaviorPattern
+import com.finai.app.ui.components.AiRichText
+import com.finai.app.ui.components.AiTextPalette
 import com.finai.app.domain.MONTH_NAMES_PT
 import com.finai.app.domain.PayCycle
 import com.finai.app.domain.SafeToSpendResult
@@ -467,7 +469,7 @@ private fun DecisionsCard(decisions: AiText?) {
                         lines.forEach { line ->
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("•", fontSize = 12.5.sp, color = FinaiColors.EmeraldDark)
-                                Text(line, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
+                                Text(com.finai.app.ui.components.rememberAiAnnotated(line), fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
                             }
                         }
                     }
@@ -627,10 +629,7 @@ private fun CoachCard(pattern: BehaviorPattern, insight: AiText?, onOpenChat: ()
             pattern.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White,
             lineHeight = 20.sp, modifier = Modifier.padding(top = 7.dp),
         )
-        Text(
-            body, fontSize = 12.5.sp, lineHeight = 18.sp, color = Color.White.copy(alpha = 0.72f),
-            modifier = Modifier.padding(top = 7.dp),
-        )
+        AiRichText(body, palette = AiTextPalette.OnDark, modifier = Modifier.padding(top = 7.dp))
         Box(
             modifier = Modifier
                 .padding(top = 13.dp)

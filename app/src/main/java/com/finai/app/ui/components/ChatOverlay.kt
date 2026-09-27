@@ -206,10 +206,11 @@ private fun ChatBubble(message: ChatMessage) {
                 .background(if (fromMe) FinaiColors.Ink else FinaiColors.Surface)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
-            Text(
-                message.text, fontSize = 13.sp, lineHeight = 20.sp,
-                color = if (fromMe) Color.White else FinaiColors.TextBody,
-            )
+            if (fromMe) {
+                Text(message.text, fontSize = 13.sp, lineHeight = 20.sp, color = Color.White)
+            } else {
+                AiRichText(message.text, fontSize = 13.sp, lineHeight = 20.sp, showHighlights = true)
+            }
         }
     }
 }
