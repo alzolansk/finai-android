@@ -133,7 +133,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val today = LocalDate.now()
         val monthlyCapacityCents = SavingsCapacityCalculator.monthlyCapacityCents(s.contas, s.dividas)
         val goalPlans = GoalCalculator.plan(s.objetivos, monthlyCapacityCents, today)
-        val payCycle = com.finai.app.domain.PayCycle.of(s.contas, s.transacoes, s.dividas, today)
+        // Cartão novo: um erro aqui não pode levar a Início inteira junto (o .catch do
+        // combine deixaria a tela congelada no estado anterior).
+        val payCycle = runCatching { com.finai.app.domain.PayCycle.of(s.contas, s.transacoes, s.dividas, today) }
+            .onFailure { FinaiLog.e(TAG, "Falha ao calcular o ciclo do salário", it) }
+            .getOrNull()
         val safe = payCycle?.let { SafeToSpendCalculator.fromCycle(it, aporteMensalMetasCents(goalPlans)) }
             ?: SafeToSpendCalculator.calculate(s.contas, s.transacoes, aporteMensalMetasCents(goalPlans), today)
         val debtSummary = DebtCalculator.summarize(s.dividas, today)

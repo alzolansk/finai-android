@@ -158,73 +158,81 @@ private fun PayCycleCard(cycle: PayCycle?, onNewIncomeEntry: () -> Unit) {
             .background(FinaiColors.Surface)
             .padding(16.dp),
     ) {
-        if (cycle == null) {
-            Text("ATÉ O PRÓXIMO SALÁRIO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
-            Text(
-                "Lance seu salário como Receita recorrente para o app saber até quando o dinheiro precisa durar.",
-                fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextSecondary,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-            Text(
-                "Lançar receita", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark,
-                modifier = Modifier.padding(top = 10.dp).clickable(onClick = onNewIncomeEntry),
-            )
-            return@Column
-        }
-        val livre = cycle.livreCents
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "ATÉ O PRÓXIMO SALÁRIO · ${dayMonth(cycle.proximo)}",
-                    fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted,
-                )
-                Text(
-                    if (livre >= 0) "${formatBrl0(livre / 100.0)} livres" else "Faltam ${formatBrl0(-livre / 100.0)}",
-                    fontSize = 26.sp, fontWeight = FontWeight.ExtraBold,
-                    color = if (livre >= 0) FinaiColors.EmeraldDark else Rose,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                Text(
-                    cycle.inicio?.let { "${cycle.salarioNome} caiu em ${dayMonth(it)}" }
-                        ?: "${cycle.salarioNome} ainda não caiu nenhuma vez",
-                    fontSize = 11.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(cycle.diasAteProximo.toString(), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-                Text("DIAS", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
-            }
-        }
-        ProgressTrack(
-            progress = cycle.progress,
-            fillColor = FinaiColors.Emerald,
-            modifier = Modifier.padding(top = 12.dp),
+        // Sem `return@Column`: retorno antecipado dentro de lambda inline do Compose
+        // (compilador 1.5.8) desbalanceia os grupos e derruba o app na abertura.
+        if (cycle == null) NoCycleContent(onNewIncomeEntry) else CycleContent(cycle)
+    }
+}
+
+@Composable
+private fun NoCycleContent(onNewIncomeEntry: () -> Unit) {
+        Text("ATÉ O PRÓXIMO SALÁRIO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
+        Text(
+            "Lance seu salário como Receita recorrente para o app saber até quando o dinheiro precisa durar.",
+            fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextSecondary,
+            modifier = Modifier.padding(top = 6.dp),
         )
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CycleStat("Entradas", cycle.entradasCents, Modifier.weight(1f))
-            CycleStat("Já saiu", cycle.jaSaiuCents, Modifier.weight(1f))
-            CycleStat("A pagar", cycle.comprometidoCents, Modifier.weight(1f))
-        }
-        if (cycle.aReceberCents > 0) {
+        Text(
+            "Lançar receita", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark,
+            modifier = Modifier.padding(top = 10.dp).clickable(onClick = onNewIncomeEntry),
+        )
+}
+
+@Composable
+private fun CycleContent(cycle: PayCycle) {
+    val livre = cycle.livreCents
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                "Entradas inclui ${formatBrl0(cycle.aReceberCents / 100.0)} que ainda vão cair antes do salário.",
-                fontSize = 11.sp, lineHeight = 15.sp, color = FinaiColors.TextTertiary,
-                modifier = Modifier.padding(top = 8.dp),
+                "ATÉ O PRÓXIMO SALÁRIO · ${dayMonth(cycle.proximo)}",
+                fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted,
+            )
+            Text(
+                if (livre >= 0) "${formatBrl0(livre / 100.0)} livres" else "Faltam ${formatBrl0(-livre / 100.0)}",
+                fontSize = 26.sp, fontWeight = FontWeight.ExtraBold,
+                color = if (livre >= 0) FinaiColors.EmeraldDark else Rose,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                cycle.inicio?.let { "${cycle.salarioNome} caiu em ${dayMonth(it)}" }
+                    ?: "${cycle.salarioNome} ainda não caiu nenhuma vez",
+                fontSize = 11.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
             )
         }
-        cycle.shortfall?.let { falta ->
-            val quando = if (falta.date.isAfter(cycle.today)) "Em ${dayMonth(falta.date)}" else "Desde ${dayMonth(falta.date)}"
-            Text(
-                "$quando o dinheiro não fecha: faltam até ${formatBrl0(falta.cents / 100.0)} antes do próximo salário.",
-                fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, color = Rose,
-                modifier = Modifier
-                    .padding(top = 10.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(RoseWash)
-                    .padding(10.dp),
-            )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(cycle.diasAteProximo.toString(), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+            Text("DIAS", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
         }
+    }
+    ProgressTrack(
+        progress = cycle.progress,
+        fillColor = FinaiColors.Emerald,
+        modifier = Modifier.padding(top = 12.dp),
+    )
+    Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        CycleStat("Entradas", cycle.entradasCents, Modifier.weight(1f))
+        CycleStat("Já saiu", cycle.jaSaiuCents, Modifier.weight(1f))
+        CycleStat("A pagar", cycle.comprometidoCents, Modifier.weight(1f))
+    }
+    if (cycle.aReceberCents > 0) {
+        Text(
+            "Entradas inclui ${formatBrl0(cycle.aReceberCents / 100.0)} que ainda vão cair antes do salário.",
+            fontSize = 11.sp, lineHeight = 15.sp, color = FinaiColors.TextTertiary,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+    cycle.shortfall?.let { falta ->
+        val quando = if (falta.date.isAfter(cycle.today)) "Em ${dayMonth(falta.date)}" else "Desde ${dayMonth(falta.date)}"
+        Text(
+            "$quando o dinheiro não fecha: faltam até ${formatBrl0(falta.cents / 100.0)} antes do próximo salário.",
+            fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, color = Rose,
+            modifier = Modifier
+                .padding(top = 10.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(RoseWash)
+                .padding(10.dp),
+        )
     }
 }
 
