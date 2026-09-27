@@ -93,6 +93,45 @@ class PayCycleTest {
         assertEquals(80_000L, c.aReceberCents)
     }
 
+    /** O caso real: último salário do estágio e o proporcional são avulsos; o fixo só começa em novembro. */
+    @Test fun oneOffSalariesAreRecognizedByName() {
+        val lancamentos = listOf(
+            tx(LocalDate.of(2026, 9, 26), 255_000, TransactionType.Receita, desc = "Salario"),
+            tx(LocalDate.of(2026, 10, 30), 180_000, TransactionType.Receita, desc = "Salário proporcional"),
+            salario(desde = LocalDate.of(2026, 11, 30)),
+        )
+        val setembro = cycle(lancamentos, on = LocalDate.of(2026, 9, 26))
+        assertEquals(LocalDate.of(2026, 9, 26), setembro.inicio)
+        assertEquals(LocalDate.of(2026, 10, 30), setembro.proximo)
+        assertEquals(255_000L, setembro.entradasCents) // o proporcional é do próximo ciclo
+
+        val novembro = cycle(lancamentos, on = LocalDate.of(2026, 11, 5))
+        assertEquals(LocalDate.of(2026, 10, 30), novembro.inicio)
+        assertEquals(LocalDate.of(2026, 11, 30), novembro.proximo)
+    }
+
+    @Test fun thirteenthAndExtrasAreNotSalary() {
+        val c = cycle(listOf(
+            salario(),
+            tx(LocalDate.of(2026, 10, 20), 300_000, TransactionType.Receita, desc = "13º salário"),
+            tx(LocalDate.of(2026, 10, 22), 100_000, TransactionType.Receita, desc = "Salário atrasado", extra = true),
+        ))
+        // Nenhum dos dois corta o ciclo, mas os dois entram como dinheiro dele.
+        assertEquals(LocalDate.of(2026, 10, 30), c.proximo)
+        assertEquals(1_000_000L, c.entradasCents)
+    }
+
+    @Test fun withoutAFutureSalaryTheNextIsEstimated() {
+        val c = cycle(listOf(tx(LocalDate.of(2026, 9, 26), 255_000, TransactionType.Receita, desc = "SALÁRIO")))
+        assertEquals(LocalDate.of(2026, 10, 26), c.proximo)
+        assertEquals(true, c.proximoEstimado)
+    }
+
+    @Test fun withoutTheWordTheLargestRecurringIncomeIsUsed() {
+        val c = cycle(listOf(tx(LocalDate.of(2026, 6, 30), 600_000, TransactionType.Receita, recorrente = true, desc = "Empresa X")))
+        assertEquals(LocalDate.of(2026, 9, 30), c.inicio)
+    }
+
     @Test fun noRecurringIncomeMeansNoCycle() {
         assertNull(PayCycle.of(emptyList(), listOf(tx(today, 50_000, TransactionType.Receita)), emptyList(), today))
     }

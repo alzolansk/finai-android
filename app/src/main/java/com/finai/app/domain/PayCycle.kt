@@ -20,9 +20,11 @@ data class CycleShortfall(val date: LocalDate, val cents: Long)
  *
  * Não pede saldo de banco (o usuário pode ter várias contas, e manter isso em dia seria
  * trabalho manual): o ciclo começa no último salário que caiu e termina na véspera do
- * próximo. Salário = a maior receita recorrente cadastrada (não extra); outras receitas
- * que caem no meio do ciclo também entram. Sobra do ciclo anterior não é carregada — de
- * propósito: um gasto esquecido viraria dinheiro fantasma ciclo após ciclo.
+ * próximo. Salário = receita com "salário"/"holerite" na descrição ([isSalary]), avulsa ou
+ * recorrente — o último do estágio e o proporcional são avulsos e também contam. Sem
+ * nenhuma assim, vale a maior receita recorrente. Entrada extra nunca é salário, mas entra
+ * como dinheiro do ciclo, como qualquer outra receita. Sobra do ciclo anterior não é
+ * carregada — de propósito: um gasto esquecido viraria dinheiro fantasma ciclo após ciclo.
  *
  * Saídas do ciclo: gastos lançados (recorrentes pela ocorrência), contas a pagar pelo
  * vencimento (a fatura entra aqui, não os itens dela) e parcelas de dívida em aberto. O que
@@ -35,6 +37,8 @@ data class PayCycle(
     /** Dia em que caiu o salário que abriu o ciclo; nulo se o primeiro ainda não caiu. */
     val inicio: LocalDate?,
     val proximo: LocalDate,
+    /** Nenhum salário lançado depois de hoje: [proximo] é um mês depois do último, estimado. */
+    val proximoEstimado: Boolean,
     val entries: List<CycleEntry>,
     val today: LocalDate,
 ) {
@@ -70,10 +74,40 @@ data class PayCycle(
     }
 
     companion object {
-        /** A maior receita recorrente — o app não tem um campo "salário", a descrição é livre. */
-        fun salaryOf(transacoes: List<TransacaoEntity>): TransacaoEntity? = transacoes
-            .filter { it.recorrente && it.tipo == TransactionType.Receita.name && it.faturaId == null && !it.extra && it.valorCentavos > 0 }
-            .maxWithOrNull(compareBy<TransacaoEntity> { it.valorCentavos }.thenByDescending { it.data })
+        private val salaryWords = listOf("salario", "holerite")
+        private val notSalary = Regex("""decimo|ferias|(^|\D)13(\D|$)""")
+
+        /** Sem acento e minúsculo: "Salário", "SALARIO" e "salario" são a mesma coisa. */
+        private fun normalize(text: String): String =
+            java.text.Normalizer.normalize(text.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+
+        /**
+         * O app não tem campo "salário" (e a descrição é livre), então reconhece pelo nome.
+         * "13º salário" e "férias" ficam de fora: são entrada extra, não o dinheiro do mês.
+         */
+        fun isSalary(t: TransacaoEntity): Boolean {
+            if (t.tipo != TransactionType.Receita.name || t.extra || t.faturaId != null || t.valorCentavos <= 0) return false
+            val d = normalize(t.descricao)
+            return salaryWords.any { it in d } && !notSalary.containsMatchIn(d)
+        }
+
+        fun salariesOf(transacoes: List<TransacaoEntity>): List<TransacaoEntity> {
+            val byName = transacoes.filter(::isSalary)
+            if (byName.isNotEmpty()) return byName
+            return listOfNotNull(transacoes
+                .filter { it.recorrente && it.tipo == TransactionType.Receita.name && it.faturaId == null && !it.extra && it.valorCentavos > 0 }
+                .maxWithOrNull(compareBy<TransacaoEntity> { it.valorCentavos }.thenByDescending { it.data }))
+        }
+
+        /** Dias de pagamento perto de hoje: a data do avulso, ou a ocorrência mensal do recorrente. */
+        private fun payDates(t: TransacaoEntity, today: LocalDate): List<LocalDate> {
+            val first = t.data.toLocalDate()
+            if (!t.recorrente) return listOf(first)
+            val cur = YearMonth.from(today)
+            return (-1L..1L).map { cur.plusMonths(it) }
+                .filter { it >= YearMonth.from(first) }
+                .map { DebtSchedule.dueDateIn(it, first.dayOfMonth) } + first
+        }
 
         fun of(
             contas: List<ContaEntity>,
@@ -81,18 +115,15 @@ data class PayCycle(
             dividas: List<DividaEntity>,
             today: LocalDate,
         ): PayCycle? {
-            val salario = salaryOf(transacoes) ?: return null
-            val firstPay = salario.data.toLocalDate()
-            fun payIn(month: YearMonth): LocalDate? =
-                if (month < YearMonth.from(firstPay)) null else DebtSchedule.dueDateIn(month, firstPay.dayOfMonth)
-
-            val cur = YearMonth.from(today)
-            val inicio = listOf(cur, cur.minusMonths(1)).mapNotNull(::payIn).firstOrNull { !it.isAfter(today) }
-            val proximo = if (firstPay.isAfter(today)) firstPay
-            else listOf(cur, cur.plusMonths(1)).mapNotNull(::payIn).first { it.isAfter(today) }
+            val paydays = salariesOf(transacoes).flatMap { t -> payDates(t, today).map { it to t } }
+            val last = paydays.filter { !it.first.isAfter(today) }.maxByOrNull { it.first }
+            val next = paydays.filter { it.first.isAfter(today) }.minByOrNull { it.first }
+            if (last == null && next == null) return null
+            val inicio = last?.first
+            val proximo = next?.first ?: inicio!!.plusMonths(1)
+            val salario = (last ?: next)!!.second
             val start = inicio ?: today
             fun inCycle(d: LocalDate) = !d.isBefore(start) && d.isBefore(proximo)
-
             val months = generateSequence(YearMonth.from(start)) { it.plusMonths(1) }
                 .takeWhile { it <= YearMonth.from(proximo) }.toList()
 
@@ -140,6 +171,7 @@ data class PayCycle(
                 salarioCents = salario.valorCentavos,
                 inicio = inicio,
                 proximo = proximo,
+                proximoEstimado = next == null,
                 entries = lancamentos + contasEntries + parcelas,
                 today = today,
             )

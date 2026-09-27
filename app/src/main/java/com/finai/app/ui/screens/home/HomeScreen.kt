@@ -168,7 +168,7 @@ private fun PayCycleCard(cycle: PayCycle?, onNewIncomeEntry: () -> Unit) {
 private fun NoCycleContent(onNewIncomeEntry: () -> Unit) {
         Text("ATÉ O PRÓXIMO SALÁRIO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
         Text(
-            "Lance seu salário como Receita recorrente para o app saber até quando o dinheiro precisa durar.",
+            "Lance uma receita com \"salário\" na descrição para o app saber até quando o dinheiro precisa durar.",
             fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextSecondary,
             modifier = Modifier.padding(top = 6.dp),
         )
@@ -184,7 +184,7 @@ private fun CycleContent(cycle: PayCycle) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                "ATÉ O PRÓXIMO SALÁRIO · ${dayMonth(cycle.proximo)}",
+                "ATÉ O PRÓXIMO SALÁRIO · ${dayMonth(cycle.proximo)}" + if (cycle.proximoEstimado) " (ESTIMADO)" else "",
                 fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted,
             )
             Text(
@@ -195,7 +195,7 @@ private fun CycleContent(cycle: PayCycle) {
             )
             Text(
                 cycle.inicio?.let { "${cycle.salarioNome} caiu em ${dayMonth(it)}" }
-                    ?: "${cycle.salarioNome} ainda não caiu nenhuma vez",
+                    ?: "Nenhum salário lançado antes de hoje",
                 fontSize = 11.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
             )
         }
@@ -241,7 +241,7 @@ private fun CycleStat(label: String, cents: Long, modifier: Modifier) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(FinaiColors.BorderHairline.copy(alpha = 0.35f))
+            .background(FinaiColors.SurfaceMuted)
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
         Text(label, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextMuted)
