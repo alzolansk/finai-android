@@ -35,6 +35,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.sp
 import com.finai.app.R
 import com.finai.app.ui.theme.FinaiColors
@@ -91,7 +93,13 @@ fun FinaiTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Em telas estreitas (320 dp) o nome da tela encolhe com reticências e o "Assistente"
+        // vira só o ícone, em vez de quebrar em duas linhas por cima dos botões.
+        val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 360
+        Row(
+            modifier = Modifier.weight(1f).padding(end = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
+        ) {
             Image(
                 painter = painterResource(R.drawable.finai_mark),
                 contentDescription = null,
@@ -99,7 +107,10 @@ fun FinaiTopBar(
             )
             Column {
                 Text("FinAI", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-                Text(screenLabel, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary)
+                Text(
+                    screenLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
             }
         }
 
@@ -130,15 +141,18 @@ fun FinaiTopBar(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(16.dp)
+                            .size(20.dp)
                             .clip(CircleShape)
                             .background(Color.White)
                             .padding(1.5.dp)
                             .clip(CircleShape)
-                            .background(FinaiColors.Rose),
+                            .background(FinaiColors.RoseDark),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(notifCount.toString(), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (notifCount > 9) "9+" else notifCount.toString(), color = Color.White, fontSize = 12.sp, lineHeight = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
                 }
             }
@@ -147,7 +161,8 @@ fun FinaiTopBar(
                     .clip(RoundedCornerShape(99.dp))
                     .background(FinaiColors.Ink)
                     .clickable(onClick = onOpenChat)
-                    .padding(start = 6.dp, end = 11.dp, top = 6.dp, bottom = 6.dp),
+                    .padding(start = 6.dp, end = if (narrow) 6.dp else 11.dp, top = 6.dp, bottom = 6.dp)
+                    .then(if (narrow) Modifier.semantics { contentDescription = "Assistente" } else Modifier),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
             ) {
@@ -165,7 +180,7 @@ fun FinaiTopBar(
                         modifier = Modifier.size(13.dp),
                     )
                 }
-                Text("Assistente", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                if (!narrow) Text("Assistente", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, softWrap = false)
             }
         }
     }

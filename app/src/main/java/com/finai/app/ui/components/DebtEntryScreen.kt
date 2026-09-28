@@ -61,7 +61,7 @@ private fun debtAmountText(cents: String): String = NumberFormat.getNumberInstan
     minimumFractionDigits = 2; maximumFractionDigits = 2
 }.format((cents.toLongOrNull() ?: 0) / 100.0)
 
-private val Emerald = Color(0xFF059669)
+private val Emerald = Color(0xFF047857)
 
 /**
  * Cadastro/edição de dívida em tela cheia, no mesmo visual do lançamento manual
@@ -156,7 +156,7 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
                     val mainActive = keypadTarget == "main"
                     Column(Modifier.fillMaxWidth().padding(vertical = 10.dp).clickable { focus.clearFocus(); keypadTarget = "main" },
                         horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(if (parcelada) "VALOR DA PARCELA" else "QUANTO VOCÊ DEVE HOJE", color = EntryMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(if (parcelada) "VALOR DA PARCELA" else "QUANTO VOCÊ DEVE HOJE", color = EntryMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         val color = if (mainCents.isEmpty()) Color(0xFFD4D4D8) else EntryInk
                         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 4.dp)
                             .semantics { contentDescription = "Valor: R$ ${debtAmountText(mainCents)}" }) {
@@ -206,7 +206,7 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
                             .padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             EntryGlyph("wallet", EntryMuted)
                             Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-                                Text("Saldo devedor hoje", color = EntryMuted, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Saldo devedor hoje", color = EntryMuted, fontSize = 12.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold)
                                 Text(
                                     if (saldoCents.isEmpty()) "R$ ${debtAmountText(estimado.toString())} · estimado" else "R$ ${debtAmountText(saldoCents)}",
                                     color = if (saldoCents.isEmpty()) EntryMuted else EntryInk, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold,
@@ -218,7 +218,7 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
                             }
                         }
                         Text("Informe só se o banco mostrar um valor diferente (juros embutidos, quitação antecipada).",
-                            color = EntryMuted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 4.dp))
+                            color = EntryMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp))
                     }
 
                     if (parcelada && valid) {
@@ -287,7 +287,7 @@ private fun SegmentedTabs(options: List<String>, selected: Int, onSelect: (Int) 
         options.forEachIndexed { index, label ->
             val isSelected = index == selected
             val bg by animateColorAsState(if (isSelected) EntryInk else Color.Transparent, finaiTween(FinaiMotion.Quick), label = "debtTabBg")
-            val fg by animateColorAsState(if (isSelected) Color.White else Color(0xFF71717A), finaiTween(FinaiMotion.Quick), label = "debtTabFg")
+            val fg by animateColorAsState(if (isSelected) Color.White else Color(0xFF63636B), finaiTween(FinaiMotion.Quick), label = "debtTabFg")
             Box(Modifier.weight(1f).fillMaxHeight()
                 .then(if (isSelected) Modifier.shadow(3.dp, CircleShape) else Modifier)
                 .clip(CircleShape).background(bg)
@@ -330,7 +330,7 @@ private fun Stepper(
     val n = value.toIntOrNull() ?: 0
     Column(modifier.clip(EntryShape).background(Color.White).border(1.dp, EntryLine.copy(alpha = .65f), EntryShape).padding(horizontal = 6.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = EntryMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = EntryMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
             StepButton("minus", "Diminuir $label", enabled = n > min) { focus.clearFocus(); onChange((n - 1).coerceAtLeast(min).toString()) }
             BasicTextField(value, { v -> onChange(v.filter(Char::isDigit).take(3)) }, singleLine = true,

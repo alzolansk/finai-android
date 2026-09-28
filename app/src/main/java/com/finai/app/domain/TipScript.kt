@@ -28,11 +28,11 @@ object TipScript {
         ),
         AGENDA to listOf(
             Tip("agenda.month", "Navegue pelos meses", "Use as setas para ver o que vence em outros meses."),
-            Tip("agenda.bill", "Marque como paga", "Toque numa conta para marcar como paga ou desfazer."),
+            Tip("agenda.bill", "Marque como paga", "Use \"Marcar paga\" quando pagar uma conta; dá para reabrir depois."),
             Tip("agenda.transactions", "Lançamentos do mês", "Tudo que você lançou ou importou aparece aqui, com as ações de cada item."),
         ),
         GOALS to listOf(
-            Tip("goals.card", "Sua meta", "Progresso, prazo e se o aporte cabe no que sobra por mês. Use \"Guardar\" para registrar um aporte."),
+            Tip("goals.card", "Sua meta", "Progresso, prazo e se o aporte cabe no que sobra por mês. Use o botão verde para registrar um aporte."),
             Tip("goals.insight", "Leitura da IA", "Um resumo do momento da meta, do próximo passo e do risco."),
         ),
         DEBTS to listOf(

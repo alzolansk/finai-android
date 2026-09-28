@@ -10,7 +10,9 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 **Fase 0 (Fundamentos), Fase 1 (MVP sem IA), Fase 2 (camada de IA com um
 provedor), Fase 3 (multi-provedor e resiliência), Fase 4 (importação de
 fatura), Fase 5 (notificações proativas e coach comportamental) e Fase 6
-(endurecimento e lançamento, no que depende de código) — concluídas.**
+(endurecimento e lançamento, no que depende de código) — concluídas. Fase 7
+(clareza e confiança, branch `v2-clareza`) — implementada em 28/09/2026, aguardando o
+teste do usuário no celular antes do merge.**
 Ver `planning.md` §9 para a lista de fases.
 
 Fase 0: projeto Gradle (Kotlin 1.9.22, AGP 8.3.1, Compose BOM 2024.02.01,
@@ -793,9 +795,56 @@ e tipografia; depois renda principal explícita, onboarding mínimo e o resto. `
 - **Decisões do usuário (28/09/2026):** número principal da Início = livre até o salário;
   tour vira dicas por tela com destaque no componente; Limites não ganha acesso novo; ele
   **só testa no celular com a fase inteira pronta** — não mandar APK por item.
-- **Próxima sessão: leia `FASE7-PROXIMOS-PASSOS.md`**, que detalha os itens 3 a 12
-  (arquivos, armadilhas, critério de pronto), como testar no emulador deste ambiente e as
-  decisões que dependem do usuário.
+- **Itens 3 a 12 feitos (28/09/2026), numa sessão só:**
+  - **3 · Início por urgência** (`domain/HomeSituation.kt`): um bloco de situação no topo
+    (frase, "LIVRE ATÉ O SALÁRIO · dd/MM" = `safeToday.slackThisMonthCents`, "cerca de R$ Y
+    por dia", "Entenda este valor", **uma** ação: Ver compromissos / Informar renda / Posso
+    comprar?, e "Ajustar limites" secundário). `PayCycleCard`/`SafeToSpendCard` saíram.
+    Depois: Próximos 7 dias, e "PLANEJAMENTO" (balanço, objetivos, decisões, linha do tempo,
+    coach). O resumo da IA fala do mesmo número. Conferido em 412×892 e 320×640 dp.
+  - **4 · Legibilidade**: Inter em todo o app (`ui/theme/Type.kt`, `EntryFont` virou alias),
+    escala curta (34/20/16/15/14/13/12), nada útil < 12 sp. Cores medidas pela fórmula WCAG:
+    `TextMuted` #6B6B73, `TextTertiary` #63636B, `EmeraldDark` #047857 (texto e botão com
+    texto branco), `RoseDark` #BE123C; `Emerald` só como acento. Ações em `Common.kt`:
+    `TextAction`, `ActionButton`, `SectionHeader`, `EmptyStateCard`, `SelectChip`,
+    `OverflowMenu` — todas com 48 dp. Topbar em tela < 360 dp mostra só o ícone do Assistente.
+  - **5 · Renda principal + dia da dívida** (**Room 9→10**, `MIGRATION_9_10`, constante
+    `FINAI_DB_VERSION`): `transacoes.rendaPrincipal` (a migração marca o que casava com
+    `isSalary`, ou a maior receita recorrente) e `dividas.diaVencimento` (dia do próximo
+    vencimento; último dia do mês vira 31). `PayCycle.salariesOf`: marcada > nome > maior
+    recorrente; `salarioPeloNome` virou `salarioDefinido`. `DebtSchedule.dueFor` usa o dia
+    combinado (29/01 → 28/02 → 29/03). UI: switch "É minha renda principal" na Receita
+    (exclusivo com Extra), "Marcar como renda principal" no ⋮ da Agenda. Editar agora parte
+    do registro guardado (`originalOf`), não da ocorrência projetada do recorrente.
+    Teste: `androidTest/.../Migration9To10Test.kt` (MigrationTestHelper a partir do 9.json).
+  - **6 · Onboarding mínimo**: `InitialSetupWizard` reescrito — renda + próximo recebimento,
+    contas desta semana (opcional), resultado real ("Até o próximo pagamento você tem R$ X").
+    Regras em `domain/InitialSetup.kt` (a renda é gravada como recorrente a partir do último
+    pagamento; `seriesStart` evita o "dia 30 vira 31"). O tour de 7 passos saiu
+    (`OnboardingTour.kt` apagado): **dicas por tela** — `domain/TipScript.kt` (roteiro, Kotlin
+    puro) + `ui/components/Tips.kt` (`Modifier.tipTarget`, recorte com `PathFillType.EvenOdd`,
+    balão). `FinaiPreferences.tipsSeen` (quem concluiu o tour antigo conta como tendo visto
+    tudo); "Rever tour guiado" e "Apagar todos os dados" limpam. Voltar fecha a dica.
+  - **7/8/9**: Agenda, Limites, Dívidas viraram listas com divisor; ações frequentes são
+    botões ("Marcar paga", "Paguei a parcela" — com confirmação também na Agenda, "Registrar
+    aporte"); editar/excluir no ⋮. Roxo/índigo saiu (selo Prioridade, Coach, roteiro de
+    negociação, chips da Agenda/Importação/Fatura); cartão de dívida é grafite, vermelho só
+    para atraso. Vazios com ação ("Lançar conta", "Importar fatura", "Criar objetivo",
+    "Cadastrar dívida"); Dívidas sem cadastro não mostra "R$ 0 em aberto".
+  - **10 · "+"**: "Lançar gasto" em destaque; importar/simular/novo objetivo como "Mais ações".
+  - **11 · Importação**: barra de confirmação fixa no rodapé; filtro "Precisa revisar"
+    (`ImportItem.needsReview`).
+  - **12 · Exportar/restaurar** (Configurações → Privacidade e dados): `data/backup/
+    FinaiBackup.kt` (JSON via org.json; `testImplementation("org.json:json")` para o teste
+    JVM), `FinanceRepository.exportar/restaurar` (transação, mesmos ids), SAF, sem chaves de
+    IA. Registrado em PRIVACY.md.
+- 188 testes JVM verdes (`Fase7ClarezaTest`, `BackupCodecTest` novos). Conferido no emulador
+  Pixel 6 API 34: assistente, dicas (Início, Agenda, Objetivos, Dívidas, Limites, chat), a
+  folha "Entenda este valor" batendo com o topo da Início **no caso com salário**, "+",
+  lançamento com o switch novo, Configurações/backup (tela; exportação não executada até o
+  fim), importação do CSV de exemplo com barra fixa e filtro.
+- **Entrega final:** ver `FASE7-PROXIMOS-PASSOS.md` (o que falta: o teste do usuário no
+  celular e o merge no `main`).
 
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja

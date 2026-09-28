@@ -285,7 +285,7 @@ private fun StepRow(number: Int, text: String, done: Boolean = false) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                if (done) "✓" else number.toString(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
+                if (done) "✓" else number.toString(), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
                 color = if (done) FinaiColors.EmeraldDark else FinaiColors.TextMuted,
             )
         }

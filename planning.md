@@ -207,7 +207,7 @@ instalável via `adb install`; `./gradlew assembleRelease` também funciona sem
 `keystore.properties` (gera APK não assinado, dá para assinar com qualquer
 keystore local via `apksigner` se quiser o benefício do R8 no dia a dia).
 
-**Fase 7 · Clareza e confiança (branch `v2-clareza`, iniciada em 27/09/2026) — 🚧 em andamento**
+**Fase 7 · Clareza e confiança (branch `v2-clareza`, iniciada em 27/09/2026) — ✅ implementada em 28/09/2026, aguardando teste do usuário no aparelho**
 
 Origem: crítica de produto/UX recebida em 27/09/2026 (análise do código e de capturas
 antigas, sem sessão de uso no aparelho). Tese: o app comunica mais complexidade do que
@@ -231,33 +231,34 @@ Itens, em ordem de prioridade:
    considerado, o que já entrou, o que está previsto, compromissos descontados, reserva de
    metas, o que falta cadastrar, e o aviso explícito de que não é saldo bancário e que a
    sobra do ciclo anterior não é carregada.
-3. **[Alta] Home por urgência:** situação atual (uma frase + um valor com período
+3. ✅ **[Alta] Home por urgência:** situação atual (uma frase + um valor com período
    explícito + uma ação pertinente) → próximos vencimentos → planejamento (balanço do mês,
    objetivos, decisões, linha do tempo do ano) com peso visual menor.
-4. **[Alta] Legibilidade e contraste.** Corpo 14–16 sp, navegação 12–13 sp, poucos tamanhos
+4. ✅ **[Alta] Legibilidade e contraste.** Corpo 14–16 sp, navegação 12–13 sp, poucos tamanhos
    (valor principal, título, corpo, legenda); Inter no app inteiro (hoje só no lançamento).
    `TextMuted #A1A1AA` (2,56:1 sobre branco) e texto branco sobre `Emerald #10B981`
    (2,54:1) sobem para ≥ 4,5:1. Alvos de toque ≥ 48 dp.
-5. **[Alta] Renda principal explícita** em vez da palavra "salário" na descrição
+5. ✅ **[Alta] Renda principal explícita** em vez da palavra "salário" na descrição
    (`PayCycle.isSalary`) — é a pendência (a) já combinada, que agora vira a migração Room 9→10 (7→8 e 8→9 já foram usadas pelas conversas do chat e pelas
    metas concluídas), marcando como renda principal o que já casa
    com `isSalary`.
-6. **[Alta] Onboarding mínimo.** Tour + assistente inicial de sete estados pedem trabalho
+6. ✅ **[Alta] Onboarding mínimo.** Tour + assistente inicial de sete estados pedem trabalho
    antes do benefício. Pedir só o necessário para a primeira resposta útil (renda
    principal e data, compromissos próximos) e completar o resto progressivamente.
-7. **[Média] Menos caixas, mais hierarquia; cor com significado estável** (vermelho =
+7. ✅ **[Média] Menos caixas, mais hierarquia; cor com significado estável** (vermelho =
    problema, âmbar = atenção, roxo só como auxiliar; IA sem superfície chamativa);
    movimentações em lista simples, cartões só para resumos e decisões.
-8. **[Média] Ações reconhecíveis.** "Editar", "Ver todos", "Paguei a parcela" com área de
+8. ✅ **[Média] Ações reconhecíveis.** "Editar", "Ver todos", "Paguei a parcela" com área de
    toque real; destrutivas ("Excluir") num menu secundário.
-9. **[Média] Estados vazios que orientam** (ação concreta: lançar conta, importar fatura) e
+9. ✅ **[Média] Estados vazios que orientam** (ação concreta: lançar conta, importar fatura) e
    distinção visual entre zero real, dado não cadastrado e estimativa.
-10. **[Média] Navegação previsível:** ações frequentes explícitas em vez de tudo no "+".
+10. ✅ **[Média] Navegação previsível:** ações frequentes explícitas em vez de tudo no "+".
     Limites **não** ganha acesso mais fácil (decisão do usuário, 28/09/2026 — ver §11).
-11. **[Média] Importação:** total selecionado + confirmar fixos no rodapé; filtro
+11. ✅ **[Média] Importação:** total selecionado + confirmar fixos no rodapé; filtro
     "Precisa revisar".
-12. **[Expansão] Exportação/restauração de dados** (arquivo controlado pelo usuário —
-    responde a pergunta do §11 sobre backup) e ativação de IA mais simples.
+12. ✅ **[Expansão] Exportação/restauração de dados** (arquivo controlado pelo usuário —
+    responde a pergunta do §11 sobre backup). A "ativação de IA mais simples" ficou para
+    depois: sem backend não há como evitar a chave.
 
 Depois da fase (não agora): previsão por data com "e se eu adiar/antecipar", simulação
 ligada ao prazo das metas, renda variável/múltiplos recebimentos, sincronização.
@@ -282,8 +283,11 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
   - O tour vira **dicas dentro de cada tela, com destaque no componente** explicado.
   - **Limites não ganha acesso mais fácil**: fica só por "Ajustar limites" e pelos avisos.
   - O usuário **só testa no aparelho quando a fase inteira estiver pronta**.
-  - Em aberto: guardar o dia fixo da dívida (`diaVencimento`) na mesma migração da renda
-    principal. Ver `FASE7-PROXIMOS-PASSOS.md`, item 5.
+  - Dia fixo da dívida: feito **junto com a renda principal**, na mesma migração 9→10
+    (`dividas.diaVencimento`), pelo padrão combinado ("juntar, se ele não se opuser") —
+    o usuário pediu para implementar todos os itens pendentes em 28/09/2026.
+  - Backup: resolvido por exportar/restaurar manual (Configurações → Privacidade e dados);
+    `allowBackup` continua `false`.
 
 - O usuário final é só você (single-user, sem conta/login) ou o app deve prever múltiplos perfis no mesmo aparelho?
 - Existe hoje algum dado real (lançamentos, dívidas, faturas) do site atual que precisa ser migrado para o app, ou o app Android começa do zero?

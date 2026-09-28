@@ -80,7 +80,7 @@ fun BuySimulatorContent(
         onEnsureExplain(formatBrl0(amount), verdict.label, formatBrl0(free), formatBrl0(free - amount), topGoal?.name, topGoalAffected)
     }
     val effects = buildList {
-        add(SimEffect("Folga do mês", "depois da compra", formatBrl0(free - amount), if (free - amount >= 0) FinaiColors.EmeraldDark else Color(0xFFE11D48)))
+        add(SimEffect("Folga do mês", "depois da compra", formatBrl0(free - amount), if (free - amount >= 0) FinaiColors.EmeraldDark else Color(0xFFBE123C)))
         topGoal?.let { goal ->
             add(
                 SimEffect(
@@ -106,7 +106,7 @@ fun BuySimulatorContent(
         )
         Text(
             "A IA compara a compra com seus limites, contas e objetivos antes de você decidir.",
-            fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 4.dp),
+            fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 4.dp),
         )
 
         Column(
@@ -118,7 +118,7 @@ fun BuySimulatorContent(
                 .border(1.dp, FinaiColors.BorderFaint, RoundedCornerShape(18.dp))
                 .padding(14.dp),
         ) {
-            Text("VALOR DA COMPRA", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted)
+            Text("VALOR DA COMPRA", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted)
             Text(
                 formatBrl0(amount), fontSize = 32.sp, fontWeight = FontWeight.ExtraBold,
                 color = FinaiColors.TextPrimary, modifier = Modifier.padding(top = 4.dp),
@@ -155,7 +155,7 @@ fun BuySimulatorContent(
                 .padding(16.dp),
         ) {
             Text(
-                "VEREDITO", fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold,
+                "VEREDITO", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
                 color = Color.White.copy(alpha = 0.6f),
             )
             Text(
@@ -178,10 +178,10 @@ fun BuySimulatorContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Column {
-                        Text(effect.label, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-                        Text(effect.detail, fontSize = 11.sp, color = FinaiColors.TextMuted)
+                        Text(effect.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+                        Text(effect.detail, fontSize = 12.sp, color = FinaiColors.TextMuted)
                     }
-                    Text(effect.delta, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = effect.color)
+                    Text(effect.delta, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = effect.color)
                 }
             }
         }

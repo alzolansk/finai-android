@@ -32,7 +32,7 @@ object FinaiFixtures {
         val t = question.lowercase()
         val tip = when {
             t.contains("folga") || t.contains("gastar") ->
-                "Enquanto isso, veja o cartão \"Pode gastar hoje\" na tela Início — já é calculado a partir das suas contas e lançamentos reais."
+                "Enquanto isso, veja o \"Livre até o salário\" no topo da Início — já é calculado a partir das suas contas e lançamentos reais."
             t.contains("dívida") || t.contains("divida") ->
                 "Enquanto isso, veja a tela Dívidas — a ordem de ataque já é calculada pelo custo do juro de cada uma."
             t.contains("economizar") || t.contains("assinatura") ->

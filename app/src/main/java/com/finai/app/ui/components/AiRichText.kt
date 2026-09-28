@@ -43,7 +43,7 @@ data class AiTextPalette(
             money = FinaiColors.EmeraldDark,
             moneyBg = FinaiColors.Emerald.copy(alpha = 0.10f),
             negative = Color(0xFFBE123C),
-            negativeBg = Color(0xFFE11D48).copy(alpha = 0.08f),
+            negativeBg = Color(0xFFBE123C).copy(alpha = 0.08f),
             bullet = FinaiColors.EmeraldDark,
         )
         val OnDark = AiTextPalette(
@@ -52,7 +52,7 @@ data class AiTextPalette(
             money = Color.White,
             moneyBg = Color.White.copy(alpha = 0.14f),
             negative = Color(0xFFFECDD3),
-            negativeBg = Color(0xFFE11D48).copy(alpha = 0.25f),
+            negativeBg = Color(0xFFBE123C).copy(alpha = 0.25f),
             bullet = Color.White.copy(alpha = 0.6f),
         )
     }
@@ -113,7 +113,7 @@ private fun HighlightRow(highlights: List<AiReplyFormat.Highlight>, palette: AiT
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             ) {
                 Text(
-                    h.label, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = palette.body,
+                    h.label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = palette.body,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(

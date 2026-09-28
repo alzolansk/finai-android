@@ -85,6 +85,8 @@ fun InitialSetupWizard(
     var valor by rememberSaveable { mutableStateOf("") }
     var nextPayString by rememberSaveable { mutableStateOf(InitialSetup.suggestedNextPay(today).toString()) }
     val bills = remember { mutableStateListOf<DraftBill>() }
+    // Conta preenchida mas não adicionada: entra mesmo assim ao ver o resultado.
+    var pendingBill by remember { mutableStateOf<DraftBill?>(null) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -97,7 +99,7 @@ fun InitialSetupWizard(
         saving = true; error = null
         val entries = buildList {
             incomeCents?.let { add(InitialSetup.mainIncome(descricao, it, nextPay, today)) }
-            bills.forEach { add(InitialSetup.bill(it.nome, it.cents, it.date, it.categoria, recorrente = true)) }
+            (bills + listOfNotNull(pendingBill)).forEach { add(InitialSetup.bill(it.nome, it.cents, it.date, it.categoria, recorrente = true)) }
         }
         scope.launch {
             try {
@@ -167,7 +169,7 @@ fun InitialSetupWizard(
                                 TextAction("Remover", { bills.removeAt(index) }, color = FinaiColors.RoseDark)
                             }
                         }
-                        NewBillForm(today) { bills.add(it) }
+                        NewBillForm(today, onDraft = { pendingBill = it }) { bills.add(it) }
                         error?.let { Text(it, color = FinaiColors.RoseDark, fontSize = 14.sp) }
                     }
                     SetupStep.Result -> ResultStep(situation, incomeCents != null, onFinish)
@@ -272,13 +274,16 @@ private fun DateField(label: String, date: LocalDate, today: LocalDate, onPick: 
 }
 
 @Composable
-private fun NewBillForm(today: LocalDate, onAdd: (DraftBill) -> Unit) {
+private fun NewBillForm(today: LocalDate, onDraft: (DraftBill?) -> Unit, onAdd: (DraftBill) -> Unit) {
     var nome by remember { mutableStateOf("") }
     var valor by remember { mutableStateOf("") }
     var dayOffset by remember { mutableStateOf(0) }
     var categoria by remember { mutableStateOf("Moradia") }
     val cents = InitialSetup.parseAmountCents(valor)
     val days = InitialSetup.weekDays(today)
+    androidx.compose.runtime.LaunchedEffect(nome, cents, dayOffset, categoria) {
+        onDraft(if (nome.isNotBlank() && cents != null) DraftBill(nome, cents, days[dayOffset], categoria) else null)
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()

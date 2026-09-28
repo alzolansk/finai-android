@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -137,7 +138,7 @@ fun ChatOverlay(
                         thinking -> "analisando seus números..."
                         else -> "lê o resumo dos seus números"
                     },
-                    fontSize = 11.sp, color = FinaiColors.TextTertiary,
+                    fontSize = 12.sp, color = FinaiColors.TextTertiary,
                 )
             }
             HeaderIcon(
@@ -193,17 +194,19 @@ fun ChatOverlay(
                 .navigationBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 16.dp),
         ) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            LazyRow(modifier = Modifier.tipTarget("chat.suggestions"), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 items(FinaiFixtures.chatSuggestions) { suggestion ->
                     Box(
                         modifier = Modifier
+                            .heightIn(min = 44.dp)
                             .clip(RoundedCornerShape(99.dp))
                             .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
                             .background(FinaiColors.Surface)
                             .clickable { onSuggestion(suggestion) }
-                            .padding(horizontal = 13.dp, vertical = 8.dp),
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Text(suggestion, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextBody)
+                        Text(suggestion, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextBody)
                     }
                 }
             }
@@ -303,7 +306,7 @@ private fun ConversationHistory(
         Box(modifier = modifier.padding(32.dp), contentAlignment = Alignment.TopCenter) {
             Text(
                 "Nenhuma conversa ainda. As conversas ficam guardadas aqui para você voltar a elas.",
-                fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary, textAlign = TextAlign.Center,
+                fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary, textAlign = TextAlign.Center,
             )
         }
         return
@@ -338,7 +341,7 @@ private fun ConversationHistory(
                     Text(
                         (if (current) "Aberta · " else "") + conversationDateLabel(conversa.ultima) +
                             " · ${conversa.total} " + if (conversa.total == 1) "mensagem" else "mensagens",
-                        fontSize = 11.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                        fontSize = 12.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
                     )
                 }
                 HeaderIcon(Icons.Outlined.DeleteOutline, "Apagar conversa") { pendingDelete = conversa }

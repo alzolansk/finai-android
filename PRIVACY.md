@@ -114,3 +114,17 @@ quem a extrai consome a cota gratuita dele, não a de terceiros.
 Se isso virar um problema real depois do lançamento, a saída registrada no
 planning é intermediar as chamadas por uma função serverless gratuita — sem
 mudar o resto da arquitetura.
+
+
+## Exportar e restaurar (Fase 7, 28/09/2026)
+
+"Configurações → Privacidade e dados → Exportar dados" grava um arquivo JSON onde o usuário
+escolher (seletor do sistema, sem permissão nova). O arquivo leva lançamentos, faturas,
+contas, objetivos, dívidas, limites, assinaturas e o histórico do chat
+(`data/backup/FinaiBackup.kt`). **Não** leva chaves de IA (`AiKeyStore`), contagem de cota
+(`uso_provedor_ia`), preferências nem o registro de notificações.
+
+**Depois de exportado, o arquivo sai do controle do app:** fica sem criptografia no local
+escolhido (Downloads, Drive, e-mail...), e a tela avisa isso. "Restaurar de um arquivo"
+valida o formato e a versão do schema, mostra o que o arquivo traz e só grava depois da
+confirmação, substituindo todos os dados do aparelho numa transação.

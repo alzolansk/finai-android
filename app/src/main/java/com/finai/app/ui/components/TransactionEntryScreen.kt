@@ -336,7 +336,7 @@ private fun TransactionEntryContent(
                     Row(Modifier.fillMaxWidth().selectable(item == selectedAccount, role = Role.RadioButton, onClick = { account = item; sheet = null }).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                         EntryGlyph("card", EntryMuted)
                         Text(item, color = EntryInk, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                        if (item == selectedAccount) EntryGlyph("check", Color(0xFF059669))
+                        if (item == selectedAccount) EntryGlyph("check", Color(0xFF047857))
                     }
                 }
                 OutlinedTextField(custom, { custom = it }, label = { Text(if (isReceita) "De onde veio (empresa, cliente...)" else "Outra conta/cartão") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -367,7 +367,7 @@ internal fun EntryField(icon: String, label: String, value: String, placeholder:
     Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(EntryShape).background(Color.White).border(1.dp, EntryLine.copy(alpha = .65f), EntryShape).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         EntryGlyph(icon, EntryMuted)
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-            Text(label, color = EntryMuted, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(label, color = EntryMuted, fontSize = 12.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold)
             Text(value, color = if (placeholder) EntryMuted else EntryInk, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold)
         }
         EntryGlyph("down", EntryMuted, size = 16)
@@ -427,7 +427,7 @@ internal fun EntrySheet(title: String, onDismiss: () -> Unit, content: @Composab
             Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, color = EntryInk, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
-                    Box(Modifier.size(30.dp).background(Color(0xFFF4F4F5), CircleShape), contentAlignment = Alignment.Center) { EntryGlyph("close", Color(0xFF71717A), "Fechar", 14) }
+                    Box(Modifier.size(30.dp).background(Color(0xFFF4F4F5), CircleShape), contentAlignment = Alignment.Center) { EntryGlyph("close", Color(0xFF63636B), "Fechar", 14) }
                 }
             }
             content()
@@ -466,7 +466,7 @@ internal fun EntryCalendarSheet(selected: LocalDate, onSelect: (LocalDate) -> Un
             Row(Modifier.fillMaxWidth()) {
                 WeekdayLabelsPt.forEach { label ->
                     Box(Modifier.weight(1f).height(28.dp), contentAlignment = Alignment.Center) {
-                        Text(label, color = EntryMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(label, color = EntryMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

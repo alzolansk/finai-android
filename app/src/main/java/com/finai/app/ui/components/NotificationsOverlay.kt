@@ -135,7 +135,7 @@ private fun PanelHeader(alerts: List<FinanceAlert>, onClose: () -> Unit) {
             Text("Avisos", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
             Text(
                 summaryOf(alerts),
-                fontSize = 12.5.sp,
+                fontSize = 13.sp,
                 color = FinaiColors.TextTertiary,
                 modifier = Modifier.padding(top = 1.dp),
             )
@@ -175,7 +175,7 @@ private fun GroupHeader(severity: AlertSeverity) {
         Dot(severity.strong, size = 7.dp)
         Text(
             severity.groupLabel.uppercase(),
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.6.sp,
             color = severity.strong,
@@ -205,7 +205,7 @@ private fun AlertRow(alert: FinanceAlert, onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(alert.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, lineHeight = 18.sp, color = FinaiColors.TextPrimary)
             Text(
-                alert.body, fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
+                alert.body, fontSize = 13.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
                 modifier = Modifier.padding(top = 2.dp),
             )
             Text(
@@ -239,7 +239,7 @@ private fun EmptyState() {
         )
         Text(
             "Nenhuma conta atrasada ou vencendo, nenhum limite perto de estourar e seus objetivos estão no ritmo.",
-            fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary, textAlign = TextAlign.Center,
+            fontSize = 13.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary, textAlign = TextAlign.Center,
             modifier = Modifier.width(280.dp).padding(top = 4.dp),
         )
     }
