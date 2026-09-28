@@ -60,7 +60,7 @@ data class SavingsProjection(val months: List<MonthProjection>) {
 
             val months = generateSequence(start) { it.plusMonths(1) }.takeWhile { it <= until }.map { month ->
                 val flow = MonthCashFlow.of(contas, transacoes, dividas, month, today)
-                val hasSalary = (flow.recorrentes + flow.avulsas).any(PayCycle::isSalary)
+                val hasSalary = (flow.recorrentes + flow.avulsas).any(PayCycle::isMainIncome)
                 val estimated = if (lastAvulso != null && lastSalaryMonth != null && month > lastSalaryMonth && !hasSalary) {
                     lastAvulso.valorCentavos
                 } else {

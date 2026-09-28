@@ -53,7 +53,7 @@ class SpendExplanationTest {
         val safe = SafeToSpendCalculator.calculate(emptyList(), listOf(tx(today, 5_000, TransactionType.Gasto, desc = "Café")), 0, today)
         val e = SpendExplanation.of(safe, null, today)
         assertTrue(e.period.contains("fim do mês"))
-        assertTrue(e.missing.single().contains("Salário"))
+        assertTrue(e.missing.single().contains("renda principal"))
         // Gasto sem receita: a conta fica negativa e é mostrada assim, não como "R$ 0".
         assertEquals(-5_000L, e.steps.last().cents)
         assertEquals(5_000L, e.shortfall?.cents)

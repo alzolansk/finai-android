@@ -61,26 +61,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<FinaiUiState> = _uiState
 
     /**
-     * `null` enquanto o DataStore ainda não respondeu, `false` numa instalação
-     * nova (ou depois de "Apagar todos os dados"/"Rever tour guiado") e `true`
-     * depois que o usuário concluiu ou pulou o tour. [com.finai.app.FinaiApp]
-     * só decide mostrar o overlay do tour quando o valor já não é `null`, para
-     * não desenhar e esconder o tour no mesmo frame na abertura do app.
+     * Telas cujas dicas já foram vistas ([com.finai.app.domain.TipScript]); `null` enquanto o
+     * DataStore não respondeu, para não abrir uma dica por um frame em quem já as viu.
+     * Substitui o antigo tour em tela cheia (`onboardingComplete`, que só sobrevive como
+     * migração em [FinaiPreferences.tipsSeen]).
      */
-    val onboardingComplete: StateFlow<Boolean?> =
-        prefs.onboardingComplete
-            .map<Boolean, Boolean?> { it }
+    val tipsSeen: StateFlow<Set<String>?> =
+        prefs.tipsSeen
+            .map<Set<String>, Set<String>?> { it }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun completeOnboarding() = viewModelScope.launch { prefs.setOnboardingComplete(true) }
+    fun markTipsSeen(screen: String) = viewModelScope.launch { prefs.markTipsSeen(screen) }
 
     /** Usado tanto por "Rever tour guiado" quanto depois de "Apagar todos os dados". */
-    fun restartOnboarding() = viewModelScope.launch { prefs.setOnboardingComplete(false) }
+    fun restartOnboarding() = viewModelScope.launch { prefs.resetTips() }
 
     /**
      * Configuração inicial de dados ([com.finai.app.ui.components.InitialSetupWizard]),
-     * mostrada uma única vez logo depois do tour guiado (`null` enquanto o
-     * DataStore não respondeu, mesma convenção de [onboardingComplete]).
+     * mostrada uma única vez na primeira abertura (`null` enquanto o
+     * DataStore não respondeu, mesma convenção de [tipsSeen]).
      * Deliberadamente não reaberta por "Rever tour guiado" — quem já tem
      * dados cadastrados não deve ser levado de volta a um assistente de
      * cadastro inicial; só "Apagar todos os dados" a reabre, junto com o tour.

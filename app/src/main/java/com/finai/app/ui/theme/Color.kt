@@ -26,26 +26,30 @@ object FinaiColors {
     val BorderSubtle = Color(0xFFE4E4E7)
     val BorderFaint = Color(0xFFF4F4F5)
 
-    // Text
+    // Text — todo texto útil passa de 4,5:1 (WCAG AA) sobre Surface, Background e SurfaceMuted.
     val TextPrimary = Color(0xFF18181B)
     val TextBody = Color(0xFF27272A)
     val TextSecondary = Color(0xFF52525B)
-    val TextTertiary = Color(0xFF71717A)
-    val TextMuted = Color(0xFFA1A1AA)
+    val TextTertiary = Color(0xFF63636B) // 5,4:1 sobre #F4F4F5 (Fase 7, item 4)
+    val TextMuted = Color(0xFF6B6B73) // 4,8:1 sobre #F4F4F5; era #A1A1AA (2,3:1)
     val TextOnDarkFull = Color(0xFFFFFFFF)
     val TextOnDarkMuted = Color(0xB3FFFFFF) // rgba(255,255,255,.7-ish)
     val TextOnDarkFaint = Color(0x8AFFFFFF)
 
     // Brand — emerald
     val Emerald = Color(0xFF10B981)
-    val EmeraldDark = Color(0xFF059669)
+    /**
+     * Verde de texto e de botão com texto branco: 5,5:1 sobre branco. [Emerald] (2,5:1)
+     * fica só como acento sem texto em cima — barras de progresso, anel dos dias.
+     */
+    val EmeraldDark = Color(0xFF047857)
     val EmeraldDeep = Color(0xFF065F46)
     val EmeraldSoftBg = Color(0xFFECFDF5)
     val EmeraldSoftBorder = Color(0xFFD1FAE5)
 
     // Rose / danger
     val Rose = Color(0xFFF43F5E)
-    val RoseDark = Color(0xFFE11D48)
+    val RoseDark = Color(0xFFBE123C) // texto de problema: 5,7:1 sobre #F4F4F5
     val RoseSoftBg = Color(0xFFFFF1F2)
     val RoseDeep = Color(0xFF881337)
     val RoseDeepest = Color(0xFF4C0519)

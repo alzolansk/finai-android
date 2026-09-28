@@ -44,7 +44,7 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
         UsoProvedorIaEntity::class,
         NotificacaoEnviadaEntity::class,
     ],
-    version = 9,
+    version = 10,
     // Fase 6: o schema de cada versão passa a ser exportado para
     // `app/schemas/` e versionado no git. É o que permite escrever (e testar)
     // uma migração sem adivinhar o DDL que o Room gerou na versão anterior —
@@ -151,7 +151,48 @@ abstract class FinaiDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+        /**
+         * Fase 7, item 5 — renda principal explícita e dia combinado da dívida, numa migração só.
+         *
+         * `transacoes.rendaPrincipal`: marca as receitas que hoje já são tratadas como salário
+         * pelo nome (`PayCycle.isSalary`: "salário"/"holerite", sem "13"/"décimo"/"férias", não
+         * extra, fora de fatura). O `LIKE` do SQLite ignora caixa só em ASCII e não tira acento,
+         * então as grafias com "á"/"Á" entram à parte. O filtro de "13" é mais largo que o da
+         * regex do app; o que escapar continua reconhecido pelo nome em tempo de execução.
+         * Se nenhuma casar, marca a maior receita recorrente, que é o
+         * que o app já usava como salário deduzido. Assim o ciclo de quem atualiza não muda.
+         *
+         * `dividas.diaVencimento`: o dia do próximo vencimento. Se ele cai no último dia do mês,
+         * vira 31 — era isso que a regra de fim de mês já fazia, e o comportamento se mantém.
+         */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `transacoes` ADD COLUMN `rendaPrincipal` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    "UPDATE `transacoes` SET `rendaPrincipal` = 1 WHERE `tipo` = 'Receita' AND `extra` = 0 " +
+                        "AND `faturaId` IS NULL AND `valorCentavos` > 0 " +
+                        "AND (`descricao` LIKE '%salario%' OR `descricao` LIKE '%salário%' OR `descricao` LIKE '%salÁrio%' " +
+                        "OR `descricao` LIKE '%holerite%') " +
+                        "AND `descricao` NOT LIKE '%13%' AND `descricao` NOT LIKE '%decimo%' AND `descricao` NOT LIKE '%décimo%' " +
+                        "AND `descricao` NOT LIKE '%ferias%' AND `descricao` NOT LIKE '%férias%'",
+                )
+                db.execSQL(
+                    "UPDATE `transacoes` SET `rendaPrincipal` = 1 WHERE `id` = (" +
+                        "SELECT `id` FROM `transacoes` WHERE `tipo` = 'Receita' AND `recorrente` = 1 AND `extra` = 0 " +
+                        "AND `faturaId` IS NULL AND `valorCentavos` > 0 ORDER BY `valorCentavos` DESC, `data` ASC LIMIT 1) " +
+                        "AND NOT EXISTS (SELECT 1 FROM `transacoes` WHERE `rendaPrincipal` = 1)",
+                )
+                db.execSQL("ALTER TABLE `dividas` ADD COLUMN `diaVencimento` INTEGER")
+                db.execSQL(
+                    "UPDATE `dividas` SET `diaVencimento` = CASE " +
+                        "WHEN strftime('%d', `proximoVencimento` / 1000, 'unixepoch', 'localtime', '+1 day') = '01' THEN 31 " +
+                        "ELSE CAST(strftime('%d', `proximoVencimento` / 1000, 'unixepoch', 'localtime') AS INTEGER) END " +
+                        "WHERE `proximoVencimento` IS NOT NULL",
+                )
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
 
         @Volatile private var instance: FinaiDatabase? = null
 

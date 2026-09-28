@@ -31,6 +31,26 @@ class FinaiPreferences(private val context: Context) {
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
         val INITIAL_SETUP_COMPLETE = booleanPreferencesKey("initial_setup_complete")
         val KNOWN_ACCOUNTS = stringSetPreferencesKey("known_accounts")
+        val TIPS_SEEN = stringSetPreferencesKey("tips_seen")
+    }
+
+    /**
+     * Telas cujas dicas já foram vistas (Fase 7, item 6 — substitui o tour em tela cheia).
+     * Sem a chave, quem já tinha concluído o tour antigo ([Keys.ONBOARDING_COMPLETE]) conta
+     * como tendo visto todas: não deve ver as dicas de novo sozinho.
+     */
+    val tipsSeen: Flow<Set<String>> = context.dataStore.data.map { seenOf(it) }
+
+    private fun seenOf(p: androidx.datastore.preferences.core.Preferences): Set<String> =
+        p[Keys.TIPS_SEEN] ?: if (p[Keys.ONBOARDING_COMPLETE] == true) com.finai.app.domain.TipScript.screens else emptySet()
+
+    suspend fun markTipsSeen(screen: String) {
+        context.dataStore.edit { it[Keys.TIPS_SEEN] = seenOf(it) + screen }
+    }
+
+    /** "Rever tour guiado" e "Apagar todos os dados": as dicas voltam a aparecer em cada tela. */
+    suspend fun resetTips() {
+        context.dataStore.edit { it[Keys.TIPS_SEEN] = emptySet() }
     }
 
     /** Ausência da chave (instalação nova, ou depois de "Apagar todos os dados") conta como "não concluído". */

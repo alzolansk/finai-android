@@ -23,14 +23,23 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.text.style.TextOverflow
+import com.finai.app.ui.components.ActionButton
+import com.finai.app.ui.components.EmptyStateCard
+import com.finai.app.ui.components.OverflowAction
+import com.finai.app.ui.components.OverflowMenu
+import com.finai.app.ui.components.tipTarget
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,11 +93,15 @@ fun AgendaScreen(
     onEditConta: (Bill) -> Unit,
     onOpenInvoice: (contaId: Long) -> Unit = {},
     onToggleExtra: (TransacaoEntity, Boolean) -> Unit = { _, _ -> },
+    onToggleMainIncome: (TransacaoEntity, Boolean) -> Unit = { _, _ -> },
     onEditDebt: (Long) -> Unit = {},
+    onNewEntry: () -> Unit = {},
+    onImport: () -> Unit = {},
     today: LocalDate = LocalDate.now(),
 ) {
     var pendingDeleteTransaction by remember { mutableStateOf<TransacaoEntity?>(null) }
     var pendingDeleteBill by remember { mutableStateOf<Bill?>(null) }
+    var pendingPayment by remember { mutableStateOf<DebtInstallment?>(null) }
 
     // Tracks whether the month moved forward or back so the label/totals slide in from the
     // matching side — a plain crossfade reads ambiguous when the user is clearly paging.
@@ -106,14 +119,14 @@ fun AgendaScreen(
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = ScreenContentPadding,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
             Column {
-                Text("Agenda", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+                Text("Agenda", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
                 Text(
-                    "Pagamentos e recebimentos do mês", fontSize = 13.sp, color = FinaiColors.TextTertiary,
-                    modifier = Modifier.padding(top = 3.dp),
+                    "Pagamentos e recebimentos do mês", fontSize = 14.sp, color = FinaiColors.TextTertiary,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }
@@ -122,17 +135,16 @@ fun AgendaScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .tipTarget("agenda.month")
                     .clip(RoundedCornerShape(99.dp))
                     .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
-                    .background(FinaiColors.Surface)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .background(FinaiColors.Surface),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    Icons.Filled.ChevronLeft, contentDescription = "Mês anterior", tint = FinaiColors.TextMuted,
-                    modifier = Modifier.clickable(onClick = onPrevMonth),
-                )
+                IconButton(onClick = onPrevMonth) {
+                    Icon(Icons.Filled.ChevronLeft, contentDescription = "Mês anterior", tint = FinaiColors.TextSecondary)
+                }
                 AnimatedContent(
                     targetState = monthIndex to year,
                     transitionSpec = {
@@ -143,14 +155,13 @@ fun AgendaScreen(
                     label = "agendaMonth",
                 ) { (m, y) ->
                     Text(
-                        "${MONTH_NAMES_PT[m]} de $y", fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        "${MONTH_NAMES_PT[m]} de $y", fontSize = 15.sp, fontWeight = FontWeight.Bold,
                         color = FinaiColors.TextPrimary,
                     )
                 }
-                Icon(
-                    Icons.Filled.ChevronRight, contentDescription = "Próximo mês", tint = FinaiColors.TextMuted,
-                    modifier = Modifier.clickable(onClick = onNextMonth),
-                )
+                IconButton(onClick = onNextMonth) {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "Próximo mês", tint = FinaiColors.TextSecondary)
+                }
             }
         }
 
@@ -165,52 +176,90 @@ fun AgendaScreen(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SummaryTile(
                         label = "Contas a pagar", value = formatBrl0(toPayCents / 100.0),
-                        note = "$toPayCount conta(s)", valueColor = FinaiColors.TextPrimary, modifier = Modifier.weight(1f),
+                        note = if (toPayCount == 1) "1 conta" else "$toPayCount contas", valueColor = FinaiColors.TextPrimary, modifier = Modifier.weight(1f),
                     )
                     SummaryTile(
                         label = "Recebimentos", value = "+ " + formatBrl0(toGetCents / 100.0),
-                        note = "$toGetCount entrada(s)", valueColor = FinaiColors.EmeraldDark, modifier = Modifier.weight(1f),
+                        note = if (toGetCount == 1) "1 entrada" else "$toGetCount entradas", valueColor = FinaiColors.EmeraldDark, modifier = Modifier.weight(1f),
                     )
                 }
             }
         }
 
         // Timeline do mês: tudo que entra ou sai, por dia, na ordem em que acontece. O tipo
-        // (dívida, recorrente, fatura…) vira chip do item, não seção da página.
+        // (dívida, recorrente, fatura…) vira chip do item, não seção da página. Cada dia é uma
+        // lista simples com divisor (Fase 7, item 7): cartão fica para resumo e decisão.
         val timeline = agendaTimeline(bills, recurringTransactions, transactions, debtsDue)
         if (timeline.isEmpty()) {
             item {
                 com.finai.app.ui.components.FadeInAppear {
-                    Text(
-                        "Nada agendado para este mês.", fontSize = 13.sp, color = FinaiColors.TextMuted,
-                        modifier = Modifier.padding(vertical = 8.dp),
+                    EmptyStateCard(
+                        "Nada lançado para ${MONTH_NAMES_PT[monthIndex].lowercase()}. Lance contas, gastos e receitas com data, " +
+                            "ou importe a fatura do cartão, para ver o mês dia a dia.",
+                        "Lançar conta", onNewEntry,
+                        secondaryLabel = "Importar fatura", onSecondary = onImport,
                     )
                 }
             }
         }
+        val firstBillKey = timeline.flatMap { it.second }.firstOrNull { it is AgendaEntry.Conta }?.key
+        val firstLancamentoKey = timeline.flatMap { it.second }.firstOrNull { it is AgendaEntry.Lancamento }?.key
         timeline.forEach { (date, entries) ->
             item(key = "dia-" + (date?.toString() ?: "sem-dia")) {
                 DayHeader(date, entries, today, Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard)))
             }
-            items(entries, key = { it.key }) { entry ->
-                val mod = Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard))
-                when (entry) {
-                    is AgendaEntry.Conta -> BillRow(
-                        entry.bill, onToggleContaPaga,
-                        onRequestEdit = { onEditConta(entry.bill) }, onRequestDelete = { pendingDeleteBill = entry.bill },
-                        onOpenItems = invoiceItemsByAccountId[entry.bill.id]?.let { { onOpenInvoice(entry.bill.id) } },
-                        modifier = mod,
-                    )
-                    is AgendaEntry.Parcela -> DebtInstallmentRow(
-                        entry.parcela, onPay = { onPayInstallment(entry.parcela.divida.id) },
-                        onEdit = { onEditDebt(entry.parcela.divida.id) }, modifier = mod,
-                    )
-                    is AgendaEntry.Lancamento -> TransacaoRow(
-                        entry.transacao, today, mod, onToggleExtra,
-                    ) { pendingDeleteTransaction = entry.transacao }
+            item(key = "lista-" + (date?.toString() ?: "sem-dia")) {
+                Column(
+                    modifier = Modifier
+                        .animateItemPlacement(finaiTween(FinaiMotion.Standard))
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(FinaiColors.Surface),
+                ) {
+                    entries.forEachIndexed { index, entry ->
+                        if (index > 0) HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp, modifier = Modifier.padding(start = 62.dp))
+                        val mod = when (entry.key) {
+                            firstBillKey -> Modifier.tipTarget("agenda.bill")
+                            firstLancamentoKey -> Modifier.tipTarget("agenda.transactions")
+                            else -> Modifier
+                        }
+                        when (entry) {
+                            is AgendaEntry.Conta -> BillRow(
+                                entry.bill, onToggleContaPaga,
+                                onRequestEdit = { onEditConta(entry.bill) }, onRequestDelete = { pendingDeleteBill = entry.bill },
+                                onOpenItems = invoiceItemsByAccountId[entry.bill.id]?.let { { onOpenInvoice(entry.bill.id) } },
+                                modifier = mod,
+                            )
+                            is AgendaEntry.Parcela -> DebtInstallmentRow(
+                                entry.parcela, onPay = { pendingPayment = entry.parcela },
+                                onEdit = { onEditDebt(entry.parcela.divida.id) }, modifier = mod,
+                            )
+                            is AgendaEntry.Lancamento -> TransacaoRow(
+                                entry.transacao, today, mod, onToggleExtra, onToggleMainIncome,
+                            ) { pendingDeleteTransaction = entry.transacao }
+                        }
+                    }
                 }
             }
         }
+    }
+
+    pendingPayment?.let { parcela ->
+        AlertDialog(
+            onDismissRequest = { pendingPayment = null },
+            title = { Text("Registrar pagamento?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "${parcela.divida.nome}" + (parcela.numero?.let { " · parcela $it de ${parcela.total}" } ?: "") +
+                        " · ${formatBrl0(parcela.valorCentavos / 100.0)}. O valor entra como gasto de hoje e a próxima parcela passa a ser a seguinte.",
+                    color = FinaiColors.TextSecondary,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onPayInstallment(parcela.divida.id); pendingPayment = null }) { Text("Paguei") }
+            },
+            dismissButton = { TextButton(onClick = { pendingPayment = null }) { Text("Cancelar") } },
+        )
     }
 
     pendingDeleteTransaction?.let { transacao ->
@@ -246,9 +295,9 @@ private fun SummaryTile(label: String, value: String, note: String, valueColor: 
             .background(FinaiColors.Surface)
             .padding(13.dp),
     ) {
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary)
-        Text(value, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = valueColor, modifier = Modifier.padding(top = 5.dp))
-        Text(note, fontSize = 10.5.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 2.dp))
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary)
+        Text(value, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = valueColor, modifier = Modifier.padding(top = 4.dp))
+        Text(note, fontSize = 13.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
@@ -310,40 +359,46 @@ private val WEEKDAYS_PT = listOf("segunda", "terça", "quarta", "quinta", "sexta
 private fun DayHeader(date: LocalDate?, entries: List<AgendaEntry>, today: LocalDate, modifier: Modifier = Modifier) {
     val net = entries.sumOf { it.signedCents }
     Row(
-        modifier = modifier.fillMaxWidth().padding(top = 6.dp),
+        modifier = modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (date == null) {
-            Text("SEM DIA DEFINIDO", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextSecondary)
+            Text("SEM DIA DEFINIDO", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextSecondary)
         } else {
             Text(
                 "%02d %s".format(date.dayOfMonth, MONTH_ABBREV_PT[date.monthValue - 1].uppercase()),
-                fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary,
+                fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary,
             )
-            Text(WEEKDAYS_PT[date.dayOfWeek.value - 1], fontSize = 12.sp, color = FinaiColors.TextMuted)
+            Text(WEEKDAYS_PT[date.dayOfWeek.value - 1], fontSize = 13.sp, color = FinaiColors.TextTertiary)
             if (date == today) Chip("Hoje", FinaiColors.EmeraldDark, Color(0xFFECFDF5))
         }
         Box(Modifier.weight(1f))
         if (net != 0L) {
             Text(
                 (if (net > 0) "+ " else "− ") + formatBrl0(kotlin.math.abs(net) / 100.0),
-                fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
+                fontSize = 13.sp, fontWeight = FontWeight.Bold,
                 color = if (net > 0) FinaiColors.EmeraldDark else FinaiColors.TextTertiary,
             )
         }
     }
 }
 
+/**
+ * Cor com significado (Fase 7, item 7): verde = dinheiro que entra, vermelho = problema
+ * (atrasado), âmbar = atenção. O tipo do item (dívida, recorrente, fatura) é informação e
+ * fica neutro — antes cada tipo tinha a sua cor (rosa, índigo, violeta) e nada se destacava.
+ */
 private enum class Tag(val label: String, val fg: Color, val bg: Color) {
-    Divida("Dívida", Color(0xFFBE123C), Color(0xFFFFF1F2)),
-    Recorrente("Recorrente", Color(0xFF4338CA), Color(0xFFEEF2FF)),
+    Divida("Dívida", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
+    Recorrente("Recorrente", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
     Receita("Receita", Color(0xFF047857), Color(0xFFECFDF5)),
-    Fatura("Fatura", Color(0xFF6D28D9), Color(0xFFF5F3FF)),
+    RendaPrincipal("Renda principal", Color(0xFF047857), Color(0xFFECFDF5)),
+    Fatura("Fatura", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
     Conta("Conta", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
-    Extra("Extra", Color(0xFFB45309), Color(0xFFFFFBEB)),
+    Extra("Extra", Color(0xFF047857), Color(0xFFECFDF5)),
     Importado("Importado", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
-    Transferencia("Transferência", Color(0xFF4F46E5), Color(0xFFEEF2FF)),
+    Transferencia("Transferência", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
 }
 
 @Composable
@@ -351,30 +406,31 @@ private fun Chip(label: String, fg: Color, bg: Color) {
     Box(
         modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(bg).padding(horizontal = 7.dp, vertical = 2.dp),
     ) {
-        Text(label, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = fg)
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1)
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Tags(tags: List<Tag>, extra: String? = null) {
-    Row(
+    FlowRow(
         modifier = Modifier.padding(top = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         tags.forEach { Chip(it.label, it.fg, it.bg) }
-        extra?.let { Text(it, fontSize = 10.5.sp, color = FinaiColors.TextMuted, maxLines = 1) }
+        extra?.let { Text(it, fontSize = 13.sp, color = FinaiColors.TextTertiary, maxLines = 1) }
     }
 }
 
 /** Ícone do item: diz o que ele é (casa, dívida, salário…) em vez de iniciais do nome. */
 private class ItemIcon(val glyph: String, val bg: Color, val ink: Color)
 
-private val DebtIcon = ItemIcon("installment", Color(0xFFFFF1F2), Color(0xFFBE123C))
-private val InvoiceIcon = ItemIcon("card", Color(0xFFF5F3FF), Color(0xFF6D28D9))
+private val DebtIcon = ItemIcon("installment", Color(0xFFF4F4F5), Color(0xFF3F3F46))
+private val InvoiceIcon = ItemIcon("card", Color(0xFFF4F4F5), Color(0xFF3F3F46))
 private val IncomeIcon = ItemIcon("wallet", Color(0xFFECFDF5), Color(0xFF047857))
 private val SalaryIcon = ItemIcon("briefcase", Color(0xFFECFDF5), Color(0xFF047857))
-private val TransferIcon = ItemIcon("transfer", Color(0xFFEEF2FF), Color(0xFF4F46E5))
+private val TransferIcon = ItemIcon("transfer", Color(0xFFF4F4F5), Color(0xFF3F3F46))
 private val BillIcon = ItemIcon("calendar", Color(0xFFF4F4F5), Color(0xFF3F3F46))
 
 /** Um tom por categoria, o mesmo glifo da tela de lançamento. */
@@ -392,7 +448,7 @@ private fun categoryIcon(categoria: String): ItemIcon = when (categoria) {
 
 private fun iconFor(t: TransacaoEntity): ItemIcon = when {
     t.origem == DebtSchedule.PAYMENT_ORIGIN -> DebtIcon
-    t.tipo == "Receita" && PayCycle.isSalary(t) -> SalaryIcon
+    t.tipo == "Receita" && PayCycle.isMainIncome(t) -> SalaryIcon
     t.tipo == "Receita" -> IncomeIcon
     t.tipo == "Transferencia" -> TransferIcon
     else -> categoryIcon(t.categoria)
@@ -408,89 +464,62 @@ private fun Avatar(icon: ItemIcon) {
     }
 }
 
-private class MenuAction(val label: String, val destructive: Boolean = false, val onClick: () -> Unit)
-
-/** Ações secundárias (editar, excluir…) ficam aqui em vez de soltas no card. */
+/**
+ * Uma linha da lista do dia: ícone, nome e selos, valor e status, menu ⋮ (editar/excluir) e,
+ * embaixo, a ação frequente como botão de 48 dp — "Marcar paga", "Paguei a parcela" (Fase 7,
+ * item 8). Antes a ação era "toque no card" com uma dica de 9 sp.
+ */
 @Composable
-private fun RowMenu(actions: List<MenuAction>) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        Box(
-            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).clickable { open = true },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "Mais ações", tint = FinaiColors.TextMuted, modifier = Modifier.size(18.dp))
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            actions.forEach { a ->
-                DropdownMenuItem(
-                    text = {
-                        Text(a.label, fontSize = 13.sp, color = if (a.destructive) Color(0xFFE11D48) else FinaiColors.TextPrimary)
-                    },
-                    onClick = { open = false; a.onClick() },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowCard(
+private fun ListRow(
     modifier: Modifier,
-    borderColor: Color = FinaiColors.BorderHairline,
-    onClick: (() -> Unit)? = null,
-    content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
+    icon: ItemIcon,
+    title: String,
+    tags: @Composable () -> Unit,
+    trailing: @Composable () -> Unit,
+    menu: List<OverflowAction>,
+    action: (@Composable () -> Unit)? = null,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
-            .background(FinaiColors.Surface)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(start = 14.dp, end = 6.dp, top = 12.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) { content() }
+    Column(modifier = modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, bottom = if (action != null) 10.dp else 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Avatar(icon)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+                tags()
+            }
+            Column(horizontalAlignment = Alignment.End) { trailing() }
+            if (menu.isNotEmpty()) OverflowMenu(menu, contentDescription = "Mais ações para $title") else Box(Modifier.size(12.dp))
+        }
+        if (action != null) Box(Modifier.padding(start = 48.dp, top = 6.dp)) { action() }
+    }
 }
 
 /**
  * Parcela de dívida. Só a mais antiga em aberto é "pagável": marcar uma de um mês futuro
- * pagaria, na prática, a anterior a ela (o modelo guarda só a próxima em aberto). Tocar
- * chama [onPay], que desconta uma parcela em [com.finai.app.state.FinanceViewModel.pagarParcela].
+ * pagaria, na prática, a anterior a ela (o modelo guarda só a próxima em aberto). O botão
+ * chama [onPay], que pede confirmação antes de descontar a parcela.
  */
 @Composable
 private fun DebtInstallmentRow(parcela: DebtInstallment, onPay: () -> Unit, onEdit: () -> Unit, modifier: Modifier = Modifier) {
-    RowCard(
-        modifier,
-        borderColor = if (parcela.atrasada) Color(0xFFFECDD3) else FinaiColors.BorderHairline,
-        onClick = if (parcela.isNext) onPay else null,
-    ) {
-        Avatar(DebtIcon)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(parcela.divida.nome, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-            Tags(listOf(Tag.Divida), if (parcela.numero != null) "${parcela.numero} de ${parcela.total}" else null)
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(formatBrl0(parcela.valorCentavos / 100.0), fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+    ListRow(
+        modifier = modifier,
+        icon = DebtIcon,
+        title = parcela.divida.nome,
+        tags = { Tags(listOf(Tag.Divida), if (parcela.numero != null) "${parcela.numero} de ${parcela.total}" else null) },
+        trailing = {
+            Text(formatBrl0(parcela.valorCentavos / 100.0), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
             val status = if (parcela.atrasada) BillStatus.Overdue else BillStatus.Expected
             Box(Modifier.padding(top = 3.dp)) { Chip(if (parcela.atrasada) "Atrasada" else "Prevista", status.fg, status.bg) }
-            if (parcela.isNext) {
-                Text(
-                    if (parcela.atrasada) "Toque se já pagou" else "Toque para marcar paga",
-                    fontSize = 9.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 3.dp),
-                )
-            }
-        }
-        RowMenu(listOfNotNull(
-            if (parcela.isNext) MenuAction("Marcar parcela como paga", onClick = onPay) else null,
-            MenuAction("Editar dívida", onClick = onEdit),
-        ))
-    }
+        },
+        menu = listOf(OverflowAction("Editar dívida", onClick = onEdit)),
+        action = if (parcela.isNext) { { ActionButton("Paguei a parcela", onPay) } } else null,
+    )
 }
 
 /**
- * Conta com vencimento — a referência visual da lista (a fatura usa este card). Tocar
+ * Conta com vencimento — a referência visual da lista (a fatura usa esta linha). "Marcar paga"
  * alterna paga/pendente; sem isto uma conta atrasada nunca saía dos avisos (planning.md §9/§10).
  */
 @Composable
@@ -503,16 +532,15 @@ private fun BillRow(
     modifier: Modifier = Modifier,
 ) {
     val estaPaga = bill.status == BillStatus.Paid
-    RowCard(modifier, onClick = { onTogglePaga(bill.id, !estaPaga) }) {
-        Avatar(
-            when {
-                onOpenItems != null -> InvoiceIcon
-                bill.aReceber -> IncomeIcon
-                else -> BillIcon
-            },
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(bill.name, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+    ListRow(
+        modifier = modifier,
+        icon = when {
+            onOpenItems != null -> InvoiceIcon
+            bill.aReceber -> IncomeIcon
+            else -> BillIcon
+        },
+        title = bill.name,
+        tags = {
             Tags(listOfNotNull(
                 when {
                     onOpenItems != null -> Tag.Fatura
@@ -521,30 +549,33 @@ private fun BillRow(
                 },
                 if (bill.recorrente) Tag.Recorrente else null,
             ))
-        }
-        Column(horizontalAlignment = Alignment.End) {
+        },
+        trailing = {
             Text(
-                bill.amount, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
+                bill.amount, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                 color = if (bill.aReceber) FinaiColors.EmeraldDark else FinaiColors.TextPrimary,
             )
             Box(Modifier.padding(top = 3.dp)) { Chip(bill.status.label, bill.status.fg, bill.status.bg) }
-            Text(
-                if (estaPaga) "Toque para reabrir" else "Toque para marcar como paga",
-                fontSize = 9.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 3.dp),
-            )
-            onOpenItems?.let {
-                Text(
-                    "Ver itens", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark,
-                    modifier = Modifier.padding(top = 4.dp).clickable(onClick = it),
+        },
+        menu = listOf(
+            OverflowAction("Editar", onClick = onRequestEdit),
+            OverflowAction("Excluir", destructive = true, onClick = onRequestDelete),
+        ),
+        action = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ActionButton(
+                    when {
+                        estaPaga -> "Reabrir"
+                        bill.aReceber -> "Marcar recebida"
+                        else -> "Marcar paga"
+                    },
+                    onClick = { onTogglePaga(bill.id, !estaPaga) },
+                    primary = !estaPaga,
                 )
+                onOpenItems?.let { ActionButton("Ver itens", it) }
             }
-        }
-        RowMenu(listOfNotNull(
-            onOpenItems?.let { MenuAction("Ver itens da fatura", onClick = it) },
-            MenuAction("Editar", onClick = onRequestEdit),
-            MenuAction("Excluir", destructive = true, onClick = onRequestDelete),
-        ))
-    }
+        },
+    )
 }
 
 /**
@@ -558,18 +589,22 @@ private fun TransacaoRow(
     today: LocalDate,
     modifier: Modifier = Modifier,
     onToggleExtra: (TransacaoEntity, Boolean) -> Unit,
+    onToggleMainIncome: (TransacaoEntity, Boolean) -> Unit,
     onDelete: (TransacaoEntity) -> Unit,
 ) {
     val receita = transacao.tipo == "Receita"
-    RowCard(modifier, borderColor = FinaiColors.BorderFaint) {
-        Avatar(iconFor(transacao))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(transacao.descricao, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+    val principal = receita && PayCycle.isMainIncome(transacao)
+    ListRow(
+        modifier = modifier,
+        icon = iconFor(transacao),
+        title = transacao.descricao,
+        tags = {
             Tags(
                 listOfNotNull(
-                    when (transacao.tipo) {
-                        "Receita" -> Tag.Receita
-                        "Transferencia" -> Tag.Transferencia
+                    when {
+                        principal -> Tag.RendaPrincipal
+                        receita -> Tag.Receita
+                        transacao.tipo == "Transferencia" -> Tag.Transferencia
                         else -> null
                     },
                     if (transacao.recorrente) Tag.Recorrente else null,
@@ -578,28 +613,30 @@ private fun TransacaoRow(
                 ),
                 transacao.categoria.takeIf { transacao.tipo == "Gasto" },
             )
-        }
-        Column(horizontalAlignment = Alignment.End) {
+        },
+        trailing = {
             val cents = transacao.valorCentavos
             val valor = if (cents % 100 == 0L) formatBrl0(cents / 100.0) else com.finai.app.util.formatBrl(cents / 100.0)
             Text(
-                if (receita) "+ $valor" else valor, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
-                color = when (transacao.tipo) {
-                    "Receita" -> FinaiColors.EmeraldDark
-                    "Transferencia" -> Color(0xFF4F46E5)
-                    else -> FinaiColors.TextPrimary
-                },
+                if (receita) "+ $valor" else valor, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                color = if (receita) FinaiColors.EmeraldDark else FinaiColors.TextPrimary,
             )
             if (transacao.data.toLocalDate().isAfter(today)) {
                 Box(Modifier.padding(top = 3.dp)) { Chip(BillStatus.Expected.label, BillStatus.Expected.fg, BillStatus.Expected.bg) }
             }
-        }
-        RowMenu(listOfNotNull(
+        },
+        menu = listOfNotNull(
+            // Renda principal define o ciclo até o próximo salário (Fase 7, item 5).
+            if (receita && transacao.faturaId == null && !transacao.extra)
+                OverflowAction(if (transacao.rendaPrincipal) "Desmarcar renda principal" else "Marcar como renda principal") {
+                    onToggleMainIncome(transacao, !transacao.rendaPrincipal)
+                }
+            else null,
             // Receita já lançada pode entrar/sair da Linha do tempo do ano sem relançar.
             if (receita && transacao.faturaId == null)
-                MenuAction(if (transacao.extra) "Desmarcar entrada extra" else "Marcar como entrada extra") { onToggleExtra(transacao, !transacao.extra) }
+                OverflowAction(if (transacao.extra) "Desmarcar entrada extra" else "Marcar como entrada extra") { onToggleExtra(transacao, !transacao.extra) }
             else null,
-            MenuAction("Excluir", destructive = true) { onDelete(transacao) },
-        ))
-    }
+            OverflowAction(if (transacao.origem == DebtSchedule.PAYMENT_ORIGIN) "Desfazer pagamento" else "Excluir", destructive = true) { onDelete(transacao) },
+        ),
+    )
 }

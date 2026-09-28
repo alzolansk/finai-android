@@ -69,17 +69,11 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 internal val EntryInk = Color(0xFF18181B)
-internal val EntryMuted = Color(0xFFA1A1AA)
+internal val EntryMuted = Color(0xFF6B6B73)
 internal val EntryPaper = Color(0xFFFAFAFA)
 internal val EntryLine = Color(0xFFE4E4E7)
 internal val EntryShape = RoundedCornerShape(16.dp)
-internal val EntryFont = FontFamily(
-    Font(com.finai.app.R.font.inter_400, FontWeight.Normal),
-    Font(com.finai.app.R.font.inter_500, FontWeight.Medium),
-    Font(com.finai.app.R.font.inter_600, FontWeight.SemiBold),
-    Font(com.finai.app.R.font.inter_700, FontWeight.Bold),
-    Font(com.finai.app.R.font.inter_800, FontWeight.ExtraBold),
-)
+internal val EntryFont = com.finai.app.ui.theme.FinaiFontFamily
 
 @Composable
 fun TransactionEntryScreen(
@@ -89,6 +83,8 @@ fun TransactionEntryScreen(
     initialType: TransactionType = TransactionType.Gasto,
     /** Abre já marcada como entrada extra (o "+" da Linha do tempo do ano). */
     initialExtra: Boolean = false,
+    /** Abre já marcada como renda principal ("Informar renda" da Início, Fase 7 item 5). */
+    initialMainIncome: Boolean = false,
     onDismiss: () -> Unit,
     onSave: suspend (TransacaoEntity) -> Unit,
     onViewEntry: (LocalDate) -> Unit,
@@ -103,7 +99,7 @@ fun TransactionEntryScreen(
         headlineSmall = typography.headlineSmall.copy(fontFamily = EntryFont),
     )) {
         ProvideTextStyle(TextStyle(fontFamily = EntryFont, fontSize = 14.sp)) {
-            TransactionEntryContent(visible, accounts, incomeSources, initialType, initialExtra, onDismiss, onSave, onViewEntry)
+            TransactionEntryContent(visible, accounts, incomeSources, initialType, initialExtra, initialMainIncome, onDismiss, onSave, onViewEntry)
         }
     }
 }
@@ -121,6 +117,7 @@ private fun TransactionEntryContent(
     incomeSources: List<String>,
     initialType: TransactionType,
     initialExtra: Boolean,
+    initialMainIncome: Boolean,
     onDismiss: () -> Unit,
     onSave: suspend (TransacaoEntity) -> Unit,
     onViewEntry: (LocalDate) -> Unit,
@@ -133,6 +130,7 @@ private fun TransactionEntryContent(
     var recurring by rememberSaveable { mutableStateOf(false) }
     var typeName by rememberSaveable { mutableStateOf(TransactionType.Gasto.name) }
     var extra by rememberSaveable { mutableStateOf(false) }
+    var mainIncome by rememberSaveable { mutableStateOf(false) }
     // Só aplica o tipo pedido de fora (ex.: "+" da linha do tempo pedindo Receita) quando o
     // rascunho está vazio — senão reabrir a tela com "Voltar preserva rascunho" trocaria o
     // tipo de um lançamento que o usuário já estava preenchendo.
@@ -141,6 +139,8 @@ private fun TransactionEntryContent(
             typeName = initialType.name
             extra = initialExtra && initialType == TransactionType.Receita
             if (extra) recurring = false
+            mainIncome = initialMainIncome && initialType == TransactionType.Receita && !extra
+            if (mainIncome) recurring = true
         }
     }
     var success by rememberSaveable { mutableStateOf(false) }
@@ -194,17 +194,17 @@ private fun TransactionEntryContent(
                     Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Color(0xFFF1F1F2)))
                 }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Row(Modifier.fillMaxWidth().height(42.dp).clip(CircleShape).background(Color(0xFFF4F4F5)).padding(3.dp)) {
+                    Row(Modifier.fillMaxWidth().height(48.dp).clip(CircleShape).background(Color(0xFFF4F4F5)).padding(3.dp)) {
                         TransactionType.values().forEach { item ->
                             val selected = type == item
                             val tabBg by animateColorAsState(if (selected) EntryInk else Color.Transparent, finaiTween(FinaiMotion.Quick), label = "typeTabBg")
-                            val tabFg by animateColorAsState(if (selected) Color.White else Color(0xFF71717A), finaiTween(FinaiMotion.Quick), label = "typeTabFg")
+                            val tabFg by animateColorAsState(if (selected) Color.White else Color(0xFF63636B), finaiTween(FinaiMotion.Quick), label = "typeTabFg")
                             Box(Modifier.weight(1f).fillMaxHeight()
                                 .then(if (selected) Modifier.shadow(3.dp, CircleShape) else Modifier)
                                 .clip(CircleShape).background(tabBg)
                                 .selectable(selected, enabled = !saving, role = Role.Tab, onClick = { typeName = item.name }),
                                 contentAlignment = Alignment.Center) {
-                                Text(item.label, color = tabFg, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                Text(item.label, color = tabFg, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                             }
                         }
                     }
@@ -214,7 +214,7 @@ private fun TransactionEntryContent(
                     Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp).clickable(enabled = !saving) { focus.clearFocus(); amountEditing = true }, horizontalAlignment = Alignment.CenterHorizontally) {
                         val amountColor = if (cents.isEmpty()) Color(0xFFD4D4D8) else when (type) {
                             TransactionType.Gasto -> EntryInk
-                            TransactionType.Receita -> Color(0xFF059669)
+                            TransactionType.Receita -> Color(0xFF047857)
                             TransactionType.Transferencia -> Color(0xFF4F46E5)
                         }
                         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.semantics { contentDescription = "Valor: R$ ${amountText(cents)}" }) {
@@ -236,7 +236,7 @@ private fun TransactionEntryContent(
                             modifier = Modifier.weight(1f).padding(vertical = 14.dp)
                                 .onFocusChanged { descriptionFocused = it.isFocused; if (it.isFocused) amountEditing = false }
                                 .semantics { contentDescription = "Descrição" },
-                            decorationBox = { field -> Box { if (description.isEmpty()) Text("Descrição", color = Color(0xFF808080), fontSize = 14.sp); field() } })
+                            decorationBox = { field -> Box { if (description.isEmpty()) Text("Descrição", color = Color(0xFF6B6B73), fontSize = 14.sp); field() } })
                         if (description.isNotEmpty()) IconButton(onClick = { description = "" }, enabled = !saving) { EntryGlyph("close", EntryMuted, "Limpar descrição") }
                     }
                     EntryField("card", if (isReceita) "De onde veio" else "Conta/cartão de origem",
@@ -247,10 +247,14 @@ private fun TransactionEntryContent(
                         LocalDate.now() -> " · hoje"; LocalDate.now().minusDays(1) -> " · ontem"; else -> ""
                     }) { if (!saving) { focus.clearFocus(); amountEditing = false; sheet = "date" } }
                     EntryField("category", "Categoria", category.ifEmpty { "Selecionar categoria" }, category.isEmpty()) { if (!saving) { focus.clearFocus(); amountEditing = false; sheet = "category" } }
-                    // Extra e recorrente se excluem: entrada extra é justamente o que está fora da renda que se repete.
+                    // Renda principal e extra se excluem: o 13º nunca é o salário que define o ciclo.
+                    // Extra e recorrente também: entrada extra é o que está fora da renda que se repete.
                     if (isReceita) {
+                        EntrySwitchRow("briefcase", if (mainIncome) "É minha renda principal · define o ciclo até o próximo pagamento" else "É minha renda principal", mainIncome, !saving, "É minha renda principal") {
+                            amountEditing = false; mainIncome = !mainIncome; if (mainIncome) { extra = false; recurring = true }
+                        }
                         EntrySwitchRow("sparkle", if (extra) "Entrada extra · 13º, bônus, restituição" else "Entrada extra", extra, !saving, "Entrada extra") {
-                            amountEditing = false; extra = !extra; if (extra) recurring = false
+                            amountEditing = false; extra = !extra; if (extra) { recurring = false; mainIncome = false }
                         }
                     }
                     EntrySwitchRow("repeat", if (recurring) "Recorrente · todo mês" else "Recorrente", recurring, !saving, "Recorrente") {
@@ -262,7 +266,8 @@ private fun TransactionEntryContent(
                         saving = true; error = null
                         val entry = TransacaoEntity(data = date.toEpochMillis(), descricao = description.trim().ifEmpty { category },
                             valorCentavos = cents.toLong(), categoria = category, contaOrigem = selectedAccount,
-                            recorrente = recurring, origem = "manual", tipo = type.name, extra = isReceita && extra)
+                            recorrente = recurring, origem = "manual", tipo = type.name, extra = isReceita && extra,
+                            rendaPrincipal = isReceita && mainIncome && !extra)
                         scope.launch {
                             try { onSave(entry); success = true }
                             catch (e: CancellationException) { throw e }
@@ -346,10 +351,10 @@ private fun TransactionEntryContent(
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color.White).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.size(48.dp).background(Color(0xFF10B981), CircleShape), contentAlignment = Alignment.Center) { EntryGlyph("check", Color.White) }
             Text(type.confirmation, color = EntryInk, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 18.dp))
-            Text("R$ ${amountText(cents)} em $category" + (if (recurring) " · recorrente" else "") + (if (isReceita && extra) " · entrada extra" else ""), color = Color(0xFF71717A), fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
+            Text("R$ ${amountText(cents)} em $category" + (if (recurring) " · recorrente" else "") + (if (isReceita && extra) " · entrada extra" else "") + (if (isReceita && mainIncome) " · renda principal" else ""), color = Color(0xFF63636B), fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
             Button(onClick = {
                 val savedDate = date
-                cents = ""; category = ""; description = ""; recurring = false; extra = false; typeName = TransactionType.Gasto.name
+                cents = ""; category = ""; description = ""; recurring = false; extra = false; mainIncome = false; typeName = TransactionType.Gasto.name
                 dateString = LocalDate.now().toString(); account = ""; success = false; amountEditing = true
                 onViewEntry(savedDate)
             }, colors = ButtonDefaults.buttonColors(containerColor = EntryInk), shape = EntryShape, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Ver lançamento") }

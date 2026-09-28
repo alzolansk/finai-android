@@ -49,6 +49,8 @@ data class FinanceUiState(
     val safeToday: SafeToSpendResult? = null,
     val safeTodayLabel: String = "",
     val safeNote: String = "",
+    /** Topo da Início: frase de situação, livre até o salário e a ação pertinente (Fase 7, item 3). */
+    val situation: com.finai.app.domain.HomeSituation? = null,
     /** De onde vem o "Pode gastar hoje" — folha "Entenda este valor". */
     val spendExplanation: com.finai.app.domain.SpendExplanation? = null,
     /** Ciclo entre salários ([com.finai.app.domain.PayCycle]); nulo sem receita recorrente cadastrada. */
@@ -99,12 +101,24 @@ fun FinanceUiState.toAiSummaryText(): String = buildString {
     // A data deixa explícito que é um retrato de agora: números citados em
     // mensagens antigas podem ser de outro momento.
     appendLine("Números calculados hoje, ${java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))}.")
-    appendLine("Pode gastar hoje: $safeTodayLabel. $safeNote")
+    // Mesmo número e mesmo rótulo do topo da Início: o livre até o salário, e o valor por dia como apoio.
+    situation?.let { sit ->
+        val periodo = sit.label.substringAfter("·", "").trim().let { if (it.isBlank()) "fim do mês" else "salário de $it" }
+        if (sit.shortfall) {
+            appendLine("Situação: ${sit.headline}. Faltam ${com.finai.app.util.formatBrl0(sit.mainCents / 100.0)} até o $periodo. $safeNote")
+        } else {
+            appendLine(
+                "Situação: ${sit.headline}. Livre até o $periodo: ${com.finai.app.util.formatBrl0(sit.mainCents / 100.0)} " +
+                    "(cerca de $safeTodayLabel por dia, ${sit.days} dia(s)). $safeNote",
+            )
+        }
+    } ?: appendLine("Livre por dia: $safeTodayLabel. $safeNote")
     if (saldoLabel.isNotBlank()) appendLine("Balanço do mês (recebimentos − contas a pagar): $saldoLabel.")
     payCycle?.let { cycle ->
         appendLine(
             "Até o próximo salário (${cycle.proximo.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM"))}): " +
-                "${com.finai.app.util.formatBrl0(cycle.livreCents / 100.0)} livres depois das contas e parcelas do período.",
+                "sobra de ${com.finai.app.util.formatBrl0(cycle.livreCents / 100.0)} no fim do ciclo, depois das contas e parcelas do período " +
+                "(o livre acima é menor quando um dia no meio do ciclo fica mais apertado ou há reserva para metas).",
         )
         cycle.shortfall?.let { falta ->
             appendLine(

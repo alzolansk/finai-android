@@ -29,6 +29,12 @@ data class TransacaoEntity(
      * lançado avulso.
      */
     @androidx.room.ColumnInfo(defaultValue = "0") val extra: Boolean = false,
+    /**
+     * Receita marcada pelo usuário como renda principal (salário, pró-labore, aposentadoria).
+     * É o que define o ciclo "até o próximo salário" ([com.finai.app.domain.PayCycle]); antes
+     * o app só reconhecia pela palavra "salário" na descrição (Fase 7, item 5).
+     */
+    @androidx.room.ColumnInfo(defaultValue = "0") val rendaPrincipal: Boolean = false,
 )
 
 /** Uma fatura de cartão, exibida como um único compromisso na Agenda. */
@@ -90,6 +96,12 @@ data class DividaEntity(
      * Nulo em dívidas cadastradas antes da v6 ou sem parcela fixa.
      */
     val proximoVencimento: Long? = null,
+    /**
+     * Dia do mês combinado no contrato (1–31). [proximoVencimento] sozinho perdia essa
+     * informação: pagar a parcela de 29/01 levava a 28/02 e, dali em diante, o app achava que
+     * a dívida vencia no último dia de cada mês. 29–31 num mês mais curto cai no último dia.
+     */
+    val diaVencimento: Int? = null,
     /** Quando a dívida foi quitada (epoch millis) — ela sai da lista ativa e fica no histórico. */
     val quitadaEm: Long? = null,
 )

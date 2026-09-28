@@ -238,6 +238,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             payCycle = payCycle,
             safeNote = safeNoteFor(safe, payCycle, aporteMensalMetasCents(goalPlans)),
             spendExplanation = com.finai.app.domain.SpendExplanation.of(safe, payCycle, today),
+            situation = com.finai.app.domain.HomeSituation.of(safe, payCycle),
             nextWeekBills = weekBills,
             timeline = timelineExtras.map { it.toUiTimelineEntry() },
             timelineNote = if (timelineExtras.isEmpty())
@@ -339,6 +340,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /** Assistente inicial: grava renda principal e contas da semana; falha sobe para a tela avisar. */
+    suspend fun saveInitialSetup(entries: List<TransacaoEntity>) {
+        entries.forEach { repository.salvarTransacao(it) }
+    }
+
     suspend fun saveTransactionEntry(entry: TransacaoEntity) {
         require(entry.valorCentavos > 0 && entry.categoria.isNotBlank())
         repository.salvarTransacao(entry)
@@ -346,7 +352,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     /** Marca/desmarca uma receita já lançada como entrada extra (Linha do tempo do ano). */
     fun setTransacaoExtra(transacao: TransacaoEntity, extra: Boolean) = launchSafely("atualizar o lançamento") {
-        repository.salvarTransacao(transacao.copy(extra = extra, recorrente = if (extra) false else transacao.recorrente))
+        val original = originalOf(transacao)
+        repository.salvarTransacao(
+            original.copy(
+                extra = extra,
+                recorrente = if (extra) false else original.recorrente,
+                rendaPrincipal = if (extra) false else original.rendaPrincipal,
+            ),
+        )
     }
 
     /**
@@ -362,6 +375,23 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val update = Completion.onDebtSaved(divida, com.finai.app.domain.DebtSchedule.undoPayment(divida, transacao), System.currentTimeMillis())
         repository.salvarDivida(update.divida)
     }
+
+    /**
+     * Marca/desmarca uma receita como renda principal — é o que define o ciclo "até o próximo
+     * salário" (Fase 7, item 5). Renda principal é recorrente por natureza e nunca é extra.
+     */
+    fun setTransacaoRendaPrincipal(transacao: TransacaoEntity, principal: Boolean) = launchSafely("atualizar o lançamento") {
+        val original = originalOf(transacao)
+        repository.salvarTransacao(original.copy(rendaPrincipal = principal, extra = if (principal) false else original.extra))
+    }
+
+    /**
+     * A Agenda mostra a ocorrência do mês de um recorrente: mesmo id, mas com a data trocada
+     * ([com.finai.app.domain.transactionsInMonth]). Gravar essa cópia moveria o início da
+     * série para o mês exibido; por isso a edição parte do registro guardado.
+     */
+    private fun originalOf(transacao: TransacaoEntity): TransacaoEntity =
+        uiState.value.rawTransacoes.firstOrNull { it.id == transacao.id } ?: transacao
 
     // ── manual entry: contas ───────────────────────────────────
     fun saveConta(conta: ContaEntity) = launchSafely("salvar a conta") { repository.salvarConta(conta) }

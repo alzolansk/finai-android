@@ -12,9 +12,10 @@ import androidx.compose.ui.graphics.Color
  */
 
 enum class GoalBadge(val label: String, val bg: Color, val fg: Color) {
-    OnTrack("No ritmo", Color(0xFFECFDF5), Color(0xFF059669)),
+    OnTrack("No ritmo", Color(0xFFECFDF5), Color(0xFF047857)),
     Reassess("Reavaliar", Color(0xFFFFFBEB), Color(0xFFB45309)),
-    Priority("Prioridade", Color(0xFFEEF2FF), Color(0xFF4F46E5)),
+    // Neutro, não roxo (Fase 7, item 7): prioridade é informação, não alerta.
+    Priority("Prioridade", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
 }
 
 data class Goal(
@@ -40,9 +41,9 @@ data class Goal(
 }
 
 enum class TimelineTone(val color: Color, val line: Color) {
-    Positive(Color(0xFF059669), Color(0xFF10B981)),
-    Neutral(Color(0xFFA1A1AA), Color(0xFFE4E4E7)),
-    Negative(Color(0xFFE11D48), Color(0xFFFDA4AF)),
+    Positive(Color(0xFF047857), Color(0xFF10B981)),
+    Neutral(Color(0xFF63636B), Color(0xFFE4E4E7)),
+    Negative(Color(0xFFBE123C), Color(0xFFFDA4AF)),
 }
 
 data class TimelineEntry(
@@ -53,10 +54,10 @@ data class TimelineEntry(
 )
 
 enum class StatusTone(val color: Color) {
-    Due(Color(0xFFE11D48)),
-    Scheduled(Color(0xFFA1A1AA)),
+    Due(Color(0xFFBE123C)),
+    Scheduled(Color(0xFF63636B)),
     Pending(Color(0xFFB45309)),
-    Positive(Color(0xFF059669)),
+    Positive(Color(0xFF047857)),
 }
 
 data class WeekBill(
@@ -70,10 +71,10 @@ data class WeekBill(
 )
 
 enum class BillStatus(val label: String, val bg: Color, val fg: Color) {
-    Overdue("Atrasado", Color(0xFFFFF1F2), Color(0xFFE11D48)),
-    Pending("Pendente", Color(0xFFFFFBEB), Color(0xFFB45309)),
-    DueToday("Vence hoje", Color(0xFFFFF1F2), Color(0xFFE11D48)),
-    Paid("Pago", Color(0xFFECFDF5), Color(0xFF059669)),
+    Overdue("Atrasado", Color(0xFFFFF1F2), Color(0xFFBE123C)),
+    Pending("Pendente", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
+    DueToday("Vence hoje", Color(0xFFFFFBEB), Color(0xFF92400E)),
+    Paid("Pago", Color(0xFFECFDF5), Color(0xFF047857)),
     Expected("Previsto", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
 }
 

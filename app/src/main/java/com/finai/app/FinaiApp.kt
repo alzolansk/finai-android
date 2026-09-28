@@ -89,7 +89,13 @@ import com.finai.app.ui.components.FinaiTopBar
 import com.finai.app.ui.components.InitialSetupWizard
 import com.finai.app.ui.components.NotificationsPanel
 import com.finai.app.ui.components.TopBarContentHeight
-import com.finai.app.ui.components.OnboardingTour
+import com.finai.app.ui.components.TipOverlay
+import com.finai.app.ui.components.TipTargetRegistry
+import com.finai.app.ui.components.LocalTipTargets
+import com.finai.app.domain.Tip
+import com.finai.app.domain.TipScript
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.layout.onSizeChanged
 import com.finai.app.ui.components.QuickActionSheet
 import com.finai.app.ui.screens.agenda.AgendaScreen
 import com.finai.app.ui.screens.budgets.BudgetsScreen
@@ -133,7 +139,9 @@ fun FinaiApp(
     val importState by importViewModel.uiState.collectAsState()
     val persistenceError by financeViewModel.persistenceError.collectAsState()
     val celebration by financeViewModel.celebration.collectAsState()
-    val onboardingComplete by viewModel.onboardingComplete.collectAsState()
+    val tipsSeen by viewModel.tipsSeen.collectAsState()
+    val tipRegistry = remember { TipTargetRegistry() }
+    var rootHeightPx by remember { mutableStateOf(0f) }
     val initialSetupComplete by viewModel.initialSetupComplete.collectAsState()
     val knownAccounts by viewModel.knownAccounts.collectAsState()
     val financeSummary = remember(financeState) { financeState.toAiSummaryText() }
@@ -170,6 +178,8 @@ fun FinaiApp(
     // rascunho em andamento.
     var transactionEntryInitialType by rememberSaveable { mutableStateOf(com.finai.app.domain.TransactionType.Gasto.name) }
     var transactionEntryInitialExtra by rememberSaveable { mutableStateOf(false) }
+    /** "Informar renda" da Início: abre a receita já marcada como renda principal (Fase 7, item 5). */
+    var transactionEntryInitialMain by rememberSaveable { mutableStateOf(false) }
     var showAddGoal by remember { mutableStateOf(false) }
     var showAddDivida by remember { mutableStateOf(false) }
     var contributionTarget by remember { mutableStateOf<Goal?>(null) }
@@ -189,7 +199,8 @@ fun FinaiApp(
         agendaDataFor(financeState.rawContas, financeState.rawFaturasCartao, financeState.rawTransacoes, financeState.rawDividas, uiState.monthIndex, uiState.agendaYear)
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(FinaiColors.Background)) {
+    CompositionLocalProvider(LocalTipTargets provides tipRegistry) {
+    Box(modifier = Modifier.fillMaxSize().background(FinaiColors.Background).onSizeChanged { rootHeightPx = it.height.toFloat() }) {
         Column(modifier = Modifier.fillMaxSize().then(if (showAddTransaction) Modifier.clearAndSetSemantics {} else Modifier)) {
             // Configurações desenha a própria topbar: o título e o "voltar"
             // acompanham a subpágina aberta dentro dela.
@@ -229,13 +240,10 @@ fun FinaiApp(
                         }
                         HomeScreen(
                             greeting = financeState.greeting,
-                            subGreeting = financeState.subGreeting,
                             goals = financeState.goals,
                             saldoLabel = financeState.saldoLabel,
                             saldoPositivo = financeState.saldoCents >= 0,
-                            payCycle = financeState.payCycle,
-                            safeToday = financeState.safeToday,
-                            safeTodayLabel = financeState.safeTodayLabel,
+                            situation = financeState.situation,
                             safeNote = financeState.safeNote,
                             week = financeState.nextWeekBills,
                             timeline = financeState.timeline,
@@ -252,6 +260,8 @@ fun FinaiApp(
                             onOpenAgenda = { navigateTo(FinaiDestination.Agenda) },
                             onAskAbout = askAbout,
                             onNewIncomeEntry = { transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name; transactionEntryInitialExtra = true; showAddTransaction = true },
+                            onAddMainIncome = { transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name; transactionEntryInitialMain = true; showAddTransaction = true },
+                            onNewEntry = { showAddTransaction = true },
                         )
                     }
                     composable(FinaiDestination.Agenda.route) {
@@ -278,7 +288,10 @@ fun FinaiApp(
                             onEditConta = { bill -> editingContaId = bill.id },
                             onOpenInvoice = { contaId -> openedInvoiceContaId = contaId },
                             onToggleExtra = financeViewModel::setTransacaoExtra,
+                            onToggleMainIncome = financeViewModel::setTransacaoRendaPrincipal,
                             onEditDebt = { id -> editingDividaId = id },
+                            onNewEntry = { showAddTransaction = true },
+                            onImport = { navigateTo(FinaiDestination.Import) },
                         )
                     }
                     composable(FinaiDestination.Goals.route) {
@@ -364,7 +377,10 @@ fun FinaiApp(
                             onTestProvider = aiViewModel::testProvider,
                             notificationsEnabled = rememberOnResume { FinaiNotifier(context).hasNotificationPermission() },
                             onRunNotificationCheck = { FinanceCheckWorker.runOnce(context) },
-                            onRestartTour = viewModel::restartOnboarding,
+                            onRestartTour = {
+                                viewModel.restartOnboarding()
+                                navigateTo(FinaiDestination.Home)
+                            },
                             knownAccounts = knownAccounts,
                             onAddAccount = { name -> viewModel.addKnownAccounts(setOf(name)) },
                             onRemoveAccount = viewModel::removeKnownAccount,
@@ -590,13 +606,14 @@ fun FinaiApp(
                 .map { it.contaOrigem }.distinct(),
             initialType = com.finai.app.domain.TransactionType.valueOf(transactionEntryInitialType),
             initialExtra = transactionEntryInitialExtra,
-            onDismiss = { showAddTransaction = false; transactionEntryInitialType = com.finai.app.domain.TransactionType.Gasto.name; transactionEntryInitialExtra = false },
+            initialMainIncome = transactionEntryInitialMain,
+            onDismiss = { showAddTransaction = false; transactionEntryInitialType = com.finai.app.domain.TransactionType.Gasto.name; transactionEntryInitialExtra = false; transactionEntryInitialMain = false },
             onSave = financeViewModel::saveTransactionEntry,
             onViewEntry = { date ->
                 viewModel.showAgendaDate(date)
                 showAddTransaction = false
                 transactionEntryInitialType = com.finai.app.domain.TransactionType.Gasto.name
-                transactionEntryInitialExtra = false
+                transactionEntryInitialExtra = false; transactionEntryInitialMain = false
                 navigateTo(FinaiDestination.Agenda)
             },
         )
@@ -702,12 +719,6 @@ fun FinaiApp(
             )
         }
 
-        // `null` = DataStore ainda não respondeu; não desenha nada para não
-        // piscar o tour por um frame numa instalação que já o concluiu. A
-        // configuração inicial de dados só aparece depois do tour concluído/
-        // pulado, nunca antes nem em paralelo (planning.md §4: nada de dado
-        // fictício automático — este assistente é a única forma dos números
-        // do app começarem preenchidos, e é inteiramente opcional).
         // Voltar do sistema fecha o que está por cima, nunca a tela de trás.
         // Chat, menu do "+", simulador e avisos não têm tratador próprio:
         // sem este, o toque ia direto para o NavController, que trocava a
@@ -724,12 +735,41 @@ fun FinaiApp(
                 uiState.notifsOpen -> viewModel.closeNotifications()
             }
         }
+
+        // Dicas por tela (Fase 7, item 6): na primeira visita, depois do assistente inicial, e
+        // nunca com outra camada aberta (o chat tem as próprias dicas). Espera o layout
+        // assentar antes de ler onde estão os componentes.
+        var activeTips by remember { mutableStateOf<Pair<String, List<Tip>>?>(null) }
+        val tipScreen = if (uiState.chatOpen) TipScript.CHAT else when (current) {
+            FinaiDestination.Home -> TipScript.HOME
+            FinaiDestination.Agenda -> TipScript.AGENDA
+            FinaiDestination.Goals -> TipScript.GOALS
+            FinaiDestination.Debts -> TipScript.DEBTS
+            FinaiDestination.Budgets -> TipScript.BUDGETS
+            else -> null
+        }
+        val tipsBlocked = uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen ||
+            celebration != null || showAddTransaction || openedInvoiceContaId != null || showAddDivida ||
+            editingDivida != null || showAddGoal || editingObjetivo != null || editingConta != null ||
+            contributionTarget != null || budgetLimitTarget != null || initialSetupComplete != true
+        LaunchedEffect(tipScreen, tipsBlocked, tipsSeen, activeTips == null) {
+            val seen = tipsSeen ?: return@LaunchedEffect
+            if (activeTips != null || tipScreen == null || tipsBlocked || tipScreen in seen) return@LaunchedEffect
+            kotlinx.coroutines.delay(350)
+            val tips = TipScript.visibleTips(tipScreen, tipRegistry.visibleTargets(rootHeightPx), seen)
+            if (tips.isNotEmpty()) activeTips = tipScreen to tips
+        }
+        val closeTips = {
+            activeTips?.let { viewModel.markTipsSeen(it.first) }
+            activeTips = null
+        }
+        BackHandler(enabled = activeTips != null) { closeTips() }
+
         // Segunda trava, independente da ordem em que os tratadores foram
         // registrados: com qualquer camada aberta por cima, a navegação entre
         // telas não reage ao voltar.
         val anyLayerOpen = overlayOpen || celebration != null || showAddTransaction || openedInvoiceContaId != null ||
-            showAddDivida || editingDivida != null || onboardingComplete == false ||
-            (onboardingComplete == true && initialSetupComplete == false)
+            showAddDivida || editingDivida != null || activeTips != null || initialSetupComplete == false
         SideEffect { navController.enableOnBackPressed(!anyLayerOpen) }
 
         // Meta concluída / dívida quitada: por cima de tudo, fecha com toque ou voltar.
@@ -744,20 +784,18 @@ fun FinaiApp(
             shown?.let { CelebrationOverlay(it, onDismiss = financeViewModel::dismissCelebration) }
         }
 
-        if (onboardingComplete == false) {
-            OnboardingTour(
-                onFinish = viewModel::completeOnboarding,
-                onSkip = viewModel::completeOnboarding,
-            )
-        } else if (onboardingComplete == true && initialSetupComplete == false) {
+        // Assistente inicial: só renda principal e próximo recebimento (Fase 7, item 6). Nada de
+        // dado fictício automático (planning.md §4) — é inteiramente opcional.
+        if (initialSetupComplete == false) {
             InitialSetupWizard(
-                onAddConta = financeViewModel::saveConta,
-                onAddDivida = financeViewModel::saveDivida,
-                onAddObjetivo = financeViewModel::saveObjetivo,
-                onAddAccounts = viewModel::addKnownAccounts,
+                situation = financeState.situation,
+                onSave = financeViewModel::saveInitialSetup,
                 onFinish = viewModel::completeInitialSetup,
             )
         }
+
+        activeTips?.let { (_, tips) -> TipOverlay(tips, tipRegistry, onDone = closeTips) }
+    }
     }
 }
 

@@ -73,8 +73,8 @@ data class SpendExplanation(
                 if (c.proximoEstimado) add("O próximo salário foi estimado em ${dm(c.proximo)}, um mês depois do último.")
             }
             val missing = buildList {
-                if (!c.salarioPeloNome) {
-                    add("O app deduziu que \"${c.salarioNome}\" é seu salário (a maior receita recorrente). Se não for, lance o salário com \"Salário\" na descrição.")
+                if (!c.salarioDefinido) {
+                    add("O app deduziu que \"${c.salarioNome}\" é sua renda principal (a maior receita recorrente). Confirme na Agenda com \"Marcar como renda principal\", ou lance a renda certa com essa opção ligada.")
                 }
                 if (c.proximoEstimado) add("Lance o próximo salário com a data certa para o período ficar exato.")
                 if (c.inicio == null) add("Nenhum salário antes de hoje: o que vence até ${dm(c.proximo)} aparece sem dinheiro para cobrir.")
@@ -107,7 +107,7 @@ data class SpendExplanation(
                     NOT_BANK,
                     "Sem salário identificado, a conta vai até o fim do mês e não enxerga um aperto no meio dele.",
                 ),
-                missing = listOf("Lance seu salário (uma receita com \"Salário\" na descrição) para o app calcular até o próximo pagamento."),
+                missing = listOf("Informe sua renda principal (uma receita com \"É minha renda principal\" ligado) para o app calcular até o próximo pagamento."),
             )
         }
 

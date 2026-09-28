@@ -43,7 +43,7 @@ object DebtSchedule {
         val anchorMonth = anchor?.let(YearMonth::from) ?: YearMonth.from(today)
         val offset = ChronoUnit.MONTHS.between(anchorMonth, month).toInt()
         if (offset < 0 || offset >= divida.parcelasRestantes) return null
-        val vencimento = anchor?.let { monthlyOccurrence(it, month) }
+        val vencimento = anchor?.let { dueFor(divida, it, month) }
         val total = divida.parcelasTotais.takeIf { it >= divida.parcelasRestantes && it > 0 }
         // A última parcela não passa do que ainda está em aberto (evita somar centavos a mais).
         val isLast = offset == divida.parcelasRestantes - 1
@@ -90,7 +90,7 @@ object DebtSchedule {
         val paidOn = payment.data.toLocalDate()
         val current = divida.proximoVencimento?.toLocalDate()
         // Sem próximo vencimento, a parcela desfeita era a última: volta a vencer no dia do pagamento.
-        val previous = current?.let { monthlyOccurrence(it, YearMonth.from(it).minusMonths(1)) } ?: paidOn
+        val previous = current?.let { dueFor(divida, it, YearMonth.from(it).minusMonths(1)) } ?: paidOn
         return divida.copy(
             valorAbertoCentavos = aberto,
             parcelasRestantes = divida.parcelasRestantes + 1,
@@ -104,15 +104,27 @@ object DebtSchedule {
         val anchor = divida.proximoVencimento?.toLocalDate()
         // Sem vencimento conhecido a parcela paga era a do mês corrente; a próxima cai no mês
         // seguinte, no mesmo dia de hoje — é o melhor palpite honesto até o usuário editar.
-        val next = anchor?.let { monthlyOccurrence(it, YearMonth.from(it).plusMonths(1)) }
-            ?: dueDateIn(YearMonth.from(today).plusMonths(1), today.dayOfMonth)
+        val next = anchor?.let { dueFor(divida, it, YearMonth.from(it).plusMonths(1)) }
+            ?: dueDateIn(YearMonth.from(today).plusMonths(1), divida.diaVencimento ?: today.dayOfMonth)
         val restantes = divida.parcelasRestantes - 1
         return divida.copy(
             parcelasRestantes = restantes,
             valorAbertoCentavos = (divida.valorAbertoCentavos - divida.valorParcelaCentavos).coerceAtLeast(0),
             proximoVencimento = if (restantes > 0) next.toEpochMillis() else null,
+            diaVencimento = divida.diaVencimento ?: anchor?.let(::contractDayOf) ?: today.dayOfMonth,
         )
     }
+
+    /**
+     * Vencimento da parcela em [month]. Com o dia combinado ([DividaEntity.diaVencimento]),
+     * usa sempre ele (29–31 num mês mais curto cai no último dia e volta ao dia certo no mês
+     * seguinte). Sem ele (dado anterior à v10), segue a regra de fim de mês dos recorrentes.
+     */
+    fun dueFor(divida: DividaEntity, anchor: LocalDate, month: YearMonth): LocalDate =
+        divida.diaVencimento?.let { dueDateIn(month, it) } ?: monthlyOccurrence(anchor, month)
+
+    /** Dia combinado deduzido de uma data: o último dia do mês vale como 31 (fim de mês). */
+    fun contractDayOf(date: LocalDate): Int = if (date.dayOfMonth == date.lengthOfMonth()) 31 else date.dayOfMonth
 
     /** Dia fixo; 29–31 num mês mais curto cai no último dia. Parcela ancorada no fim do mês usa [monthlyOccurrence]. */
     fun dueDateIn(month: YearMonth, day: Int): LocalDate = month.atDay(day.coerceAtMost(month.lengthOfMonth()))

@@ -72,6 +72,12 @@ object DebtEntry {
                 parcelasTotais = total,
                 valorParcelaCentavos = valorCents,
                 proximoVencimento = proximoVencimento?.toEpochMillis(),
+                // Mesma data de antes (só editou outro campo): mantém o dia combinado, que pode
+                // ser 29–31 mesmo com o próximo vencimento caindo em 28/02.
+                diaVencimento = proximoVencimento?.let { date ->
+                    base.diaVencimento.takeIf { initial?.proximoVencimento == date.toEpochMillis() }
+                        ?: date.dayOfMonth
+                },
             )
         } else {
             base.copy(
@@ -84,6 +90,7 @@ object DebtEntry {
                 parcelasTotais = 0,
                 valorParcelaCentavos = 0,
                 proximoVencimento = null,
+                diaVencimento = null,
             )
         }
     }

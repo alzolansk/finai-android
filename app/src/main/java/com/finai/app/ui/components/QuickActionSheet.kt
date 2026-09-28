@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,7 +19,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -32,12 +32,18 @@ import com.finai.app.data.fixtures.FinaiFixtures
 import com.finai.app.data.model.QuickAction
 import com.finai.app.ui.theme.FinaiColors
 
-/** The "+" FAB menu: launch expense, import invoice, buy simulator, new goal. */
+/**
+ * O menu do "+" (Fase 7, item 10): "Lançar gasto" é a ação primária, em destaque — é o que
+ * se faz quase sempre. Importar, simular e novo objetivo ficam abaixo como secundárias.
+ * Limites não entra aqui (decisão do usuário, 28/09/2026).
+ */
 @Composable
 fun QuickActionSheet(
     onPick: (QuickAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val primary = FinaiFixtures.quickActions.first()
+    val secondary = FinaiFixtures.quickActions.drop(1)
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -46,29 +52,55 @@ fun QuickActionSheet(
             .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(22.dp))
             .padding(8.dp),
     ) {
-        FinaiFixtures.quickActions.forEach { action ->
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 64.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(FinaiColors.EmeraldDark)
+                .clickable { onPick(primary) }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Color.White.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                QuickActionGlyph(primary.icon, Color.White)
+            }
+            Column {
+                Text(primary.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(primary.sub, fontSize = 13.sp, color = Color.White.copy(alpha = 0.85f))
+            }
+        }
+        Text(
+            "MAIS AÇÕES", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted,
+            modifier = Modifier.padding(start = 10.dp, top = 12.dp, bottom = 2.dp),
+        )
+        secondary.forEach { action ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(15.dp))
+                    .heightIn(min = 52.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .clickable { onPick(action) }
-                    .padding(13.dp),
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(Brush.linearGradient(listOf(action.tintFrom, action.tintTo)))
-                        .background(Brush.radialGradient(listOf(Color.White.copy(alpha = .5f), Color.Transparent))),
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(FinaiColors.SurfaceMuted),
                     contentAlignment = Alignment.Center,
                 ) {
-                    QuickActionGlyph(action.icon, action.ink)
+                    QuickActionGlyph(action.icon, FinaiColors.TextSecondary, size = 18)
                 }
                 Column {
-                    Text(action.title, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-                    Text(action.sub, fontSize = 11.sp, color = FinaiColors.TextMuted)
+                    Text(action.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+                    Text(action.sub, fontSize = 13.sp, color = FinaiColors.TextTertiary)
                 }
             }
         }

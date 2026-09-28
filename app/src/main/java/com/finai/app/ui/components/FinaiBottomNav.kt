@@ -66,9 +66,10 @@ fun FinaiBottomNav(
         androidx.compose.foundation.layout.Box(
             modifier = Modifier
                 .padding(horizontal = 4.dp)
-                .size(width = 50.dp, height = 46.dp)
+                .tipTarget("nav.add")
+                .size(width = 52.dp, height = 48.dp)
                 .clip(RoundedCornerShape(15.dp))
-                .background(FinaiColors.Emerald)
+                .background(FinaiColors.EmeraldDark)
                 .clickable(onClick = onToggleAdd),
             contentAlignment = Alignment.Center,
         ) {
@@ -98,17 +99,17 @@ private fun NavTab(
     onClick: () -> Unit,
 ) {
     val bg by animateColorAsState(if (selected) FinaiColors.InkBorder else Color.Transparent, finaiTween(FinaiMotion.Quick), label = "navTabBg")
-    val fg by animateColorAsState(if (selected) Color.White else FinaiColors.TextMuted, finaiTween(FinaiMotion.Quick), label = "navTabFg")
+    val fg by animateColorAsState(if (selected) Color.White else FinaiColors.TextOnDarkMuted, finaiTween(FinaiMotion.Quick), label = "navTabFg")
     androidx.compose.foundation.layout.Column(
         modifier = modifier
             .clip(RoundedCornerShape(13.dp))
             .background(bg)
             .clickable(onClick = onClick)
-            .padding(vertical = 9.dp),
+            .padding(vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Icon(icon, contentDescription = label, tint = fg, modifier = Modifier.size(19.dp))
-        Text(label, color = fg, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = fg, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
     }
 }

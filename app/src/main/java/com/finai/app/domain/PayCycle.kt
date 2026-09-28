@@ -47,8 +47,11 @@ data class PayCycle(
     val proximoEstimado: Boolean,
     val entries: List<CycleEntry>,
     val today: LocalDate,
-    /** Falso quando nenhuma receita tem "salário" no nome e o app deduziu a maior recorrente. */
-    val salarioPeloNome: Boolean = true,
+    /**
+     * Verdadeiro quando a renda foi marcada como principal pelo usuário (ou, em dado antigo,
+     * tem "salário" no nome). Falso quando o app deduziu a maior receita recorrente.
+     */
+    val salarioDefinido: Boolean = true,
 ) {
     val entradasCents: Long get() = entries.filter { it.cents > 0 }.sumOf { it.cents }
     val aReceberCents: Long get() = entries.filter { it.cents > 0 && !it.done }.sumOf { it.cents }
@@ -124,7 +127,18 @@ data class PayCycle(
             return salaryWords.any { it in d } && !notSalary.containsMatchIn(d)
         }
 
+        /** Receita que conta como renda principal: marcada pelo usuário, ou reconhecida pelo nome. */
+        fun isMainIncome(t: TransacaoEntity): Boolean =
+            t.tipo == TransactionType.Receita.name && !t.extra && t.faturaId == null && t.valorCentavos > 0 &&
+                (t.rendaPrincipal || isSalary(t))
+
+        /**
+         * A marcação explícita ([TransacaoEntity.rendaPrincipal]) manda. O nome é só fallback
+         * para dado que ainda não foi marcado; sem nenhum dos dois, vale a maior recorrente.
+         */
         fun salariesOf(transacoes: List<TransacaoEntity>): List<TransacaoEntity> {
+            val marked = transacoes.filter { it.rendaPrincipal && isMainIncome(it) }
+            if (marked.isNotEmpty()) return marked
             val byName = transacoes.filter(::isSalary)
             if (byName.isNotEmpty()) return byName
             return listOfNotNull(transacoes
@@ -201,7 +215,7 @@ data class PayCycle(
 
             return PayCycle(
                 salarioNome = salario.descricao.ifBlank { salario.categoria },
-                salarioPeloNome = isSalary(salario),
+                salarioDefinido = isMainIncome(salario),
                 salarioCents = salario.valorCentavos,
                 inicio = inicio,
                 proximo = proximo,

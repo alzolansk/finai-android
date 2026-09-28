@@ -5,8 +5,19 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -83,7 +94,7 @@ fun PillTag(
     background: Color,
     foreground: Color,
     modifier: Modifier = Modifier,
-    fontSize: TextUnit = 10.sp,
+    fontSize: TextUnit = 12.sp,
 ) {
     Box(
         modifier = modifier
@@ -147,4 +158,110 @@ fun ConfirmDeleteDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
+}
+
+/**
+ * Ação em texto com alvo de toque de 48 dp (Fase 7, item 4): "Ver todos", "Abrir agenda" e
+ * afins eram `Text` com `clickable` direto, com uns 16 dp de altura.
+ */
+@Composable
+fun TextAction(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = FinaiColors.EmeraldDark) {
+    Box(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = color)
+    }
+}
+
+/** Título de seção com uma ação opcional à direita, alinhados pelo centro. */
+@Composable
+fun SectionHeader(title: String, modifier: Modifier = Modifier, subtitle: String? = null, action: String? = null, onAction: (() -> Unit)? = null) {
+    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            subtitle?.let { Text(it, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp)) }
+        }
+        if (action != null && onAction != null) TextAction(action, onAction)
+    }
+}
+
+/**
+ * Estado vazio que orienta (Fase 7, item 9): diz o que falta e oferece a ação concreta que
+ * resolve, em vez de só "nada aqui". "Sem cadastro" é diferente de "zero real" — este é o
+ * primeiro caso.
+ */
+@Composable
+fun EmptyStateCard(
+    message: String,
+    actionLabel: String?,
+    onAction: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    secondaryLabel: String? = null,
+    onSecondary: (() -> Unit)? = null,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(18.dp))
+            .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = if (actionLabel != null) 2.dp else 14.dp),
+    ) {
+        Text(message, fontSize = 14.sp, lineHeight = 20.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(end = 8.dp))
+        Row(modifier = Modifier.offset(x = (-6).dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (actionLabel != null && onAction != null) TextAction("$actionLabel ›", onAction)
+            if (secondaryLabel != null && onSecondary != null) TextAction("$secondaryLabel ›", onSecondary, color = FinaiColors.TextSecondary)
+        }
+    }
+}
+
+/**
+ * Botão de ação frequente, 48 dp (Fase 7, item 8): "Paguei a parcela", "Guardar",
+ * "Marcar extra" deixaram de ser texto pequeno clicável.
+ */
+@Composable
+fun ActionButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = false) {
+    Box(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .then(
+                if (primary) Modifier.background(FinaiColors.EmeraldDark)
+                else Modifier.border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(12.dp)),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (primary) Color.White else FinaiColors.TextPrimary)
+    }
+}
+
+/** Uma opção do menu ⋮. [destructive] pinta de vermelho (excluir). */
+data class OverflowAction(val label: String, val destructive: Boolean = false, val onClick: () -> Unit)
+
+/**
+ * Menu de três pontos (Fase 7, item 8): editar e excluir saem da linha como texto pequeno
+ * e vão para cá. Excluir continua pedindo confirmação ([ConfirmDeleteDialog]) em quem chama.
+ */
+@Composable
+fun OverflowMenu(actions: List<OverflowAction>, contentDescription: String, modifier: Modifier = Modifier, tint: Color = FinaiColors.TextTertiary) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        androidx.compose.material3.IconButton(onClick = { open = true }) {
+            Icon(androidx.compose.material.icons.Icons.Filled.MoreVert, contentDescription = contentDescription, tint = tint)
+        }
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            actions.forEach { a ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(a.label, fontSize = 15.sp, color = if (a.destructive) FinaiColors.RoseDark else FinaiColors.TextPrimary) },
+                    onClick = { open = false; a.onClick() },
+                )
+            }
+        }
+    }
 }

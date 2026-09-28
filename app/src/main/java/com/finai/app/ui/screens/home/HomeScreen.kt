@@ -44,10 +44,15 @@ import androidx.compose.runtime.remember
 import com.finai.app.domain.AiReplyFormat
 import com.finai.app.domain.AssistantTopic
 import com.finai.app.domain.AssistantTopics
-import com.finai.app.ui.components.AiTextPalette
 import com.finai.app.domain.MONTH_NAMES_PT
-import com.finai.app.domain.PayCycle
-import com.finai.app.domain.SafeToSpendResult
+import com.finai.app.domain.HomeSituation
+import com.finai.app.domain.SituationAction
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.offset
+import com.finai.app.ui.components.EmptyStateCard
+import com.finai.app.ui.components.SectionHeader
+import com.finai.app.ui.components.TextAction
+import com.finai.app.ui.components.tipTarget
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
@@ -56,13 +61,10 @@ import com.finai.app.util.formatBrl0
 @Composable
 fun HomeScreen(
     greeting: String,
-    subGreeting: String,
     goals: List<Goal>,
     saldoLabel: String,
     saldoPositivo: Boolean,
-    payCycle: PayCycle?,
-    safeToday: SafeToSpendResult?,
-    safeTodayLabel: String,
+    situation: HomeSituation?,
     safeNote: String,
     week: List<WeekBill>,
     timeline: List<TimelineEntry>,
@@ -77,48 +79,65 @@ fun HomeScreen(
     onOpenBudgets: () -> Unit,
     onExplainSafe: () -> Unit,
     onOpenAgenda: () -> Unit,
-    onAskAbout: (com.finai.app.domain.AssistantTopic) -> Unit,
+    onAskAbout: (AssistantTopic) -> Unit,
     onNewIncomeEntry: () -> Unit,
+    /** "Informar renda": abre o lançamento de receita já marcado como renda principal. */
+    onAddMainIncome: () -> Unit,
+    onNewEntry: () -> Unit,
 ) {
+    // Ordem por urgência (Fase 7, item 3): situação → o que vence → planejamento.
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = ScreenContentPadding,
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
-            Column {
-                Text(greeting, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-                Text(
-                    subGreeting, fontSize = 13.sp, color = FinaiColors.TextTertiary,
-                    modifier = Modifier.padding(top = 3.dp),
-                )
-            }
+            Text(greeting, style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
         }
 
-        item { PayCycleCard(payCycle, onNewIncomeEntry) }
+        item {
+            SituationCard(
+                situation = situation,
+                safeNote = safeNote,
+                onAction = { action ->
+                    when (action) {
+                        SituationAction.SeeCommitments -> onOpenAgenda()
+                        SituationAction.AddIncome -> onAddMainIncome()
+                        SituationAction.CanIBuy -> onOpenSimulator()
+                    }
+                },
+                onOpenBudgets = onOpenBudgets,
+                onExplain = onExplainSafe,
+            )
+        }
+
+        item { NextWeekSection(week, onOpenAgenda, onNewEntry) }
+
+        item {
+            Text(
+                "PLANEJAMENTO", style = MaterialTheme.typography.labelSmall, color = FinaiColors.TextMuted,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
 
         item { SaldoCard(saldoLabel, saldoPositivo) }
 
         item { GoalsCarousel(goals, onOpenGoals, onNewGoal) }
 
-        item { SafeToSpendCard(safeToday, safeTodayLabel, safeNote, payCycle != null, onOpenSimulator, onOpenBudgets, onExplainSafe) }
-
         item { DecisionsCard(decisions, onAskAbout) }
 
         item { TimelineSection(timeline, timelineNote, onNewIncomeEntry) }
 
-        item { NextWeekSection(week, onOpenAgenda) }
-
         if (showCoach && behaviorPattern != null) {
-            item { CoachCard(behaviorPattern, coachInsight) { onAskAbout(com.finai.app.domain.AssistantTopics.behaviorPattern(behaviorPattern)) } }
+            item { CoachCard(behaviorPattern, coachInsight) { onAskAbout(AssistantTopics.behaviorPattern(behaviorPattern)) } }
         }
     }
 }
 
 /**
  * Balanço do mês = recebimentos − contas a pagar do mês corrente, a mesma conta dos totais
- * da Agenda (MonthCashFlow). Responde "o mês fecha?"; quem paga cada conta é o
- * [PayCycleCard], que olha o dinheiro entre um salário e o próximo.
+ * da Agenda (MonthCashFlow). Responde "o mês fecha?"; quem paga cada conta é o ciclo do
+ * salário, no [SituationCard].
  */
 @Composable
 private fun SaldoCard(saldoLabel: String, saldoPositivo: Boolean) {
@@ -133,159 +152,126 @@ private fun SaldoCard(saldoLabel: String, saldoPositivo: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("BALANÇO DE ${mes.uppercase()}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
+            Text("Balanço de $mes", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
             Text(
-                "Entradas − saídas do mês, como na Agenda", fontSize = 11.sp, color = FinaiColors.TextTertiary,
+                "Entradas − saídas do mês, como na Agenda", fontSize = 13.sp, color = FinaiColors.TextTertiary,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
         Text(
-            saldoLabel, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold,
-            color = if (saldoPositivo) FinaiColors.EmeraldDark else Rose,
+            saldoLabel, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,
+            color = if (saldoPositivo) FinaiColors.EmeraldDark else FinaiColors.RoseDark,
         )
     }
 }
 
-private val Rose = Color(0xFFE11D48)
-private val RoseWash = Color(0xFFFFF1F2)
-
-private fun dayMonth(d: java.time.LocalDate) = "%02d/%02d".format(d.dayOfMonth, d.monthValue)
-
 /**
- * "Até o próximo salário": o dinheiro do salário que já caiu (mais outras entradas do
- * ciclo) contra tudo que sai até a véspera do próximo — ver [PayCycle]. Sem receita
- * recorrente cadastrada o app não sabe quando é o salário, e o cartão diz como ensinar.
+ * O topo da Início: frase de situação, **um** valor com o período explícito (o livre até o
+ * salário, ou a falta), o valor por dia como apoio, "Entenda este valor" e uma ação só —
+ * a que resolve o estado atual ([HomeSituation.action]). "Ajustar limites" fica aqui como
+ * ação secundária: é um dos dois caminhos para Limites (decisão do usuário, 28/09/2026).
  */
 @Composable
-private fun PayCycleCard(cycle: PayCycle?, onNewIncomeEntry: () -> Unit) {
-    val shape = RoundedCornerShape(20.dp)
+private fun SituationCard(
+    situation: HomeSituation?,
+    safeNote: String,
+    onAction: (SituationAction) -> Unit,
+    onOpenBudgets: () -> Unit,
+    onExplain: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .border(1.dp, FinaiColors.BorderHairline, shape)
-            .background(FinaiColors.Surface)
-            .padding(16.dp),
+            .tipTarget("home.situation")
+            .clip(RoundedCornerShape(24.dp))
+            .background(FinaiColors.Ink)
+            .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 14.dp),
     ) {
-        // Sem `return@Column`: retorno antecipado dentro de lambda inline do Compose
-        // (compilador 1.5.8) desbalanceia os grupos e derruba o app na abertura.
-        if (cycle == null) NoCycleContent(onNewIncomeEntry) else CycleContent(cycle)
-    }
-}
-
-@Composable
-private fun NoCycleContent(onNewIncomeEntry: () -> Unit) {
-        Text("ATÉ O PRÓXIMO SALÁRIO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
-        Text(
-            "Lance uma receita com \"salário\" na descrição para o app saber até quando o dinheiro precisa durar.",
-            fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextSecondary,
-            modifier = Modifier.padding(top = 6.dp),
-        )
-        Text(
-            "Lançar receita", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark,
-            modifier = Modifier.padding(top = 10.dp).clickable(onClick = onNewIncomeEntry),
-        )
-}
-
-@Composable
-private fun CycleContent(cycle: PayCycle) {
-    val livre = cycle.livreCents
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Column(modifier = Modifier.weight(1f)) {
+        if (situation == null) {
+            Text("Calculando…", fontSize = 15.sp, color = FinaiColors.TextOnDarkMuted)
+        } else {
             Text(
-                "ATÉ O PRÓXIMO SALÁRIO · ${dayMonth(cycle.proximo)}" + if (cycle.proximoEstimado) " (ESTIMADO)" else "",
-                fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted,
-            )
-            // A falta prevista manda no título: "R$ X livres" ao lado de "vai faltar" se contradiz.
-            val falta = cycle.shortfall
-            Text(
-                when {
-                    falta != null -> "Faltam ${formatBrl0(falta.cents / 100.0)}"
-                    else -> "${formatBrl0(livre / 100.0)} livres"
-                },
-                fontSize = 26.sp, fontWeight = FontWeight.ExtraBold,
-                color = if (falta == null) FinaiColors.EmeraldDark else Rose,
-                modifier = Modifier.padding(top = 4.dp),
+                situation.headline, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold,
+                color = if (situation.shortfall) RoseOnDark else Color.White,
             )
             Text(
-                cycle.inicio?.let { "${cycle.salarioNome} caiu em ${dayMonth(it)}" }
-                    ?: "Nenhum salário lançado antes de hoje",
-                fontSize = 11.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                situation.label, style = MaterialTheme.typography.labelSmall,
+                color = if (situation.shortfall) RoseOnDark else FinaiColors.TextOnDarkMuted,
+                modifier = Modifier.padding(top = 14.dp),
             )
+            Text(
+                if (situation.shortfall) "Faltam ${formatBrl0(situation.mainCents / 100.0)}" else formatBrl0(situation.mainCents / 100.0),
+                style = MaterialTheme.typography.displayLarge,
+                color = if (situation.shortfall) RoseOnDark else Color.White,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            if (!situation.shortfall) {
+                Text(
+                    "cerca de ${formatBrl0(situation.perDayCents / 100.0)} por dia · ${situation.days} ${if (situation.days == 1) "dia" else "dias"}",
+                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextOnDarkMuted,
+                )
+            }
+            Text(
+                safeNote, fontSize = 13.sp, lineHeight = 18.sp,
+                color = FinaiColors.TextOnDarkMuted, modifier = Modifier.padding(top = 8.dp),
+            )
+            // Alvo de toque de 48 dp: o valor precisa ser explicável em um toque.
+            Box(
+                modifier = Modifier.tipTarget("home.explain").heightIn(min = 48.dp).clickable(onClick = onExplain),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text("Entenda este valor ›", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.Emerald)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (situation.shortfall) FinaiColors.RoseDark else FinaiColors.EmeraldDark)
+                        .clickable { onAction(situation.action) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(situation.action.label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+                        .clickable(onClick = onOpenBudgets)
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Ajustar limites", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                }
+            }
         }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(cycle.diasAteProximo.toString(), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-            Text("DIAS", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
-        }
-    }
-    ProgressTrack(
-        progress = cycle.progress,
-        fillColor = FinaiColors.Emerald,
-        modifier = Modifier.padding(top = 12.dp),
-    )
-    Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        CycleStat("Entradas", cycle.entradasCents, Modifier.weight(1f))
-        CycleStat("Já saiu", cycle.jaSaiuCents, Modifier.weight(1f))
-        CycleStat("A pagar", cycle.comprometidoCents, Modifier.weight(1f))
-    }
-    if (cycle.aReceberCents > 0) {
-        Text(
-            "Entradas inclui ${formatBrl0(cycle.aReceberCents / 100.0)} que ainda vão cair antes do salário.",
-            fontSize = 11.sp, lineHeight = 15.sp, color = FinaiColors.TextTertiary,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-    }
-    cycle.shortfall?.let { falta ->
-        val quando = if (falta.date.isAfter(cycle.today)) "Em ${dayMonth(falta.date)}" else "Desde ${dayMonth(falta.date)}"
-        val porque = falta.causa?.let { ", quando sai $it" }.orEmpty()
-        val sobraFinal = if (livre > 0) " O ciclo fecha com ${formatBrl0(livre / 100.0)}, mas essa entrada chega tarde." else ""
-        Text(
-            "$quando o dinheiro não fecha$porque: faltam até ${formatBrl0(falta.cents / 100.0)} antes do próximo salário.$sobraFinal",
-            fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, color = Rose,
-            modifier = Modifier
-                .padding(top = 10.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(RoseWash)
-                .padding(10.dp),
-        )
     }
 }
 
-@Composable
-private fun CycleStat(label: String, cents: Long, modifier: Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(FinaiColors.SurfaceMuted)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-    ) {
-        Text(label, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextMuted)
-        Text(
-            formatBrl0(cents / 100.0), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
-            modifier = Modifier.padding(top = 2.dp),
-        )
-    }
-}
+/** Vermelho legível sobre o [FinaiColors.Ink] (6,6:1). */
+private val RoseOnDark = Color(0xFFFB7185)
 
 @Composable
 private fun GoalsCarousel(goals: List<Goal>, onOpenGoals: () -> Unit, onNewGoal: () -> Unit) {
     Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            Text("Seus objetivos", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-            Text(
-                "Ver todos", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark,
-                modifier = Modifier.clickable(onClick = onOpenGoals),
+        SectionHeader("Seus objetivos", action = if (goals.isNotEmpty()) "Ver todos" else null, onAction = onOpenGoals)
+        Spacer(Modifier.height(6.dp))
+        if (goals.isEmpty()) {
+            EmptyStateCard(
+                "Nenhum objetivo ainda. Uma viagem, uma reserva de emergência ou uma compra planejada: o app diz se o aporte cabe no que sobra.",
+                "Criar objetivo", onNewGoal,
             )
-        }
-        Spacer(Modifier.height(10.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(goals.take(2)) { goal -> GoalTeaserCard(goal, onOpenGoals) }
-            item { NewGoalCard(onNewGoal) }
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(goals.take(2)) { goal -> GoalTeaserCard(goal, onOpenGoals) }
+                item { NewGoalCard(onNewGoal) }
+            }
         }
     }
 }
@@ -294,7 +280,7 @@ private fun GoalsCarousel(goals: List<Goal>, onOpenGoals: () -> Unit, onNewGoal:
 private fun GoalTeaserCard(goal: Goal, onClick: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(236.dp)
+            .width(248.dp)
             .clip(RoundedCornerShape(20.dp))
             .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
             .background(FinaiColors.Surface)
@@ -303,7 +289,7 @@ private fun GoalTeaserCard(goal: Goal, onClick: () -> Unit) {
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
-                goal.kind.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                goal.kind.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 color = FinaiColors.TextMuted,
             )
             com.finai.app.ui.components.PillTag(goal.badge.label, goal.badge.bg, goal.badge.fg)
@@ -312,14 +298,14 @@ private fun GoalTeaserCard(goal: Goal, onClick: () -> Unit) {
             goal.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
             modifier = Modifier.padding(top = 12.dp),
         )
-        Text(goal.eta, fontSize = 11.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp))
+        Text(goal.eta, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp))
         Row(
             modifier = Modifier.padding(top = 12.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Text(formatBrl0(goal.saved), fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.EmeraldDark)
-            Text("de ${formatBrl0(goal.target)}", fontSize = 11.sp, color = FinaiColors.TextMuted)
+            Text("de ${formatBrl0(goal.target)}", fontSize = 13.sp, color = FinaiColors.TextMuted)
         }
         ProgressTrack(
             progress = goal.progress,
@@ -327,7 +313,7 @@ private fun GoalTeaserCard(goal: Goal, onClick: () -> Unit) {
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            goal.note, fontSize = 11.sp, lineHeight = 15.sp, color = FinaiColors.TextSecondary,
+            goal.note, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary,
             modifier = Modifier.padding(top = 9.dp),
         )
     }
@@ -338,7 +324,7 @@ private fun NewGoalCard(onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .width(120.dp)
-            .height(150.dp)
+            .heightIn(min = 150.dp)
             .clip(RoundedCornerShape(20.dp))
             .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
@@ -348,115 +334,7 @@ private fun NewGoalCard(onClick: () -> Unit) {
     ) {
         Icon(Icons.Filled.Add, contentDescription = null, tint = FinaiColors.TextMuted, modifier = Modifier.size(20.dp))
         Spacer(Modifier.height(6.dp))
-        Text("Novo objetivo", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextMuted)
-    }
-}
-
-@Composable
-private fun SafeToSpendCard(
-    safeToday: SafeToSpendResult?,
-    safeTodayLabel: String,
-    safeNote: String,
-    byCycle: Boolean,
-    onOpenSimulator: () -> Unit,
-    onOpenBudgets: () -> Unit,
-    onExplain: () -> Unit,
-) {
-    val dayLeftLabel = safeToday?.daysRemaining?.toString() ?: "—"
-    val dayProgressFraction = safeToday?.monthProgressFraction ?: 0f
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(FinaiColors.Ink)
-            .padding(18.dp),
-    ) {
-        Column {
-            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.weight(1f)) {
-                    // Falta prevista vem antes de qualquer sugestão de gasto (planning.md §9 Fase 7, item 1).
-                    val falta = safeToday?.shortfall
-                    Text(
-                        when { falta == null -> "PODE GASTAR HOJE"; byCycle -> "VAI FALTAR ANTES DO SALÁRIO"; else -> "VAI FALTAR ESTE MÊS" },
-                        fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                        color = if (falta != null) FinaiColors.Rose else FinaiColors.TextOnDarkFaint,
-                    )
-                    Text(
-                        if (falta != null) "Faltam ${formatBrl0(falta.cents / 100.0)}" else safeTodayLabel,
-                        fontSize = 34.sp, fontWeight = FontWeight.ExtraBold,
-                        color = if (falta != null) FinaiColors.Rose else Color.White,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
-                    Text(
-                        safeNote, fontSize = 12.sp, lineHeight = 17.sp,
-                        color = FinaiColors.TextOnDarkMuted, modifier = Modifier.padding(top = 7.dp),
-                    )
-                    // Alvo de toque de 48 dp: o valor precisa ser explicável em um toque.
-                    Box(
-                        modifier = Modifier.heightIn(min = 48.dp).clickable(onClick = onExplain),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        Text(
-                            "Entenda este valor ›", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                            color = FinaiColors.Emerald,
-                        )
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .size(76.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.sweepGradient(
-                                0f to FinaiColors.Emerald,
-                                dayProgressFraction to FinaiColors.Emerald,
-                                dayProgressFraction to Color.White.copy(alpha = 0.13f),
-                                1f to Color.White.copy(alpha = 0.13f),
-                            ),
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        modifier = Modifier.size(58.dp).clip(CircleShape).background(FinaiColors.Ink),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(dayLeftLabel, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                            Text("DIAS", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextOnDarkFaint)
-                        }
-                    }
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(FinaiColors.Emerald)
-                        .clickable(onClick = onOpenSimulator)
-                        .padding(11.dp),
-                ) {
-                    Text(
-                        "Posso comprar?", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                        modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(14.dp))
-                        .background(Color.White.copy(alpha = 0.06f))
-                        .clickable(onClick = onOpenBudgets)
-                        .padding(11.dp),
-                ) {
-                    Text(
-                        "Ajustar limites", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
-                        modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
-                }
-            }
-        }
+        Text("Novo objetivo", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
     }
 }
 
@@ -484,15 +362,15 @@ private fun DecisionsCard(decisions: AiText?, onAskAbout: (AssistantTopic) -> Un
             ) {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = FinaiColors.TextMuted, modifier = Modifier.size(14.dp))
             }
-            Text("Decisões para você", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            Text("Decisões para você", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
         }
         when (decisions) {
             null, AiText.Loading -> Text(
                 "Analisando seus números para sugerir decisões...",
-                fontSize = 11.5.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 10.dp),
+                fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 10.dp),
             )
             is AiText.Unavailable -> Text(
-                decisions.reason, fontSize = 11.5.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 10.dp),
+                decisions.reason, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 10.dp),
             )
             is AiText.Ready -> {
                 // Uma linha só, sem "porquê", é o "está tudo sob controle": texto, não decisão.
@@ -523,6 +401,7 @@ private fun DecisionRow(decision: AiReplyFormat.Decision, onAsk: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(onClick = onAsk)
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -531,12 +410,12 @@ private fun DecisionRow(decision: AiReplyFormat.Decision, onAsk: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 rememberAiAnnotated(decision.action),
-                fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
+                fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
             )
             decision.reason?.let {
                 Text(
                     rememberAiAnnotated(it),
-                    fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
+                    fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
@@ -548,7 +427,7 @@ private fun DecisionRow(decision: AiReplyFormat.Decision, onAsk: () -> Unit) {
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Conversar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark)
+            Text("Conversar", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark)
         }
     }
 }
@@ -556,24 +435,10 @@ private fun DecisionRow(decision: AiReplyFormat.Decision, onAsk: () -> Unit) {
 @Composable
 private fun TimelineSection(timeline: List<TimelineEntry>, timelineNote: String, onNewIncomeEntry: () -> Unit) {
     Column {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-            Column {
-                Text("Linha do tempo do ano", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-                Text(
-                    "13º, bônus, restituição e outras entradas extras", fontSize = 11.sp, color = FinaiColors.TextMuted,
-                    modifier = Modifier.padding(top = 3.dp),
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(FinaiColors.Ink)
-                    .clickable(onClick = onNewIncomeEntry)
-                    .padding(7.dp),
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Registrar entrada extra (13º, bônus, restituição...)", tint = Color.White, modifier = Modifier.size(15.dp))
-            }
-        }
+        SectionHeader(
+            "Linha do tempo do ano", subtitle = "13º, bônus, restituição e outras entradas extras",
+            action = "Lançar extra", onAction = onNewIncomeEntry,
+        )
         Spacer(Modifier.height(9.dp))
         Column(
             modifier = Modifier
@@ -590,7 +455,7 @@ private fun TimelineSection(timeline: List<TimelineEntry>, timelineNote: String,
                 ) {
                     items(timeline) { t ->
                         Column(modifier = Modifier.width(96.dp)) {
-                            Text(t.month.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted)
+                            Text(t.month.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted)
                             Box(
                                 modifier = Modifier
                                     .padding(vertical = 10.dp)
@@ -599,8 +464,8 @@ private fun TimelineSection(timeline: List<TimelineEntry>, timelineNote: String,
                                     .clip(RoundedCornerShape(2.dp))
                                     .background(t.tone.line),
                             )
-                            Text(t.amount, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = t.tone.color)
-                            Text(t.label, fontSize = 10.5.sp, lineHeight = 14.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 3.dp))
+                            Text(t.amount, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = t.tone.color)
+                            Text(t.label, fontSize = 12.sp, lineHeight = 16.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 3.dp))
                         }
                     }
                 }
@@ -615,27 +480,21 @@ private fun TimelineSection(timeline: List<TimelineEntry>, timelineNote: String,
                     .border(1.dp, FinaiColors.BorderFaint, RoundedCornerShape(14.dp))
                     .padding(12.dp),
             ) {
-                Text(timelineNote, fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextBody)
+                Text(timelineNote, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
             }
         }
     }
 }
 
 @Composable
-private fun NextWeekSection(week: List<WeekBill>, onOpenAgenda: () -> Unit) {
-    Column {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-            Text("Próximos 7 dias", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-            Text(
-                "Abrir agenda", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark,
-                modifier = Modifier.clickable(onClick = onOpenAgenda),
-            )
-        }
-        Spacer(Modifier.height(10.dp))
+private fun NextWeekSection(week: List<WeekBill>, onOpenAgenda: () -> Unit, onNewEntry: () -> Unit) {
+    Column(modifier = Modifier.tipTarget("home.week")) {
+        SectionHeader("Próximos 7 dias", action = "Abrir agenda", onAction = onOpenAgenda)
+        Spacer(Modifier.height(4.dp))
         if (week.isEmpty()) {
-            Text(
-                "Nenhuma conta nos próximos 7 dias.", fontSize = 12.sp, color = FinaiColors.TextMuted,
-                modifier = Modifier.padding(vertical = 8.dp),
+            EmptyStateCard(
+                "Nada vence nos próximos 7 dias. Lance suas contas com data para vê-las aqui antes do vencimento.",
+                "Lançar conta", onNewEntry,
             )
         } else {
             Column(
@@ -662,20 +521,20 @@ private fun WeekBillRow(w: WeekBill) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(
-            modifier = Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(FinaiColors.SurfaceMuted),
+            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(FinaiColors.SurfaceMuted),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(w.day, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-            Text(w.mon, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
+            Text(w.day, fontSize = 14.sp, lineHeight = 15.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+            Text(w.mon, fontSize = 12.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(w.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-            Text(w.cat, fontSize = 11.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 1.dp))
+            Text(w.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(w.cat, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text(w.amount, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-            Text(w.status, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = w.statusTone.color, modifier = Modifier.padding(top = 2.dp))
+            Text(w.amount, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            Text(w.status, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = w.statusTone.color, modifier = Modifier.padding(top = 2.dp))
         }
     }
 }
@@ -691,28 +550,21 @@ private fun WeekBillRow(w: WeekBill) {
 @Composable
 private fun CoachCard(pattern: BehaviorPattern, insight: AiText?, onOpenChat: () -> Unit) {
     val body = (insight as? AiText.Ready)?.text ?: pattern.detail
+    // Superfície neutra (Fase 7, item 7): texto de IA não pode ter mais destaque que os números.
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Brush.linearGradient(listOf(FinaiColors.IndigoDeepStart, FinaiColors.IndigoDeepEnd)))
-            .padding(16.dp),
+            .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
+            .background(FinaiColors.Surface)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
     ) {
-        Text("PADRÃO DE GASTO DO MÊS", fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White.copy(alpha = 0.55f))
+        Text("PADRÃO DE GASTO DO MÊS", style = MaterialTheme.typography.labelSmall, color = FinaiColors.TextMuted)
         Text(
-            pattern.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White,
-            lineHeight = 20.sp, modifier = Modifier.padding(top = 7.dp),
+            pattern.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
+            lineHeight = 21.sp, modifier = Modifier.padding(top = 6.dp),
         )
-        AiRichText(body, palette = AiTextPalette.OnDark, modifier = Modifier.padding(top = 7.dp))
-        Box(
-            modifier = Modifier
-                .padding(top = 13.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.White.copy(alpha = 0.14f))
-                .clickable(onClick = onOpenChat)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        ) {
-            Text("Conversar sobre isso", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
+        AiRichText(body, modifier = Modifier.padding(top = 6.dp))
+        TextAction("Conversar sobre isso ›", onOpenChat, modifier = Modifier.offset(x = (-6).dp))
     }
 }
