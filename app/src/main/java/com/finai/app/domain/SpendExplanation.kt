@@ -31,10 +31,13 @@ data class SpendExplanation(
     companion object {
         private const val NOT_BANK = "Não é o saldo do banco: é a soma do que você lançou no app."
 
-        fun of(safe: SafeToSpendResult, cycle: PayCycle?, today: LocalDate): SpendExplanation =
-            if (cycle != null) fromCycle(safe, cycle) else fromMonth(safe, today)
+        /** [destination] descreve o destino da sobra no plano ([FinancialPlan.allocationSummary]). */
+        fun of(safe: SafeToSpendResult, cycle: PayCycle?, today: LocalDate, destination: String? = null): SpendExplanation =
+            if (cycle != null) fromCycle(safe, cycle, destination) else fromMonth(safe, today, destination)
 
-        private fun fromCycle(safe: SafeToSpendResult, c: PayCycle): SpendExplanation {
+        private const val PLAN_STEP = "Destino da sobra no plano"
+
+        private fun fromCycle(safe: SafeToSpendResult, c: PayCycle, destination: String?): SpendExplanation {
             val period = "De hoje (${dm(c.today)}) até ${dm(c.proximo.minusDays(1))}, véspera do salário — ${c.diasAteProximo} dia(s)"
             val saidas = c.entries.count { it.cents < 0 && it.done }
             val steps = buildList {
@@ -54,8 +57,8 @@ data class SpendExplanation(
                             "de uma entrada. Dá para gastar hoje só o que sobra nesse dia.",
                     ))
                 }
-                if (safe.reservedForGoalsCents > 0) {
-                    add(ExplainStep("Reservado para as metas", -safe.reservedForGoalsCents, "A parte do aporte deste mês que cabe"))
+                if (safe.reservedForPlanCents > 0) {
+                    add(ExplainStep(PLAN_STEP, -safe.reservedForPlanCents, destination ?: "Amortização de dívida cara e aporte das metas"))
                 }
                 add(ExplainStep(
                     "Livre até o salário", safe.slackThisMonthCents.coerceAtLeast(0),
@@ -82,17 +85,22 @@ data class SpendExplanation(
             return SpendExplanation(period, steps, upcoming, safe.safeTodayCents, c.diasAteProximo, safe.shortfall, assumptions, missing)
         }
 
-        private fun fromMonth(safe: SafeToSpendResult, today: LocalDate): SpendExplanation {
+        private fun fromMonth(safe: SafeToSpendResult, today: LocalDate, destination: String?): SpendExplanation {
             val beforeGoals = safe.monthIncomeCents - safe.monthSpentCents - safe.monthBillsCents
+            // O plano usa o menor entre a folga e o balanço da Agenda, que também desconta parcelas.
+            val base = safe.slackThisMonthCents + safe.reservedForPlanCents
             val steps = buildList {
                 add(ExplainStep("Receitas do mês", safe.monthIncomeCents))
                 add(ExplainStep("Gastos lançados no mês", -safe.monthSpentCents, "Receitas lançadas pelo + já vêm descontadas aqui"))
                 add(ExplainStep("Contas a pagar ainda em aberto", -safe.monthBillsCents))
-                if (beforeGoals < 0) {
+                if (base < beforeGoals) {
+                    add(ExplainStep("Ajuste pelo balanço da Agenda", base - beforeGoals, "Parcelas de dívida e contas já pagas do mês"))
+                }
+                if (base < 0) {
                     // Mostra o buraco como ele é: "R$ 0" esconderia que as contas não fecham.
-                    add(ExplainStep("Falta para cobrir as contas", beforeGoals, total = true))
+                    add(ExplainStep("Falta para cobrir as contas", base, total = true))
                 } else {
-                    if (safe.reservedForGoalsCents > 0) add(ExplainStep("Reservado para as metas", -safe.reservedForGoalsCents))
+                    if (safe.reservedForPlanCents > 0) add(ExplainStep(PLAN_STEP, -safe.reservedForPlanCents, destination))
                     add(ExplainStep("Livre até o fim do mês", safe.slackThisMonthCents.coerceAtLeast(0), total = true))
                 }
             }

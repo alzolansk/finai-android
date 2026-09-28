@@ -37,7 +37,7 @@ private fun toneColors(over: Boolean, warn: Boolean): Pair<Color, Color> = when 
     else -> Green to GreenFill
 }
 
-fun GoalPlan.toUiGoal(): Goal {
+fun GoalPlan.toUiGoal(planNote: String = ""): Goal {
     val badge = when (status) {
         GoalStatus.OnTrack -> GoalBadge.OnTrack
         GoalStatus.Reassess -> GoalBadge.Reassess
@@ -70,6 +70,7 @@ fun GoalPlan.toUiGoal(): Goal {
         action = "Registrar aporte",
         description = objetivo.descricao,
         projectionNote = projectionNote,
+        planNote = planNote,
         completedLabel = if (Completion.isDone(objetivo)) {
             objetivo.concluidoEm?.let { "Concluída em ${monthShort(it)}" } ?: "Concluída"
         } else null,
@@ -90,7 +91,7 @@ fun com.finai.app.data.local.entity.DividaEntity.toPaidDebt() = com.finai.app.da
     detail = if (parcelasTotais > 0) "$parcelasTotais parcelas" else DebtCalculator.rateLabel(taxaJurosMensalBasisPoints),
 )
 
-fun DebtPlan.toUiDebt(): Debt {
+fun DebtPlan.toUiDebt(planNote: String? = null): Debt {
     val (rateColor, barColor) = toneColors(
         over = divida.taxaJurosMensalBasisPoints >= 800,
         warn = divida.taxaJurosMensalBasisPoints >= 200,
@@ -117,6 +118,7 @@ fun DebtPlan.toUiDebt(): Debt {
         progressPct = progress,
         barColor = barColor,
         hasParcelaFixa = hasParcelaFixa,
+        planNote = planNote,
     )
 }
 

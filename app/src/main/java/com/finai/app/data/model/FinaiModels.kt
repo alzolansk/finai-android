@@ -32,6 +32,8 @@ data class Goal(
     val description: String = "",
     /** Sobra projetada até o prazo, em texto — vai para a IA ([com.finai.app.domain.SavingsProjection]). */
     val projectionNote: String = "",
+    /** O que o plano central destinou a esta meta até o próximo salário ([com.finai.app.domain.FinancialPlan.goalNote]). */
+    val planNote: String = "",
     /** "Concluída em set/2026"; nulo enquanto a meta está em andamento. */
     val completedLabel: String? = null,
     /** Quanto passou do alvo (aportes depois de concluída). */
@@ -105,6 +107,8 @@ data class Debt(
     val progressPct: Float,
     val barColor: Color,
     val hasParcelaFixa: Boolean = false,
+    /** Parte da sobra que o plano central destina a esta dívida; nulo quando não recebe nada. */
+    val planNote: String? = null,
 )
 
 data class PaidDebt(

@@ -164,10 +164,10 @@ class PayCycleTest {
         assertEquals(CycleFloor(LocalDate.of(2026, 10, 12), 200_000), c.floor)
         assertNull(c.shortfall)
 
-        val safe = SafeToSpendCalculator.fromCycle(c, aporteMensalMetasCents = 50_000)
+        val safe = SafeToSpendCalculator.fromCycle(c, reservedCents = 50_000)
         assertEquals(150_000L, safe.slackThisMonthCents)
         assertEquals(150_000L / 25, safe.safeTodayCents)
-        assertEquals(50_000L, safe.reservedForGoalsCents)
+        assertEquals(50_000L, safe.reservedForPlanCents)
     }
 
     /** O caso da crítica: total positivo, falta no meio — não pode dizer "pode gastar". */
@@ -176,9 +176,9 @@ class PayCycleTest {
             transacoes = listOf(salario(300_000), tx(LocalDate.of(2026, 10, 20), 200_000, TransactionType.Receita)),
             contas = listOf(conta("Fatura", 400_000, LocalDate.of(2026, 10, 12))),
         )
-        val safe = SafeToSpendCalculator.fromCycle(c, aporteMensalMetasCents = 50_000)
+        val safe = SafeToSpendCalculator.fromCycle(c, reservedCents = 50_000)
         assertEquals(0L, safe.safeTodayCents)
-        assertEquals(0L, safe.reservedForGoalsCents)
+        assertEquals(0L, safe.reservedForPlanCents)
         assertEquals(c.shortfall, safe.shortfall)
     }
 

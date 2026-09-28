@@ -93,6 +93,16 @@ data class FinanceUiState(
     /** Metas com a divisão da sobra por prioridade — o que a IA recebe ([com.finai.app.domain.AiContext]). */
     val aiGoalsBlock: String = "",
 
+    /**
+     * O plano financeiro central ([com.finai.app.domain.FinancialPlan]): disponível de verdade e
+     * o destino único da sobra. Início, Objetivos, Dívidas, simulador e IA leem daqui.
+     */
+    val plan: com.finai.app.domain.FinancialPlan? = null,
+    /** O plano como a IA recebe ([com.finai.app.domain.FinancialPlan.aiBlock]). */
+    val aiPlanBlock: String = "",
+    /** "Decisões para você", tiradas do plano, sem IA. */
+    val decisions: List<com.finai.app.domain.AiReplyFormat.Decision> = emptyList(),
+
     /** Avisos do sino da topbar — planning.md §3.9, calculados por [com.finai.app.domain.AlertCalculator]. */
     val alerts: List<FinanceAlert> = emptyList(),
 )
@@ -114,44 +124,22 @@ fun FinanceUiState.toAiSummaryText(): String = buildString {
         } else {
             appendLine(
                 "Situação: ${sit.headline}. Livre até o $periodo: ${com.finai.app.util.formatBrl0(sit.mainCents / 100.0)} " +
-                    "(cerca de $safeTodayLabel por dia, ${sit.days} dia(s)). $safeNote",
+                    "(cerca de $safeTodayLabel por dia, ${sit.days} dia(s)), depois do destino da sobra.",
             )
         }
     } ?: appendLine("Livre por dia: $safeTodayLabel. $safeNote")
-    if (saldoLabel.isNotBlank()) appendLine("Balanço do mês (recebimentos − contas a pagar): $saldoLabel.")
-    payCycle?.let { cycle ->
-        appendLine(
-            "Até o próximo salário (${cycle.proximo.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM"))}): " +
-                "sobra de ${com.finai.app.util.formatBrl0(cycle.livreCents / 100.0)} no fim do ciclo, depois das contas e parcelas do período " +
-                "(o livre acima é menor quando um dia no meio do ciclo fica mais apertado ou há reserva para metas).",
-        )
-        cycle.shortfall?.let { falta ->
-            appendLine(
-                "ATENÇÃO: falta prevista de ${com.finai.app.util.formatBrl0(falta.cents / 100.0)} a partir de " +
-                    "${falta.date.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM"))}" +
-                    (falta.causa?.let { " ($it)" } ?: "") +
-                    ", porque uma saída vem antes da entrada que a cobriria. Nada é livre para gastar até o salário; não sugira gastos.",
-            )
-        }
-    }
-    appendLine("Sobra deste mês (balanço do mês sem entradas extras): $monthlyCapacityLabel. É só o mês atual, não o potencial dos próximos.")
+    // O plano central traz balanço, comprometido, reservado, disponível e o destino da sobra:
+    // é a única fonte de "quanto sobra e para onde vai" que a IA recebe.
+    if (aiPlanBlock.isNotBlank()) appendLine(aiPlanBlock)
     savingsProjection?.let { p ->
         val next12 = p.months.take(12)
         appendLine(
             "Sobra projetada nos próximos ${next12.size} meses (balanço de cada mês somado): " +
-                "${com.finai.app.util.formatBrl0(next12.sumOf { it.balanceCents } / 100.0)}, média de " +
-                "${com.finai.app.util.formatBrl0(next12.sumOf { it.balanceCents } / 100.0 / next12.size.coerceAtLeast(1))}/mês.",
+                "${com.finai.app.util.formatBrl0(next12.sumOf { it.balanceCents } / 100.0)}. Serve para julgar prazos de metas, não para gastar agora.",
         )
         p.estimatedSalaryCents?.let { s ->
             appendLine("Nos meses sem salário lançado, a projeção repete o último salário (${com.finai.app.util.formatBrl0(s / 100.0)}) como estimativa.")
         }
-    }
-    if (goalsNeededCents > 0) {
-        appendLine(
-            "Metas pedem ${com.finai.app.util.formatBrl0(goalsNeededCents / 100.0)}/mês no total; cabem " +
-                "${com.finai.app.util.formatBrl0(goalsFundedCents / 100.0)}. Aporte de meta que não cabe é meta a replanejar, " +
-                "não conta a pagar nem falta de dinheiro no mês.",
-        )
     }
     if (debts.isNotEmpty()) {
         appendLine("Soma de todas as dívidas: $debtTotalLabel em aberto, $debtInterestLabel de juros por mês somados, livre de todas em $debtFreeLabel.")

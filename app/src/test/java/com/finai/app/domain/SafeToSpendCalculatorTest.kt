@@ -20,7 +20,7 @@ class SafeToSpendCalculatorTest {
             TransacaoEntity(data = today.minusDays(1).toEpochMillis(), descricao = "Mercado", valorCentavos = 40_000, categoria = "Alimentação", contaOrigem = "", recorrente = false, origem = "manual"),
         )
 
-        val result = SafeToSpendCalculator.calculate(contas, transacoes, aporteMensalMetasCents = 0, today = today)
+        val result = SafeToSpendCalculator.calculate(contas, transacoes, reservedCents = 0, today = today)
 
         // slack = 500_000 - 40_000 - 10_000 (only unpaid a_pagar counts) - 0 = 450_000
         assertEquals(450_000L, result.slackThisMonthCents)
@@ -34,7 +34,7 @@ class SafeToSpendCalculatorTest {
         val contas = listOf(
             ContaEntity(nome = "Fatura", valorCentavos = 1_000_000, vencimento = today.toEpochMillis(), status = "pendente", tipo = "a_pagar", recorrente = false),
         )
-        val result = SafeToSpendCalculator.calculate(contas, emptyList(), aporteMensalMetasCents = 0, today = today)
+        val result = SafeToSpendCalculator.calculate(contas, emptyList(), reservedCents = 0, today = today)
         assertEquals(0L, result.safeTodayCents)
     }
 }

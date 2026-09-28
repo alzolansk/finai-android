@@ -15,8 +15,6 @@ import com.finai.app.data.repository.FinanceRepository
 import com.finai.app.domain.AlertCalculator
 import com.finai.app.domain.BehaviorCoach
 import com.finai.app.domain.BudgetCalculator
-import com.finai.app.domain.GoalCalculator
-import com.finai.app.domain.SavingsCapacityCalculator
 import com.finai.app.domain.SubscriptionCalculator
 import com.finai.app.domain.monthKey
 import com.finai.app.domain.monthRangeMillis
@@ -69,17 +67,15 @@ class FinanceCheckWorker(
         val assinaturas = repository.assinaturas.first()
         val orcamentos = repository.orcamentosDoMes(monthKey(today)).first()
 
-        val monthlyCapacityCents = SavingsCapacityCalculator.monthlyCapacityCents(contas, transacoes, dividas, today)
-        val projection = com.finai.app.domain.SavingsProjection.of(
-            contas, transacoes, dividas, com.finai.app.domain.SavingsProjection.horizonFor(objetivos, today), today,
-        )
-        val goalPlans = GoalCalculator.plan(objetivos, monthlyCapacityCents, today, projection)
+        // O mesmo plano central das telas: o aviso do sino e a notificação não fazem conta própria.
+        val plan = com.finai.app.domain.FinancialPlan.build(contas, transacoes, dividas, objetivos, today)
+        val goalPlans = plan.goals
         val transacoesDoMes = transacoes.filter { it.data in monthRangeMillis(today) }
         val budgetProgress = BudgetCalculator.forCategories(orcamentos, transacoesDoMes, today)
         val subscriptionInsights = SubscriptionCalculator.insights(assinaturas, today)
 
         // ── 2. Detecção de eventos — mesma regra determinística da tela ────
-        val shortfall = runCatching { com.finai.app.domain.PayCycle.of(contas, transacoes, dividas, today)?.shortfall }.getOrNull()
+        val shortfall = plan.cycle?.shortfall
         val alerts = AlertCalculator.alerts(contas, budgetProgress, subscriptionInsights, goalPlans, today, shortfall)
         val pattern = BehaviorCoach.detect(transacoes, today).firstOrNull()
 

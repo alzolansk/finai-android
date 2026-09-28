@@ -20,7 +20,6 @@ enum class AiTask {
     CHAT,
     GOAL_INSIGHT,
     PURCHASE_VERDICT,
-    DECISIONS,
     DEBT_NEGOTIATION,
 
     /** Fase 4: categoria de lançamento importado que a regra local não reconheceu. */

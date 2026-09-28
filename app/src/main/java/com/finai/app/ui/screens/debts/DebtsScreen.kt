@@ -305,6 +305,9 @@ private fun DebtRow(debt: Debt, onEdit: () -> Unit, onDelete: () -> Unit, onPay:
             Column(modifier = Modifier.weight(1f)) {
                 Text(debt.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
                 Text(debt.meta, fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
+                debt.planNote?.let {
+                    Text(it, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark, modifier = Modifier.padding(top = 2.dp))
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(debt.amount, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)

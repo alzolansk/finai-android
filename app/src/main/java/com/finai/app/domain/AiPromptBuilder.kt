@@ -2,12 +2,10 @@ package com.finai.app.domain
 
 import com.finai.app.data.ai.AiRequest
 import com.finai.app.data.ai.AiTask
-import com.finai.app.data.model.Budget
 import com.finai.app.data.model.ChatMessage
 import com.finai.app.data.model.ChatRole
 import com.finai.app.data.model.Debt
 import com.finai.app.data.model.Goal
-import com.finai.app.data.model.Subscription
 import com.finai.app.util.formatBrl0
 
 /**
@@ -29,47 +27,41 @@ object AiPromptBuilder {
         "em no máximo dois trechos; use lista com \"- \" só para passos. Escreva valores como R$ 1.234 (negativos como -R$ 1.234). " +
         "Cite no máximo dois valores, os que mais pesam na decisão; não repita números só para descrevê-los — interprete e " +
         "diga o que fazer. Nunca invente valores que não estejam no contexto. " +
+        "Prioridades e destino do dinheiro livre já foram decididos pelo app: explique, não decida de novo. " +
         "Não recomende produtos financeiros de terceiros nem dê conselho de investimento específico."
 
     /** Rótulos das três linhas da leitura do objetivo, na ordem em que a tela mostra. */
     val GOAL_INSIGHT_LABELS = listOf("Agora", "Próximo passo", "Risco")
 
+    /** Quantas metas vão numa leitura da IA: a resposta cabe no limite de saída dos provedores. */
+    const val GOAL_INSIGHT_MAX_GOALS = 4
+
     /**
-     * [goalsBlock] traz todas as metas com a divisão da sobra que o app já fez por prioridade
-     * ([AiContext.goalsBlock]). Sem ele, cada leitura via a sobra inteira e todas diziam
-     * "coloque a sobra aqui".
+     * A leitura da IA de todas as metas numa chamada só (antes era uma por meta, cada uma
+     * repetindo o bloco de todas as metas). Recebe o plano central ([FinancialPlan.aiBlock]):
+     * a IA explica o que o app decidiu para cada meta, não decide de novo para onde vai a sobra.
+     * A resposta vem em seções "[n]", lidas por [AiReplyFormat.numberedSections].
      */
-    fun goalInsight(goal: Goal, monthlyCapacityLabel: String, goalsBlock: String): AiRequest {
+    fun goalInsights(goals: List<Goal>, planBlock: String): AiRequest {
         val prompt = buildString {
-            appendLine("Objetivo: \"${goal.name}\" (${goal.kind}).")
-            if (goal.description.isNotBlank()) {
-                appendLine("Descrição escrita pelo usuário (o porquê da meta, o que fica fora dela, flexibilidade do prazo): ${goal.description.trim()}")
-            }
-            appendLine("Guardado: ${formatBrl0(goal.saved)} de ${formatBrl0(goal.target)} (${(goal.progress * 100).toInt()}%).")
-            appendLine("Previsão atual: ${goal.eta}.")
-            appendLine("Status calculado localmente: ${goal.badge.label}. ${goal.note}")
-            appendLine("Sobra deste mês (só o mês atual): $monthlyCapacityLabel.")
-            if (goal.projectionNote.isNotBlank()) appendLine(goal.projectionNote)
-            if (goalsBlock.isNotBlank()) {
+            appendLine(planBlock)
+            appendLine()
+            appendLine("Metas:")
+            goals.forEachIndexed { i, goal ->
+                append("[${i + 1}] \"${goal.name}\" (${goal.kind}): guardado ${formatBrl0(goal.saved)} de ${formatBrl0(goal.target)}, ")
+                append("prazo ${goal.eta}, situação no prazo: ${goal.badge.label}. ${goal.note}")
+                if (goal.planNote.isNotBlank()) append(" ${goal.planNote}")
+                if (goal.description.isNotBlank()) append(" Descrição do usuário: ${goal.description.trim()}")
                 appendLine()
-                appendLine(goalsBlock)
-                appendLine(
-                    "Esta leitura é só de \"${goal.name}\". O próximo passo deve usar a parte da sobra reservada para ela, " +
-                        "não a sobra inteira. Se sugerir mudar a divisão, diga de qual outra meta o dinheiro sairia e por quê.",
-                )
             }
             appendLine()
-            appendLine("Julgue a meta pela sobra projetada até o prazo, não só pela sobra deste mês.")
-            appendLine("O usuário já vê na tela o valor guardado, o alvo, o percentual e a previsão — não repita esses números.")
-            if (goal.description.isNotBlank()) {
-                appendLine("Use a descrição para interpretar: o que o dinheiro cobre de fato, se o prazo tem folga, o que importa para ele.")
-            }
-            appendLine("Responda com exatamente 3 linhas, cada uma com uma frase curta, neste formato:")
-            appendLine("Agora: o que a situação significa de verdade para este objetivo.")
-            appendLine("Próximo passo: uma ação concreta para este mês.")
-            append("Risco: o que pode atrasar ou atrapalhar, ou \"nenhum relevante\" se não houver.")
+            appendLine("O usuário já vê os valores na tela: não os repita. O próximo passo segue o plano: meta sem aporte no plano não recebe dinheiro agora.")
+            appendLine("Para cada meta, responda com a marca [n] numa linha e depois exatamente 3 linhas curtas (uma frase cada):")
+            appendLine("Agora: o que a situação significa para esta meta.")
+            appendLine("Próximo passo: uma ação concreta coerente com o plano.")
+            append("Risco: o que pode atrasar, ou \"nenhum relevante\".")
         }
-        return AiRequest(AiTask.GOAL_INSIGHT, "$SYSTEM_BASE Você escreve a \"leitura da IA\" de um objetivo financeiro.", prompt)
+        return AiRequest(AiTask.GOAL_INSIGHT, "$SYSTEM_BASE Você escreve a \"leitura da IA\" dos objetivos financeiros.", prompt)
     }
 
     fun purchaseVerdict(
@@ -83,11 +75,11 @@ object AiPromptBuilder {
         val prompt = buildString {
             appendLine("Simulação de compra de $amountLabel.")
             appendLine("Veredito já calculado localmente: \"$verdictLabel\".")
-            appendLine("Capacidade de poupança mensal: $monthlyCapacityLabel.")
-            appendLine("Folga do mês depois dessa compra: $slackAfterLabel.")
+            appendLine("Livre para gastar, segundo o plano do app: $monthlyCapacityLabel.")
+            appendLine("Livre depois dessa compra: $slackAfterLabel.")
             if (topGoalName != null) {
-                val effect = if (topGoalAffected) "o aporte deste mês para ele fica em risco" else "não é afetado por essa compra"
-                appendLine("Objetivo prioritário: \"$topGoalName\" — $effect.")
+                val effect = if (topGoalAffected) "a parte destinada a ele no plano fica em risco" else "não é afetado por essa compra"
+                appendLine("Destino da sobra no plano: \"$topGoalName\" — $effect.")
             }
             append("Escreva de 1 a 2 frases explicando esse veredito para o usuário, direto ao ponto.")
         }
@@ -116,40 +108,6 @@ object AiPromptBuilder {
             }
         }
         return AiRequest(AiTask.DEBT_NEGOTIATION, "$SYSTEM_BASE Você escreve um roteiro de negociação de dívida para uma ligação real.", prompt)
-    }
-
-    fun decisions(
-        topDebt: Debt?,
-        budgetsOver: List<Budget>,
-        unusedSubscriptions: List<Subscription>,
-        reassessGoals: List<Goal>,
-        safeNote: String,
-        debtsBlock: String = "",
-        goalsBlock: String = "",
-    ): AiRequest {
-        val prompt = buildString {
-            appendLine("Resumo financeiro do mês do usuário:")
-            appendLine("- Folga do mês: $safeNote")
-            if (debtsBlock.isNotBlank()) appendLine(debtsBlock)
-            else topDebt?.let { appendLine("- Dívida de maior custo: \"${it.name}\" (${it.rate} ao mês, ${it.amount} em aberto).") }
-            if (goalsBlock.isNotBlank()) appendLine(goalsBlock)
-            if (budgetsOver.isNotEmpty()) appendLine("- Categorias de orçamento estouradas: ${budgetsOver.joinToString { b -> b.name }}.")
-            if (unusedSubscriptions.isNotEmpty()) {
-                appendLine("- Assinaturas pouco usadas: ${unusedSubscriptions.joinToString { s -> s.name }}.")
-            }
-            if (reassessGoals.isNotEmpty()) appendLine("- Objetivos que precisam de atenção: ${reassessGoals.joinToString { g -> g.name }}.")
-            if (topDebt == null && budgetsOver.isEmpty() && unusedSubscriptions.isEmpty() && reassessGoals.isEmpty()) {
-                appendLine("- Nada fora do esperado neste momento.")
-            }
-            append(
-                "Com base só nisso, escreva até 3 decisões para esta semana, da mais importante para a menos, uma por linha, " +
-                    "no formato \"ação | porquê\": a ação é um verbo no imperativo e o alvo específico (até 8 palavras, " +
-                    "nada genérico como \"reveja seus gastos\"); o porquê é uma frase curta com o fato que justifica. " +
-                    "Sem numeração, sem introdução nem conclusão. Se não houver nada relevante, responda uma única frase " +
-                    "dizendo que está tudo sob controle, sem o \"|\".",
-            )
-        }
-        return AiRequest(AiTask.DECISIONS, "$SYSTEM_BASE Você escreve as sugestões da seção \"Decisões para você\" da tela inicial.", prompt)
     }
 
     // ── Fase 4 · importação de fatura ────────────────────────────────────

@@ -17,7 +17,7 @@ data class SafeToSpendResult(
     /** Menor saldo previsto até o salário; nulo no cálculo pelo mês (sem ciclo). */
     val floor: CycleFloor? = null,
     /** Quanto do aporte das metas coube no dinheiro disponível. */
-    val reservedForGoalsCents: Long = 0,
+    val reservedForPlanCents: Long = 0,
     /** Só no cálculo pelo mês: as parcelas da folga, para explicar o valor. */
     val monthIncomeCents: Long = 0,
     val monthSpentCents: Long = 0,
@@ -39,7 +39,7 @@ object SafeToSpendCalculator {
     fun calculate(
         contas: List<ContaEntity>,
         transacoes: List<TransacaoEntity>,
-        aporteMensalMetasCents: Long,
+        reservedCents: Long,
         today: LocalDate = LocalDate.now(),
     ): SafeToSpendResult {
         val month = YearMonth.from(today)
@@ -60,7 +60,7 @@ object SafeToSpendCalculator {
             .filter { it.tipo == "a_pagar" && it.status != "pago" && it.data() in range }
             .sumOf { it.valorCentavos }
 
-        val slack = rendaDoMes - gastosDoMes - contasAPagarRestantes - aporteMensalMetasCents
+        val slack = rendaDoMes - gastosDoMes - contasAPagarRestantes - reservedCents
 
         val lastDay = month.lengthOfMonth()
         val daysRemaining = (lastDay - today.dayOfMonth + 1).coerceAtLeast(1)
@@ -73,12 +73,12 @@ object SafeToSpendCalculator {
             daysRemaining = daysRemaining,
             monthProgressFraction = monthProgress.coerceIn(0f, 1f),
             lastDayOfMonth = lastDay,
-            reservedForGoalsCents = aporteMensalMetasCents.coerceAtMost((slack + aporteMensalMetasCents).coerceAtLeast(0)),
+            reservedForPlanCents = reservedCents.coerceAtMost((slack + reservedCents).coerceAtLeast(0)),
             monthIncomeCents = rendaDoMes,
             monthSpentCents = gastosDoMes,
             monthBillsCents = contasAPagarRestantes,
             // Sem ciclo não há dia a dia: a falta é a do mês inteiro, já hoje.
-            shortfall = (slack + aporteMensalMetasCents).takeIf { it < 0 }?.let { CycleShortfall(today, -it) },
+            shortfall = (slack + reservedCents).takeIf { it < 0 }?.let { CycleShortfall(today, -it) },
         )
     }
 
@@ -89,10 +89,10 @@ object SafeToSpendCalculator {
      * vence antes da próxima entrada. Com falta prevista, não há nada para gastar e o aporte
      * das metas não é reservado. [SafeToSpendResult.lastDayOfMonth] vira o dia do salário.
      */
-    fun fromCycle(cycle: PayCycle, aporteMensalMetasCents: Long): SafeToSpendResult {
+    fun fromCycle(cycle: PayCycle, reservedCents: Long): SafeToSpendResult {
         val floor = cycle.floor
         val available = floor.cents.coerceAtLeast(0)
-        val slack = floor.cents - aporteMensalMetasCents
+        val slack = floor.cents - reservedCents
         return SafeToSpendResult(
             safeTodayCents = (slack / cycle.diasAteProximo).coerceAtLeast(0),
             slackThisMonthCents = slack,
@@ -101,7 +101,7 @@ object SafeToSpendCalculator {
             lastDayOfMonth = cycle.proximo.dayOfMonth,
             shortfall = cycle.shortfall,
             floor = floor,
-            reservedForGoalsCents = aporteMensalMetasCents.coerceAtMost(available),
+            reservedForPlanCents = reservedCents.coerceAtMost(available),
         )
     }
 

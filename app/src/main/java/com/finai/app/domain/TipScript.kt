@@ -21,7 +21,7 @@ object TipScript {
 
     private val scripts: Map<String, List<Tip>> = mapOf(
         HOME to listOf(
-            Tip("home.situation", "Sua situação", "Quanto está livre até o próximo salário, já descontado o que vence até lá."),
+            Tip("home.situation", "Sua situação", "Quanto está livre até o próximo salário, já descontado o que vence até lá e o destino da sobra (dívida cara ou metas)."),
             Tip("home.explain", "De onde vem o número", "Toque em \"Entenda este valor\" para ver a conta passo a passo."),
             Tip("home.week", "O que vence primeiro", "As contas e lançamentos dos próximos 7 dias, em ordem de data."),
             Tip("nav.add", "Lançar algo novo", "Gastos, receitas e importação de fatura começam pelo +."),
@@ -32,8 +32,8 @@ object TipScript {
             Tip("agenda.transactions", "Lançamentos do mês", "Tudo que você lançou ou importou aparece aqui, com as ações de cada item."),
         ),
         GOALS to listOf(
-            Tip("goals.card", "Sua meta", "Progresso, prazo e se o aporte cabe no que sobra por mês. Use o botão verde para registrar um aporte."),
-            Tip("goals.insight", "Leitura da IA", "Um resumo do momento da meta, do próximo passo e do risco."),
+            Tip("goals.card", "Sua meta", "Progresso, prazo e quanto o plano do app destina a ela até o salário. Use o botão verde para registrar um aporte."),
+            Tip("goals.insight", "Leitura da IA", "A IA explica o plano para esta meta: o momento, o próximo passo e o risco. Ela não muda o destino do dinheiro."),
         ),
         DEBTS to listOf(
             Tip("debts.list", "Ordem de pagamento", "As dívidas estão ordenadas pelo custo do juro, não pelo tamanho."),

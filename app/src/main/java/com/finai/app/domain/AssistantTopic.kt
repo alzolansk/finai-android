@@ -28,18 +28,19 @@ object AssistantTopics {
         },
     )
 
-    fun goal(goal: Goal, monthlyCapacityLabel: String) = AssistantTopic(
+    fun goal(goal: Goal) = AssistantTopic(
         question = "Quero simular caminhos para chegar em \"${goal.name}\".",
         context = buildString {
             appendLine("Objetivo \"${goal.name}\" (${goal.kind}), aberto pelo botão \"Simular\" da tela Objetivos.")
             if (goal.description.isNotBlank()) appendLine("Descrição do usuário: ${goal.description.trim()}")
             appendLine("Guardado: ${formatBrl0(goal.saved)} de ${formatBrl0(goal.target)}. Previsão atual: ${goal.eta}.")
             appendLine("Situação calculada: ${goal.badge.label}. ${goal.note}")
-            appendLine("Sobra deste mês (só o mês atual): $monthlyCapacityLabel.")
+            if (goal.planNote.isNotBlank()) appendLine("No plano do app: ${goal.planNote}")
             if (goal.projectionNote.isNotBlank()) appendLine(goal.projectionNote)
             append(
-                "Julgue pela sobra projetada até o prazo, não só pela deste mês. Compare dois ou três cenários (aporte mensal diferente, prazo diferente, meta ajustada) e diga qual " +
-                    "faz mais sentido considerando a descrição.",
+                "Julgue pela sobra projetada até o prazo. Compare dois ou três cenários (prazo diferente, meta ajustada, " +
+                    "mudar a ordem de prioridade) e diga qual faz mais sentido considerando a descrição. Os cenários partem do " +
+                    "plano: se a meta receber mais agora, diga de qual destino do plano o dinheiro sairia.",
             )
         },
     )
@@ -74,9 +75,9 @@ object AssistantTopics {
         context = buildString {
             appendLine("Simulador \"Posso comprar?\".")
             appendLine("Valor: $amountLabel. Veredito calculado localmente: \"$verdictLabel\".")
-            appendLine("Capacidade de poupança mensal: $monthlyCapacityLabel. Folga do mês depois da compra: $slackAfterLabel.")
+            appendLine("Livre para gastar no plano: $monthlyCapacityLabel. Livre depois da compra: $slackAfterLabel.")
             if (topGoalName != null) {
-                appendLine("Objetivo prioritário: \"$topGoalName\" — " + if (topGoalAffected) "o aporte do mês fica em risco." else "não é afetado.")
+                appendLine("Destino da sobra no plano: \"$topGoalName\" — " + if (topGoalAffected) "a parte dele fica em risco." else "não é afetado.")
             }
             append("Explique o veredito e diga como a compra poderia caber (esperar, parcelar sem juros, cortar em outro lugar).")
         },
