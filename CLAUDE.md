@@ -11,8 +11,9 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 provedor), Fase 3 (multi-provedor e resiliência), Fase 4 (importação de
 fatura), Fase 5 (notificações proativas e coach comportamental) e Fase 6
 (endurecimento e lançamento, no que depende de código) — concluídas. Fase 7
-(clareza e confiança, branch `v2-clareza`) — implementada em 28/09/2026, aguardando o
-teste do usuário no celular antes do merge.**
+(clareza e confiança) — implementada e mergeada no `main` em 28/09/2026, a pedido do
+usuário, depois do primeiro ajuste pós-teste (letras um degrau menores; Agenda volta ao
+"toca na linha, paga").**
 Ver `planning.md` §9 para a lista de fases.
 
 Fase 0: projeto Gradle (Kotlin 1.9.22, AGP 8.3.1, Compose BOM 2024.02.01,

@@ -25,7 +25,7 @@ Os itens 1 a 12 estão implementados no branch **`v2-clareza`** (ver `CLAUDE.md`
 ## Depois do teste
 
 - Anotar o retorno dele em `CLAUDE.md` e resolver o que aparecer.
-- Só com o aval dele: merge de `v2-clareza` no `main`.
+- Merge de `v2-clareza` no `main` feito em 28/09/2026 com o aval dele (APK v2, versionCode 42).
 
 ## Como testar neste ambiente
 
