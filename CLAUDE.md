@@ -757,6 +757,13 @@ Metas concluídas e dívidas quitadas (27/09/2026):
 - Conferido no emulador Pixel 6 API 34: as três comemorações, as duas listas e o desfazer.
   Screenshots via `adb emu screenrecord screenshot` (o `screencap` saiu branco com a GPU swiftshader).
 
+Fase 7 — Clareza e confiança (branch `v2-clareza`, aberta em 27/09/2026 a partir de
+`747ee3e` no `main`): roteiro de 12 itens derivado de uma crítica de UX/produto, registrado
+em `planning.md` §9 "Fase 7". Ordem: (1) veredito único de disponibilidade — falta prevista
+comanda o "Pode gastar hoje"; (2) "Entenda este valor"; (3) Home por urgência; (4) contraste
+e tipografia; depois renda principal explícita, onboarding mínimo e o resto. Nada
+implementado ainda; `main` continua sendo a versão em uso no celular.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/
