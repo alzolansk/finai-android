@@ -12,14 +12,12 @@ import com.finai.app.data.ai.AiText
 import com.finai.app.data.ai.AiFailureKind
 import com.finai.app.data.ai.ProviderUsageStore
 import com.finai.app.data.ai.ProviderId
-import com.finai.app.data.model.Budget
 import com.finai.app.domain.BehaviorPattern
 import com.finai.app.data.model.Debt
 import com.finai.app.data.model.Goal
-import com.finai.app.data.model.GoalBadge
-import com.finai.app.data.model.Subscription
 import com.finai.app.data.prefs.AiKeyStore
 import com.finai.app.domain.AiPromptBuilder
+import com.finai.app.domain.AiReplyFormat
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,8 +32,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * The app's AI layer (planning.md §9 Fase 2/3): every screen that needs
  * language generated over numbers [FinanceViewModel] already computed —
- * goal insight, purchase-simulator verdict, debt negotiation script, home
- * "Decisões para você" — goes through [AiProvider] here, never straight to
+ * goal insights (one batched call), purchase-simulator verdict, debt
+ * negotiation script, coach — goes through [AiProvider] here, never straight to
  * any specific provider. [AiRouter] is the single implementation used: it
  * tries the five free-tier providers from planning.md §7.2 in order, with
  * per-provider daily-quota tracking and response caching, and only reports
@@ -131,19 +129,42 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val _goalInsights = MutableStateFlow<Map<String, AiText>>(emptyMap())
     val goalInsights: StateFlow<Map<String, AiText>> = _goalInsights
 
-    private val goalInsightKeys = mutableMapOf<String, String>()
-    private val goalInsightJobs = mutableMapOf<String, Job>()
+    private var goalInsightsKey: String? = null
+    private var goalInsightsJob: Job? = null
 
-    fun ensureGoalInsight(goal: Goal, monthlyCapacityLabel: String, goalsBlock: String) {
-        val cacheKey = listOf(goal.name, goal.kind, goal.description, goal.projectionNote, goal.saved, goal.target, goal.eta, goal.badge.name, monthlyCapacityLabel, goalsBlock)
-            .joinToString("|")
-        if (goalInsightKeys[goal.id] == cacheKey) return
-        goalInsightKeys[goal.id] = cacheKey
-        goalInsightJobs[goal.id]?.cancel()
-        _goalInsights.update { it + (goal.id to AiText.Loading) }
-        goalInsightJobs[goal.id] = viewModelScope.launch {
-            val text = requestText(AiPromptBuilder.goalInsight(goal, monthlyCapacityLabel, goalsBlock))
-            _goalInsights.update { it + (goal.id to text) }
+    /**
+     * Uma chamada para todas as metas (até [AiPromptBuilder.GOAL_INSIGHT_MAX_GOALS], por
+     * prioridade), com o plano central no prompt. Antes era uma chamada por meta, cada uma
+     * levando o bloco de todas as metas: N vezes o mesmo contexto, e N leituras que podiam
+     * mandar a mesma sobra para lugares diferentes. Só refaz quando o plano ou as metas mudam.
+     */
+    fun ensureGoalInsights(goals: List<Goal>, planBlock: String) {
+        val batch = goals.take(AiPromptBuilder.GOAL_INSIGHT_MAX_GOALS)
+        val cacheKey = (batch.map { listOf(it.id, it.name, it.kind, it.description, it.saved, it.target, it.eta, it.badge.name, it.note, it.planNote) } + planBlock)
+            .toString()
+        if (goalInsightsKey == cacheKey) return
+        goalInsightsKey = cacheKey
+        goalInsightsJob?.cancel()
+        val skipped = goals.drop(batch.size).associate {
+            it.id to AiText.Unavailable("Leitura da IA só para as ${AiPromptBuilder.GOAL_INSIGHT_MAX_GOALS} metas de maior prioridade, para poupar a cota.")
+        }
+        if (batch.isEmpty()) {
+            _goalInsights.value = emptyMap()
+            return
+        }
+        _goalInsights.value = batch.associate { it.id to AiText.Loading } + skipped
+        goalInsightsJob = viewModelScope.launch {
+            val result = when (val text = requestText(AiPromptBuilder.goalInsights(batch, planBlock))) {
+                is AiText.Ready -> {
+                    val sections = AiReplyFormat.numberedSections(text.text)
+                    batch.mapIndexed { i, goal ->
+                        goal.id to (sections[i + 1]?.let { AiText.Ready(it) }
+                            ?: AiText.Unavailable("A IA não trouxe a leitura desta meta. O plano acima continua valendo."))
+                    }.toMap()
+                }
+                else -> batch.associate { it.id to text }
+            }
+            _goalInsights.value = result + skipped
         }
     }
 
@@ -190,34 +211,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ── início: "decisões para você" ──────────────────────────────────────
-    private val _decisions = MutableStateFlow<AiText?>(null)
-    val decisions: StateFlow<AiText?> = _decisions
-    private var decisionsKey: String? = null
-    private var decisionsJob: Job? = null
-
-    fun ensureDecisions(
-        topDebt: Debt?,
-        budgets: List<Budget>,
-        subscriptions: List<Subscription>,
-        goals: List<Goal>,
-        safeNote: String,
-        debtsBlock: String = "",
-        goalsBlock: String = "",
-    ) {
-        val budgetsOver = budgets.filter { it.spent > it.limit }
-        val unusedSubs = subscriptions.filter { it.cta == "Cancelar" }
-        val reassessGoals = goals.filter { it.badge == GoalBadge.Reassess }
-        val cacheKey = listOf(topDebt?.id, budgetsOver.map { it.name }, unusedSubs.map { it.name }, reassessGoals.map { it.id }, safeNote, debtsBlock, goalsBlock).toString()
-        if (decisionsKey == cacheKey) return
-        decisionsKey = cacheKey
-        decisionsJob?.cancel()
-        _decisions.value = AiText.Loading
-        decisionsJob = viewModelScope.launch {
-            _decisions.value = requestText(AiPromptBuilder.decisions(topDebt, budgetsOver, unusedSubs, reassessGoals, safeNote, debtsBlock, goalsBlock))
-        }
-    }
-
     // ── início: "coach de comportamento" (Fase 5) ──────────────────────────
     private val _coachInsight = MutableStateFlow<AiText?>(null)
     val coachInsight: StateFlow<AiText?> = _coachInsight
@@ -261,9 +254,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
      * de propósito.
      */
     fun resetMemoizedState() {
-        goalInsightJobs.values.forEach { it.cancel() }
-        goalInsightJobs.clear()
-        goalInsightKeys.clear()
+        goalInsightsJob?.cancel()
+        goalInsightsJob = null
+        goalInsightsKey = null
         _goalInsights.value = emptyMap()
 
         purchaseVerdictJob?.cancel()
@@ -275,11 +268,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         debtNegotiationJob = null
         debtNegotiationKey = null
         _debtNegotiation.value = null
-
-        decisionsJob?.cancel()
-        decisionsJob = null
-        decisionsKey = null
-        _decisions.value = null
 
         coachInsightJob?.cancel()
         coachInsightJob = null

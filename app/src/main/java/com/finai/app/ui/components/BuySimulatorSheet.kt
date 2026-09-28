@@ -40,7 +40,7 @@ import kotlin.math.ceil
 @Composable
 fun BuySimulatorContent(
     amount: Double,
-    monthlyCapacity: Double,
+    plan: com.finai.app.domain.FinancialPlan?,
     goals: List<Goal>,
     aiExplain: AiText?,
     onEnsureExplain: (
@@ -56,37 +56,44 @@ fun BuySimulatorContent(
     onAsk: (com.finai.app.domain.AssistantTopic) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val free = monthlyCapacity
+    // Tudo do plano central: o livre para gastar é o que sobra depois do destino da sobra,
+    // e o que passar disso sai do destino (dívida ou meta), não de um "segundo" dinheiro.
+    val free = (plan?.livreParaGastarCents ?: 0L) / 100.0
+    val available = (plan?.disponivelCents ?: 0L) / 100.0
+    val monthly = (plan?.capacidadeMensalCents ?: 0L) / 100.0
+    val until = plan?.untilLabel ?: "este mês"
     val verdict = when {
+        plan?.shortfall != null -> SimVerdict.DoesNotFit
         amount <= free -> SimVerdict.Fits
-        amount <= free * 2 -> SimVerdict.FitsButCosts
+        amount <= available -> SimVerdict.FitsButCosts
         else -> SimVerdict.DoesNotFit
     }
-    val topGoal = goals.firstOrNull()
-    val delayMonths = if (free > 0) ceil((amount / free)).toInt().coerceAtLeast(0) else 0
+    val destino = plan?.destino
+    val delayMonths = if (monthly > 0) ceil(((amount - available) / monthly)).toInt().coerceAtLeast(0) else 0
     // Deterministic explanation (planning.md §6) — shown immediately and kept as the fallback
     // while the AI text below is loading or unavailable (planning.md §4's resiliência requirement).
     val fallbackExplain = when (verdict) {
-        SimVerdict.Fits -> "O valor sai da folga do mês. Nenhum objetivo precisa ser adiado."
-        SimVerdict.FitsButCosts -> topGoal?.let {
-            "Você cobre à vista, mas compromete o aporte deste mês para \"${it.name}\". A meta pode atrasar."
-        } ?: "Você cobre à vista, mas compromete toda a folga deste mês."
-        SimVerdict.DoesNotFit -> "O valor supera sua capacidade de poupança de ${formatBrl0(free)}/mês" +
-            (if (delayMonths > 1) " — levaria cerca de $delayMonths meses de poupança para cobrir à vista." else ".")
+        SimVerdict.Fits -> "O valor cabe no livre $until. O destino da sobra no plano não muda."
+        SimVerdict.FitsButCosts -> destino?.let {
+            "Você cobre à vista, mas tira dinheiro do destino da sobra: \"${it.name}\" recebe menos $until."
+        } ?: "Você cobre à vista, mas usa tudo o que está livre $until."
+        SimVerdict.DoesNotFit -> plan?.shortfall?.let { "Já falta dinheiro $until: ${formatBrl0(it.cents / 100.0)}. Nenhuma compra cabe agora." }
+            ?: ("O valor passa do disponível de ${formatBrl0(available)} $until" +
+                (if (delayMonths >= 1) " — levaria cerca de $delayMonths mês(es) de sobra para cobrir o resto." else "."))
     }
     val explain = (aiExplain as? AiText.Ready)?.text ?: fallbackExplain
-    val topGoalAffected = topGoal != null && verdict != SimVerdict.Fits
-    LaunchedEffect(amount, free, verdict, topGoal?.name) {
-        onEnsureExplain(formatBrl0(amount), verdict.label, formatBrl0(free), formatBrl0(free - amount), topGoal?.name, topGoalAffected)
+    val destinoAffected = destino != null && verdict != SimVerdict.Fits
+    LaunchedEffect(amount, free, verdict, destino?.name) {
+        onEnsureExplain(formatBrl0(amount), verdict.label, formatBrl0(free), formatBrl0(free - amount), destino?.name, destinoAffected)
     }
     val effects = buildList {
-        add(SimEffect("Folga do mês", "depois da compra", formatBrl0(free - amount), if (free - amount >= 0) FinaiColors.EmeraldDark else Color(0xFFBE123C)))
-        topGoal?.let { goal ->
+        add(SimEffect("Livre $until", "depois da compra", formatBrl0(free - amount), if (free - amount >= 0) FinaiColors.EmeraldDark else Color(0xFFBE123C)))
+        destino?.let { d ->
             add(
                 SimEffect(
-                    goal.name, if (verdict == SimVerdict.Fits) "aporte deste mês mantido" else "aporte deste mês em risco",
-                    if (verdict == SimVerdict.Fits) "Mantido" else "Em risco",
-                    if (verdict == SimVerdict.Fits) FinaiColors.EmeraldDark else Color(0xFFB45309),
+                    d.name, if (destinoAffected) "destino da sobra recebe menos" else "destino da sobra mantido",
+                    if (destinoAffected) "Em risco" else "Mantido",
+                    if (destinoAffected) Color(0xFFB45309) else FinaiColors.EmeraldDark,
                 ),
             )
         }
@@ -202,7 +209,7 @@ fun BuySimulatorContent(
                 onClick = {
                     onAsk(
                         com.finai.app.domain.AssistantTopics.purchase(
-                            formatBrl0(amount), verdict.label, formatBrl0(free), formatBrl0(free - amount), topGoal?.name, topGoalAffected,
+                            formatBrl0(amount), verdict.label, formatBrl0(free), formatBrl0(free - amount), destino?.name, destinoAffected,
                         ),
                     )
                 },

@@ -41,22 +41,33 @@ class AiContextTest {
                 valorGuardadoCentavos = 550_000, prazo = LocalDate.of(2027, 4, 28).toEpochMillis(), prioridade = 2),
         )
         val plans = GoalCalculator.plan(objetivos, 114_00, today)
-        val block = AiContext.goalsBlock(plans, 114_00)
+        val block = AiContext.goalsBlock(plans)
         val lines = AiContext.goalLines(plans)
         assertTrue(lines[0], lines[0].startsWith("Prioridade 1: \"Reserva de emergência\""))
         // A sobra de R$ 114 vai toda para a primeira; a segunda recebe o que sobra dela (nada).
-        assertTrue(lines[0], lines[0].contains("reservado deste mês: R$ 114"))
-        assertTrue(lines[1], lines[1].contains("reservado deste mês: R$ 0"))
-        assertTrue(block.contains("não recomende a sobra inteira para uma só"))
+        assertTrue(lines[0], lines[0].contains("no plano até o salário: R$ 114"))
+        assertTrue(lines[1], lines[1].contains("no plano até o salário: R$ 0"))
+        assertTrue(block.contains("não recomende a mesma sobra para outra meta"))
     }
 
-    @Test fun goalInsightPromptSaysToRespectTheSplit() {
-        val goal = com.finai.app.data.model.Goal(
-            id = "2", kind = "Viagem", name = "Portugal", saved = 5_500.0, target = 15_000.0, eta = "abril de 2027",
+    @Test fun goalInsightsGoInOneRequestWithThePlan() {
+        fun goal(id: String, name: String) = com.finai.app.data.model.Goal(
+            id = id, kind = "Viagem", name = name, saved = 5_500.0, target = 15_000.0, eta = "abril de 2027",
             badge = com.finai.app.data.model.GoalBadge.Reassess, note = "", action = "Registrar aporte",
+            planNote = "Sem valor adicional até o salário de 30/10: a sobra vai para \"Rotativo\".",
         )
-        val prompt = AiPromptBuilder.goalInsight(goal, "R$ 114", "Metas (...):\n- Prioridade 1: ...").prompt
-        assertTrue(prompt.contains("não a sobra inteira"))
-        assertTrue(prompt.contains("Prioridade 1"))
+        val request = AiPromptBuilder.goalInsights(listOf(goal("1", "Portugal"), goal("2", "Carro")), "Plano financeiro calculado pelo app")
+        assertTrue(request.prompt.contains("[1] \"Portugal\""))
+        assertTrue(request.prompt.contains("[2] \"Carro\""))
+        assertTrue(request.prompt.contains("Plano financeiro calculado pelo app"))
+        assertTrue(request.prompt.contains("a sobra vai para \"Rotativo\""))
+    }
+
+    @Test fun numberedSectionsSplitTheBatchedAnswer() {
+        val raw = "Aqui vai:\n**[1]**\nAgora: bem.\nPróximo passo: seguir.\nRisco: nenhum relevante.\n[2] Agora: parado.\nPróximo passo: esperar.\nRisco: prazo."
+        val sections = AiReplyFormat.numberedSections(raw)
+        assertEquals(setOf(1, 2), sections.keys)
+        assertEquals(3, AiReplyFormat.labeled(sections.getValue(1), AiPromptBuilder.GOAL_INSIGHT_LABELS)!!.size)
+        assertEquals("Agora: parado.", sections.getValue(2).lines().first())
     }
 }

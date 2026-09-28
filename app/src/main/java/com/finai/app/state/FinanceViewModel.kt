@@ -19,17 +19,13 @@ import com.finai.app.domain.transactionsInMonth
 import com.finai.app.domain.AlertCalculator
 import com.finai.app.domain.BehaviorCoach
 import com.finai.app.domain.BudgetCalculator
-import com.finai.app.domain.DebtCalculator
-import com.finai.app.domain.GoalCalculator
-import com.finai.app.domain.GoalPlan
-import com.finai.app.domain.SafeToSpendCalculator
+import com.finai.app.domain.FinancialPlan
 import com.finai.app.domain.SafeToSpendResult
 import com.finai.app.domain.Celebration
 import com.finai.app.domain.CelebrationStyle
 import com.finai.app.domain.Completion
 import com.finai.app.domain.toPaidDebt
 import com.finai.app.domain.celebrationStyleFor
-import com.finai.app.domain.SavingsCapacityCalculator
 import com.finai.app.domain.SubscriptionCalculator
 import com.finai.app.domain.formatMonthYearShort
 import com.finai.app.domain.monthKey
@@ -163,21 +159,19 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     private fun buildState(s: Snapshot, orcamentos: List<OrcamentoCategoriaEntity>): FinanceUiState {
         val today = LocalDate.now()
-        val monthlyCapacityCents = SavingsCapacityCalculator.monthlyCapacityCents(s.contas, s.transacoes, s.dividas, today)
-        val savingsProjection = com.finai.app.domain.SavingsProjection.of(
-            s.contas, s.transacoes, s.dividas, com.finai.app.domain.SavingsProjection.horizonFor(s.objetivos, today), today,
-        )
-        val goalPlans = GoalCalculator.plan(s.objetivos, monthlyCapacityCents, today, savingsProjection)
-        // Cartão novo: um erro aqui não pode levar a Início inteira junto (o .catch do
-        // combine deixaria a tela congelada no estado anterior).
-        val payCycle = runCatching { com.finai.app.domain.PayCycle.of(s.contas, s.transacoes, s.dividas, today) }
-            .onFailure { FinaiLog.e(TAG, "Falha ao calcular o ciclo do salário", it) }
-            .getOrNull()
-        val safe = payCycle?.let { SafeToSpendCalculator.fromCycle(it, aporteMensalMetasCents(goalPlans)) }
-            ?: SafeToSpendCalculator.calculate(s.contas, s.transacoes, aporteMensalMetasCents(goalPlans), today)
+        // Uma conta só, lida por todas as telas e pela IA: ciclo dia a dia, disponível e o
+        // destino único da sobra (dívida cara ou metas).
+        val plan = FinancialPlan.build(s.contas, s.transacoes, s.dividas, s.objetivos, today) {
+            FinaiLog.e(TAG, "Falha ao calcular o ciclo do salário", it)
+        }
+        val monthlyCapacityCents = plan.capacidadeMensalCents
+        val savingsProjection = plan.projection
+        val goalPlans = plan.goals
+        val payCycle = plan.cycle
+        val safe = plan.safe
         // Quitadas saem da estratégia, do total e da negociação; ficam só no histórico.
-        val (paidDividas, activeDividas) = s.dividas.partition(Completion::isPaid)
-        val debtSummary = DebtCalculator.summarize(activeDividas, today)
+        val paidDividas = s.dividas.filter(Completion::isPaid)
+        val debtSummary = plan.debts
         val transacoesDoMes = s.transacoes.transactionsInMonth(today)
         val budgetProgress = BudgetCalculator.forCategories(orcamentos, transacoesDoMes, today)
         val subscriptionInsights = SubscriptionCalculator.insights(s.assinaturas, today)
@@ -210,6 +204,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val timelineTotalCents = timelineExtras.sumOf { it.cents }
 
         val topDebt = debtSummary.ordered.firstOrNull()
+        val uiBudgets = budgetProgress.map { it.toUiBudget() }
+        val uiSubscriptions = subscriptionInsights.map { it.assinatura.toUiSubscription(it) }
         // Mesma conta dos totais da Agenda do mês (recebimentos − contas a pagar).
         val saldoCents = com.finai.app.domain.MonthCashFlow.of(
             s.contas, s.transacoes, s.dividas, java.time.YearMonth.from(today), today,
@@ -226,7 +222,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             rawOrcamentos = orcamentos,
             rawTransacoesDoMes = transacoesDoMes,
             rawTransacoes = s.transacoes,
-            goals = goalPlans.filterNot { Completion.isDone(it.objetivo) }.map { it.toUiGoal() },
+            goals = goalPlans.filterNot { Completion.isDone(it.objetivo) }.map { it.toUiGoal(plan.goalNote(it)) },
             completedGoals = goalPlans.filter { Completion.isDone(it.objetivo) }
                 .sortedByDescending { it.objetivo.concluidoEm ?: 0L }
                 .map { it.toUiGoal() },
@@ -236,8 +232,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             saldoCents = saldoCents,
             saldoLabel = formatBrl(saldoCents / 100.0),
             payCycle = payCycle,
-            safeNote = safeNoteFor(safe, payCycle, aporteMensalMetasCents(goalPlans)),
-            spendExplanation = com.finai.app.domain.SpendExplanation.of(safe, payCycle, today),
+            safeNote = safeNoteFor(safe, payCycle, plan),
+            spendExplanation = com.finai.app.domain.SpendExplanation.of(safe, payCycle, today, plan.allocationSummary),
+            plan = plan,
             situation = com.finai.app.domain.HomeSituation.of(safe, payCycle),
             nextWeekBills = weekBills,
             timeline = timelineExtras.map { it.toUiTimelineEntry() },
@@ -252,7 +249,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             savingsProjection = savingsProjection,
             goalsFundedCents = goalPlans.sumOf { it.monthlyContributionFundedCents },
             allBillsAndIncome = s.contas,
-            debts = debtSummary.ordered.map { it.toUiDebt() },
+            debts = debtSummary.ordered.map { it.toUiDebt(plan.debtNote(it.divida)) },
             debtTotalLabel = formatBrl0(debtSummary.totalOpenCents / 100.0),
             debtInterestLabel = formatBrl0(debtSummary.totalMonthlyInterestCents / 100.0),
             debtFreeLabel = when {
@@ -261,15 +258,24 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 debtSummary.debtFreeDate == null -> "—"
                 else -> formatMonthYearShort(debtSummary.debtFreeDate)
             },
-            debtStrategyNote = "Ordenado pelo custo do juro, não pelo tamanho da dívida.",
+            debtStrategyNote = "Ordenado pelo custo do juro, não pelo tamanho da dívida. " + when {
+                plan.allocations.any { it.target == com.finai.app.domain.AllocationTarget.Debt } -> plan.allocationSummary
+                debtSummary.ordered.any { it.divida.taxaJurosMensalBasisPoints >= FinancialPlan.EXPENSIVE_DEBT_BASIS_POINTS } ->
+                    "Não há sobra livre ${plan.untilLabel}; quando houver, ela vai primeiro para \"${debtSummary.ordered.first().divida.nome}\"."
+                debtSummary.ordered.isNotEmpty() -> "Nenhuma passa de ${FinancialPlan.EXPENSIVE_DEBT_BASIS_POINTS / 100}% ao mês: a sobra vai para as metas, e aqui basta pagar as parcelas."
+                else -> ""
+            },
             negotiationTitle = topDebt?.let { "Ligação sobre \"${it.divida.nome}\" — revise antes de fechar" }
                 ?: "Nenhuma dívida cadastrada",
-            budgets = budgetProgress.map { it.toUiBudget() },
-            subscriptions = subscriptionInsights.map { it.assinatura.toUiSubscription(it) },
-            aiDebtsBlock = com.finai.app.domain.AiContext.debtsBlock(debtSummary.ordered, today),
-            aiGoalsBlock = com.finai.app.domain.AiContext.goalsBlock(
-                goalPlans.filterNot { Completion.isDone(it.objetivo) }, monthlyCapacityCents,
+            budgets = uiBudgets,
+            subscriptions = uiSubscriptions,
+            decisions = plan.decisions(
+                budgetsOver = uiBudgets.filter { it.spent > it.limit }.map { it.name },
+                unusedSubscriptions = uiSubscriptions.filter { it.cta == "Cancelar" }.map { it.name },
             ),
+            aiDebtsBlock = com.finai.app.domain.AiContext.debtsBlock(debtSummary.ordered, today),
+            aiGoalsBlock = com.finai.app.domain.AiContext.goalsBlock(goalPlans.filterNot { Completion.isDone(it.objetivo) }),
+            aiPlanBlock = plan.aiBlock(),
             alerts = AlertCalculator.alerts(s.contas, budgetProgress, subscriptionInsights, goalPlans, today, payCycle?.shortfall),
         )
     }
@@ -280,7 +286,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
      * contas" de "a meta não cabe" — antes as duas viravam um único "Faltam R$ X", e a IA
      * lia o aporte das metas como um rombo no mês.
      */
-    private fun safeNoteFor(safe: SafeToSpendResult, cycle: com.finai.app.domain.PayCycle?, reservedForGoalsCents: Long): String {
+    private fun safeNoteFor(safe: SafeToSpendResult, cycle: com.finai.app.domain.PayCycle?, plan: FinancialPlan): String {
         val until = if (cycle != null) "até o salário do dia ${safe.lastDayOfMonth}" else "até o dia ${safe.lastDayOfMonth}"
         safe.shortfall?.let { falta ->
             val valor = formatBrl0(falta.cents / 100.0)
@@ -291,22 +297,20 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             else
                 "O dinheiro já não fecha: faltam $valor$porque $until. Não há valor livre para gastar até lá."
         }
-        val billsSlack = safe.slackThisMonthCents + reservedForGoalsCents
-        if (billsSlack < 0) return "Faltam ${formatBrl0(-billsSlack / 100.0)} para cobrir as contas $until."
-        if (safe.slackThisMonthCents < 0) return "As contas estão cobertas $until, mas o aporte das metas não cabe inteiro agora."
-        val descontado = if (reservedForGoalsCents > 0) "já descontadas as contas e o aporte das metas" else "já descontadas as contas"
+        val descontado = when {
+            plan.allocations.isEmpty() -> "já descontadas as contas"
+            else -> "já descontadas as contas e o destino da sobra (" +
+                plan.allocations.joinToString { "${formatBrl0(it.cents / 100.0)} para ${it.name}" } + ")"
+        }
         val floor = safe.floor
         // O dia mais apertado vem antes do fim do ciclo: o valor é o que sobra nele, não no fim.
         return if (cycle != null && floor != null && floor.cents < cycle.livreCents && floor.date.isAfter(cycle.today))
-            "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} $until contando o dia mais apertado (${dayMonth(floor.date)}), $descontado."
+            "Sobram ${formatBrl0(safe.slackThisMonthCents.coerceAtLeast(0) / 100.0)} $until contando o dia mais apertado (${dayMonth(floor.date)}), $descontado."
         else
-            "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} $until, $descontado."
+            "Sobram ${formatBrl0(safe.slackThisMonthCents.coerceAtLeast(0) / 100.0)} $until, $descontado."
     }
 
     private fun dayMonth(d: LocalDate): String = "%02d/%02d".format(d.dayOfMonth, d.monthValue)
-
-    private fun aporteMensalMetasCents(plans: List<GoalPlan>): Long =
-        plans.sumOf { it.monthlyContributionFundedCents }
 
     private fun greetingFor(time: LocalTime): String = when {
         time.hour < 12 -> "Bom dia"

@@ -11,7 +11,7 @@ import java.time.LocalDate
  * de objetivo ia isolada, com a sobra do mês inteira. A IA tratava as dívidas como uma só
  * ("priorize a dívida que gera R$ 337 de juros" — que era a soma de todas) e mandava a mesma
  * sobra para cada meta. Aqui cada dívida vai separada, na ordem de ataque, e as metas vão
- * juntas, com a divisão da sobra que o app já fez por prioridade.
+ * juntas, com a divisão que o plano central ([FinancialPlan]) já fez.
  */
 object AiContext {
 
@@ -35,8 +35,8 @@ object AiContext {
         }
 
     /**
-     * Uma linha por meta, na ordem de prioridade, com o aporte que ela pede e a parte da sobra
-     * deste mês que o app reservou para ela ([GoalPlan.monthlyContributionFundedCents]).
+     * Uma linha por meta, na ordem de prioridade, com o aporte que ela pede e o que o plano
+     * central destinou a ela ([GoalPlan.monthlyContributionFundedCents], vindo de [FinancialPlan]).
      */
     fun goalLines(plans: List<GoalPlan>): List<String> =
         plans.map { p ->
@@ -44,26 +44,17 @@ object AiContext {
             buildString {
                 append("Prioridade ${o.prioridade}: \"${o.nome}\" (${o.tipo}), faltam ${brl(p.missingCents)} até ${p.etaLabel}")
                 append("; pede ${brl(p.monthlyContributionNeededCents)}/mês")
-                append("; reservado deste mês: ${brl(p.monthlyContributionFundedCents)}")
-                append("; situação: ${statusLabel(p.status)}.")
+                append("; no plano até o salário: ${brl(p.monthlyContributionFundedCents)}")
+                append("; situação no prazo: ${statusLabel(p.status)}.")
             }
         }
 
-    /** Fecha a divisão: quanto da sobra ficou sem destino depois das metas. */
-    fun allocationSummary(plans: List<GoalPlan>, monthlyCapacityCents: Long): String {
-        val reserved = plans.sumOf { it.monthlyContributionFundedCents }
-        val free = (monthlyCapacityCents - reserved).coerceAtLeast(0)
-        return "Divisão da sobra deste mês (${brl(monthlyCapacityCents.coerceAtLeast(0))}) feita pelo app, pela prioridade: " +
-            "${brl(reserved)} reservados para as metas" + if (free > 0) ", ${brl(free)} sem destino." else "."
-    }
-
-    /** O bloco completo das metas, com a regra de não repetir a sobra inteira em cada meta. */
-    fun goalsBlock(plans: List<GoalPlan>, monthlyCapacityCents: Long): String = buildString {
+    /** As metas; a divisão do dinheiro está no bloco do plano ([FinancialPlan.aiBlock]). */
+    fun goalsBlock(plans: List<GoalPlan>): String = buildString {
         if (plans.isEmpty()) return@buildString
-        appendLine("Metas (a mesma sobra é dividida entre todas; não recomende a sobra inteira para uma só):")
+        appendLine("Metas (o valor \"no plano\" já é a divisão feita pelo app; não recomende a mesma sobra para outra meta):")
         goalLines(plans).forEach { appendLine("- $it") }
-        append(allocationSummary(plans, monthlyCapacityCents))
-    }
+    }.trimEnd()
 
     /** O bloco completo das dívidas, com a regra de tratar cada uma separadamente. */
     fun debtsBlock(plans: List<DebtPlan>, today: LocalDate = LocalDate.now()): String = buildString {

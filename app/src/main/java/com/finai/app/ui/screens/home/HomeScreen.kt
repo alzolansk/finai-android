@@ -72,7 +72,7 @@ fun HomeScreen(
     showCoach: Boolean,
     behaviorPattern: BehaviorPattern?,
     coachInsight: AiText?,
-    decisions: AiText?,
+    decisions: List<AiReplyFormat.Decision>,
     onOpenGoals: () -> Unit,
     onNewGoal: () -> Unit,
     onOpenSimulator: () -> Unit,
@@ -339,14 +339,13 @@ private fun NewGoalCard(onClick: () -> Unit) {
 }
 
 /**
- * "Decisões para você" — short, AI-written suggestions over numbers already
- * computed locally (dívida de maior custo, orçamento estourado, assinatura
- * parada, objetivo a reavaliar; planning.md §6/§9 Fase 2). [decisions] is
- * requested by [com.finai.app.state.AiViewModel.ensureDecisions]; this
- * composable only renders whatever state it's in.
+ * "Decisões para você" — tiradas do plano central ([com.finai.app.domain.FinancialPlan.decisions]):
+ * falta a cobrir, destino da sobra (dívida cara ou metas), depois orçamento estourado e
+ * assinatura parada. Sem IA: prioridade e valores são decisão do app, e a mesma decisão aparece
+ * em Objetivos e Dívidas. "Conversar" em cada linha leva a IA para explicar.
  */
 @Composable
-private fun DecisionsCard(decisions: AiText?, onAskAbout: (AssistantTopic) -> Unit) {
+private fun DecisionsCard(decisions: List<AiReplyFormat.Decision>, onAskAbout: (AssistantTopic) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -364,32 +363,20 @@ private fun DecisionsCard(decisions: AiText?, onAskAbout: (AssistantTopic) -> Un
             }
             Text("Decisões para você", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
         }
-        when (decisions) {
-            null, AiText.Loading -> Text(
-                "Analisando seus números para sugerir decisões...",
+        if (decisions.isEmpty()) {
+            Text(
+                "Nada pedindo decisão agora: contas cobertas e nenhuma sobra para destinar.",
                 fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 10.dp),
             )
-            is AiText.Unavailable -> Text(
-                decisions.reason, fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 10.dp),
-            )
-            is AiText.Ready -> {
-                // Uma linha só, sem "porquê", é o "está tudo sob controle": texto, não decisão.
-                val items = remember(decisions.text) {
-                    AiReplyFormat.decisions(decisions.text).takeUnless { it.size == 1 && it[0].reason == null }.orEmpty()
+        }
+        Column(modifier = Modifier.padding(top = 6.dp)) {
+            decisions.forEachIndexed { index, decision ->
+                if (index > 0) {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(FinaiColors.BorderFaint))
                 }
-                Column(modifier = Modifier.padding(top = 6.dp)) {
-                    if (items.isEmpty()) {
-                        AiRichText(decisions.text, modifier = Modifier.padding(top = 4.dp))
-                    }
-                    items.forEachIndexed { index, decision ->
-                        if (index > 0) {
-                            Box(Modifier.fillMaxWidth().height(1.dp).background(FinaiColors.BorderFaint))
-                        }
-                        DecisionRow(decision, onAsk = {
-                            onAskAbout(AssistantTopics.decision(listOfNotNull(decision.action, decision.reason).joinToString(". ")))
-                        })
-                    }
-                }
+                DecisionRow(decision, onAsk = {
+                    onAskAbout(AssistantTopics.decision(listOfNotNull(decision.action, decision.reason).joinToString(". ")))
+                })
             }
         }
     }

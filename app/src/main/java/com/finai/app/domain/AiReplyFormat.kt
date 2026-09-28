@@ -111,10 +111,32 @@ object AiReplyFormat {
         return labels.mapNotNull { label -> found[label]?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { label to it } }
     }
 
+    /**
+     * Resposta em seções "[1] … [2] …" ([AiPromptBuilder.goalInsights]) → texto de cada seção
+     * pelo número. A marca pode vir em negrito ou com texto na mesma linha; o que vem antes da
+     * primeira marca é descartado. Vazio quando nenhuma marca aparece.
+     */
+    fun numberedSections(raw: String): Map<Int, String> {
+        val out = linkedMapOf<Int, StringBuilder>()
+        var current: Int? = null
+        raw.lines().forEach { line ->
+            val m = SECTION_MARK.find(line)
+            if (m != null) {
+                current = m.groupValues[1].toInt()
+                out.getOrPut(current!!) { StringBuilder() }.appendLine(line.substring(m.range.last + 1).trim())
+            } else {
+                current?.let { out.getValue(it).appendLine(line) }
+            }
+        }
+        return out.mapValues { it.value.toString().trim() }.filterValues { it.isNotEmpty() }
+    }
+
+    private val SECTION_MARK = Regex("""^\s*[*_#\s]*\[(\d{1,2})][*_:\s]*""")
+
     data class Decision(val action: String, val reason: String?)
 
     /**
-     * "Decisões para você" ([AiPromptBuilder.decisions]): uma decisão por
+     * Texto "ação | porquê" (resposta do chat ou decisões antigas): uma decisão por
      * linha, "ação | porquê". Linha sem "|" vira decisão sem porquê — é o
      * caso de "está tudo sob controle".
      */

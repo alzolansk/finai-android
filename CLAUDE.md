@@ -847,6 +847,40 @@ e tipografia; depois renda principal explícita, onboarding mínimo e o resto. `
 - **Entrega final:** ver `FASE7-PROXIMOS-PASSOS.md` (o que falta: o teste do usuário no
   celular e o merge no `main`).
 
+Plano financeiro central (28/09/2026, depois da Fase 7):
+- **Crítica que motivou:** cada tela recomendava a própria sobra. Os R$ 114 do mês apareciam como
+  aporte possível em três metas ao mesmo tempo, e a IA de "Decisões" e a leitura de cada meta
+  podiam mandar o mesmo dinheiro para a dívida. Faltava uma decisão única.
+- **`domain/FinancialPlan.kt`** (`FinancialPlan.build`) é a única conta de "quanto está livre e
+  para onde vai". Quatro conceitos separados: `saldoDoMesCents` (balanço da Agenda),
+  `comprometidoCents` (ainda sai até o salário), `reservadoFuturoCents` (sobra final que precisa
+  ficar parada porque uma obrigação vence antes da próxima entrada, pela simulação dia a dia do
+  `PayCycle.floor`) e `disponivelCents` (o menor saldo previsto até a véspera do salário). Sem
+  renda cadastrada, a conta é do mês inteiro (menor entre a folga e o balanço da Agenda).
+- **Destino único (`allocate`)**: falta prevista bloqueia tudo; depois dívida com juros ≥ 3% a.m.
+  (`EXPENSIVE_DEBT_BASIS_POINTS`), da maior taxa para a menor, até o saldo em aberto; depois metas
+  por prioridade, cada uma até o aporte mensal que pede. O teto é o menor entre o disponível e a
+  sobra do mês (`SavingsCapacityCalculator`). O resto fica para o dia a dia. Cada real sai uma vez.
+- Quem lê o plano: `FinanceViewModel` (Início, Objetivos, Dívidas, simulador, "Entenda este
+  valor", sino) e `FinanceCheckWorker` (mesma conta na rotina diária). `GoalPlan.monthlyContributionFundedCents`
+  agora é o que o plano destinou; `SafeToSpendResult.reservedForGoalsCents` virou
+  `reservedForPlanCents` (inclui amortização). Meta sem aporte diz por quê (`goalNote`: "a sobra vai
+  para "Rotativo"); a dívida que recebe mostra "Destino da sobra…" (`debtNote`). O cartão preto
+  de Objetivos virou "Disponível para destinar" com o resumo da divisão. O simulador usa o livre do
+  plano (e diz quando a compra tira dinheiro do destino).
+- **IA só explica, e gasta menos:** "Decisões para você" deixou de chamar IA (`FinancialPlan.decisions`,
+  determinístico; `AiTask.DECISIONS` e `ensureDecisions` removidos). A leitura das metas virou
+  **uma** chamada para até 4 metas (`AiPromptBuilder.goalInsights`, resposta em seções `[n]` lidas
+  por `AiReplyFormat.numberedSections`), em vez de uma por meta repetindo o bloco de todas. O chat e
+  essa leitura recebem `FinancialPlan.aiBlock()` (curto) no lugar da divisão antiga; o
+  `SYSTEM_BASE` diz que destino e prioridades já foram decididos.
+- Testes: `FinancialPlanTest` (mesma sobra com um destino só, dívida barata deixa para as metas,
+  obrigação antes da entrada segura dinheiro, falta bloqueia destino) e dois novos em `AiContextTest`.
+  **Build Android não rodado nesta sessão**: o ambiente bloqueia dl.google.com, então o Gradle não
+  baixa o AGP. A camada `domain/` foi compilada com kotlinc avulso (stubs de Room/Compose) e os 131
+  testes JVM de `domain/` passaram; ViewModels e telas foram revisados à mão. Rodar
+  `./gradlew assembleDebug testDebugUnitTest` antes de gerar APK.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

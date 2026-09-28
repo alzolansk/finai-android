@@ -60,7 +60,7 @@ import com.finai.app.util.formatBrl0
 fun GoalsScreen(
     goals: List<Goal>,
     completedGoals: List<Goal>,
-    monthlyCapacityLabel: String,
+    plan: com.finai.app.domain.FinancialPlan?,
     goalInsights: Map<String, AiText>,
     onNewGoal: () -> Unit,
     onContribute: (Goal) -> Unit,
@@ -96,13 +96,23 @@ fun GoalsScreen(
                     .background(FinaiColors.Ink)
                     .padding(16.dp),
             ) {
-                Text("CAPACIDADE DE POUPANÇA", style = MaterialTheme.typography.labelSmall, color = FinaiColors.TextOnDarkMuted)
-                Row(modifier = Modifier.padding(top = 6.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(monthlyCapacityLabel, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                    Text("por mês", fontSize = 13.sp, color = FinaiColors.TextOnDarkMuted)
-                }
+                // O mesmo plano da Início e de Dívidas: o dinheiro livre tem um destino só.
                 Text(
-                    "Balanço deste mês na Agenda, sem entradas extras. As metas também contam com a sobra projetada dos próximos meses até o prazo.",
+                    "DISPONÍVEL PARA DESTINAR " + (plan?.untilLabel?.uppercase() ?: "ESTE MÊS"),
+                    style = MaterialTheme.typography.labelSmall, color = FinaiColors.TextOnDarkMuted,
+                )
+                Text(
+                    formatBrl0((plan?.disponivelCents ?: 0L) / 100.0), fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Text(
+                    plan?.allocationSummary.orEmpty(),
+                    fontSize = 13.sp, lineHeight = 18.sp, color = Color.White,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Text(
+                    "Sobra do mês na Agenda: ${formatBrl0((plan?.capacidadeMensalCents ?: 0L) / 100.0)}. " +
+                        "A situação de cada meta olha a sobra projetada até o prazo; o valor acima é o que dá para destinar agora.",
                     fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextOnDarkMuted,
                     modifier = Modifier.padding(top = 8.dp),
                 )
@@ -298,6 +308,12 @@ private fun GoalCard(
         }
         ProgressTrack(progress = goal.progress, fillColor = FinaiColors.Emerald, height = 8.dp, modifier = Modifier.padding(top = 9.dp))
         Text(goal.note, fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 8.dp))
+        if (goal.planNote.isNotBlank()) {
+            Text(
+                goal.planNote, fontSize = 12.5.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
         Column(
             modifier = insightModifier
                 .padding(top = 12.dp)
