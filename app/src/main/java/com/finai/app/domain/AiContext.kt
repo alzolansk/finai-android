@@ -44,7 +44,7 @@ object AiContext {
             buildString {
                 append("Prioridade ${o.prioridade}: \"${o.nome}\" (${o.tipo}), faltam ${brl(p.missingCents)} até ${p.etaLabel}")
                 append("; pede ${brl(p.monthlyContributionNeededCents)}/mês")
-                append("; no plano até o salário: ${brl(p.monthlyContributionFundedCents)}")
+                append("; aporte recomendado pelo plano agora: ${brl(p.monthlyContributionFundedCents)}")
                 append("; situação no prazo: ${statusLabel(p.status)}.")
             }
         }
@@ -52,7 +52,7 @@ object AiContext {
     /** As metas; a divisão do dinheiro está no bloco do plano ([FinancialPlan.aiBlock]). */
     fun goalsBlock(plans: List<GoalPlan>): String = buildString {
         if (plans.isEmpty()) return@buildString
-        appendLine("Metas (o valor \"no plano\" já é a divisão feita pelo app; não recomende a mesma sobra para outra meta):")
+        appendLine("Metas (o \"aporte recomendado\" já é a divisão feita pelo app; não recomende o mesmo dinheiro para outra meta):")
         goalLines(plans).forEach { appendLine("- $it") }
     }.trimEnd()
 

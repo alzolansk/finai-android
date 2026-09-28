@@ -11,9 +11,9 @@ data class GoalPlan(
     val progress: Float,
     val monthlyContributionNeededCents: Long,
     /**
-     * Parte do aporte necessário que cabe na capacidade de poupança (depois das
-     * metas de maior prioridade). É o que "Pode gastar hoje" reserva: meta que não
-     * cabe não pode virar uma falta de dinheiro para as contas.
+     * Aporte recomendado agora para esta meta. O [FinancialPlan] sobrescreve com a recomendação
+     * dele (livre até o salário, depois de dívida cara e metas de maior prioridade). É só
+     * recomendação: não desconta do livre.
      */
     val monthlyContributionFundedCents: Long = monthlyContributionNeededCents,
     val status: GoalStatus,
@@ -36,9 +36,8 @@ data class GoalPlan(
  * prioridade). É o que responde "até 2028 eu consigo?". Sem projeção (testes
  * antigos), compara o aporte mensal com a capacidade do mês corrente.
  *
- * O aporte "reservado" ([GoalPlan.monthlyContributionFundedCents]) continua
- * limitado à capacidade do mês corrente: é dinheiro de agora, e é ele que o
- * "Pode gastar hoje" desconta.
+ * O aporte recomendado ([GoalPlan.monthlyContributionFundedCents]) é definido
+ * pelo [FinancialPlan]; aqui fica só um valor inicial pela capacidade do mês.
  */
 object GoalCalculator {
     fun plan(

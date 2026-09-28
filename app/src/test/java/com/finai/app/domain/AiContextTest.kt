@@ -45,9 +45,9 @@ class AiContextTest {
         val lines = AiContext.goalLines(plans)
         assertTrue(lines[0], lines[0].startsWith("Prioridade 1: \"Reserva de emergência\""))
         // A sobra de R$ 114 vai toda para a primeira; a segunda recebe o que sobra dela (nada).
-        assertTrue(lines[0], lines[0].contains("no plano até o salário: R$ 114"))
-        assertTrue(lines[1], lines[1].contains("no plano até o salário: R$ 0"))
-        assertTrue(block.contains("não recomende a mesma sobra para outra meta"))
+        assertTrue(lines[0], lines[0].contains("aporte recomendado pelo plano agora: R$ 114"))
+        assertTrue(lines[1], lines[1].contains("aporte recomendado pelo plano agora: R$ 0"))
+        assertTrue(block.contains("não recomende o mesmo dinheiro para outra meta"))
     }
 
     @Test fun goalInsightsGoInOneRequestWithThePlan() {

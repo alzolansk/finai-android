@@ -40,7 +40,7 @@ object AssistantTopics {
             append(
                 "Julgue pela sobra projetada até o prazo. Compare dois ou três cenários (prazo diferente, meta ajustada, " +
                     "mudar a ordem de prioridade) e diga qual faz mais sentido considerando a descrição. Os cenários partem do " +
-                    "plano: se a meta receber mais agora, diga de qual destino do plano o dinheiro sairia.",
+                    "plano: se a meta receber mais agora, diga de qual recomendação do plano o dinheiro sairia.",
             )
         },
     )
@@ -75,9 +75,9 @@ object AssistantTopics {
         context = buildString {
             appendLine("Simulador \"Posso comprar?\".")
             appendLine("Valor: $amountLabel. Veredito calculado localmente: \"$verdictLabel\".")
-            appendLine("Livre para gastar no plano: $monthlyCapacityLabel. Livre depois da compra: $slackAfterLabel.")
+            appendLine("Livre até o salário: $monthlyCapacityLabel. Livre depois da compra: $slackAfterLabel.")
             if (topGoalName != null) {
-                appendLine("Destino da sobra no plano: \"$topGoalName\" — " + if (topGoalAffected) "a parte dele fica em risco." else "não é afetado.")
+                appendLine("Recomendação do plano para o livre: \"$topGoalName\" — " + if (topGoalAffected) "sobra menos para ela." else "não muda.")
             }
             append("Explique o veredito e diga como a compra poderia caber (esperar, parcelar sem juros, cortar em outro lugar).")
         },

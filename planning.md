@@ -278,6 +278,13 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
 
 ## 11. Perguntas em aberto
 
+- **Plano financeiro central, respondida em 28/09/2026:** o plano **não aloca** a sobra
+  automaticamente. Ele decide qual destino é recomendado (dívida cara, depois metas por
+  prioridade) e impede recomendações contraditórias entre telas, mas recomendação não é
+  dinheiro gasto nem reservado: o "Livre até o salário" só diminui quando o pagamento ou o
+  aporte é registrado. Reserva só existe quando, sem ela, o saldo previsto de algum dia antes
+  do salário ficaria menor (simulação por data, com todas as entradas lançadas no intervalo).
+
 - **Fase 7, respondidas em 28/09/2026:**
   - O número principal da Início é o **livre até o salário**; o valor por dia é apoio.
   - O tour vira **dicas dentro de cada tela, com destaque no componente** explicado.

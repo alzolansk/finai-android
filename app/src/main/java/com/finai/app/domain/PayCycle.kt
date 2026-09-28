@@ -77,11 +77,17 @@ data class PayCycle(
      * fechar positivo e ainda assim faltar no dia 12 se uma entrada só cai no dia 20.
      */
     val floor: CycleFloor get() {
+        // Saldo de fim de dia, a partir de hoje: o que entra no mesmo dia de uma saída cobre a
+        // saída. Antes, o saldo "antes de hoje" contava como candidato sozinho — no dia do
+        // salário o ciclo começa hoje, esse saldo é zero, e o livre saía R$ 0 com o salário
+        // já caindo.
         var running = entries.filter { it.date.isBefore(today) }.sumOf { it.cents }
+        val byDay = entries.filter { !it.date.isBefore(today) }.groupBy { it.date }.toSortedMap()
+        running += byDay.remove(today)?.sumOf { it.cents } ?: 0L
         var floor = CycleFloor(today, running)
-        ordered.filter { !it.date.isBefore(today) }.forEach { e ->
-            running += e.cents
-            if (running < floor.cents) floor = CycleFloor(e.date, running)
+        byDay.forEach { (date, dayEntries) ->
+            running += dayEntries.sumOf { it.cents }
+            if (running < floor.cents) floor = CycleFloor(date, running)
         }
         return floor
     }

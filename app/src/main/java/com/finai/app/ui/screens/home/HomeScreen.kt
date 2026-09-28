@@ -340,7 +340,7 @@ private fun NewGoalCard(onClick: () -> Unit) {
 
 /**
  * "Decisões para você" — tiradas do plano central ([com.finai.app.domain.FinancialPlan.decisions]):
- * falta a cobrir, destino da sobra (dívida cara ou metas), depois orçamento estourado e
+ * falta a cobrir, recomendação para o livre (dívida cara ou metas), depois orçamento estourado e
  * assinatura parada. Sem IA: prioridade e valores são decisão do app, e a mesma decisão aparece
  * em Objetivos e Dívidas. "Conversar" em cada linha leva a IA para explicar.
  */

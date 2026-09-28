@@ -21,7 +21,7 @@ object TipScript {
 
     private val scripts: Map<String, List<Tip>> = mapOf(
         HOME to listOf(
-            Tip("home.situation", "Sua situação", "Quanto está livre até o próximo salário, já descontado o que vence até lá e o destino da sobra (dívida cara ou metas)."),
+            Tip("home.situation", "Sua situação", "Quanto está livre até o próximo salário, já descontado o que vence até lá. Recomendações do plano não descontam desse valor."),
             Tip("home.explain", "De onde vem o número", "Toque em \"Entenda este valor\" para ver a conta passo a passo."),
             Tip("home.week", "O que vence primeiro", "As contas e lançamentos dos próximos 7 dias, em ordem de data."),
             Tip("nav.add", "Lançar algo novo", "Gastos, receitas e importação de fatura começam pelo +."),
