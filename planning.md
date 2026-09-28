@@ -239,8 +239,8 @@ Itens, em ordem de prioridade:
    `TextMuted #A1A1AA` (2,56:1 sobre branco) e texto branco sobre `Emerald #10B981`
    (2,54:1) sobem para ≥ 4,5:1. Alvos de toque ≥ 48 dp.
 5. **[Alta] Renda principal explícita** em vez da palavra "salário" na descrição
-   (`PayCycle.isSalary`) — é a pendência (a) já combinada: Room 7→8 virou 8→9 com as
-   metas; agora será a próxima migração, marcando como renda principal o que já casa
+   (`PayCycle.isSalary`) — é a pendência (a) já combinada, que agora vira a migração Room 9→10 (7→8 e 8→9 já foram usadas pelas conversas do chat e pelas
+   metas concluídas), marcando como renda principal o que já casa
    com `isSalary`.
 6. **[Alta] Onboarding mínimo.** Tour + assistente inicial de sete estados pedem trabalho
    antes do benefício. Pedir só o necessário para a primeira resposta útil (renda
