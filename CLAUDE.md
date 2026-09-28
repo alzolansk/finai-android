@@ -135,7 +135,7 @@ Fase 3 — o que mudou:
   seção afirmava que o modelo tinha sido trocado para `gemini-2.5-flash`, mas o código
   nunca mudou — e não precisava: `gemini-3.7-flash` está listado como modelo estável
   com free tier em ai.google.dev/gemini-api/docs/models e /pricing, conferido em
-  12/09/2026), Groq `llama-3.1-8b-instant`, OpenRouter
+  12/09/2026), Groq `llama-3.1-8b-instant` (**trocado em 28/09/2026 para `openai/gpt-oss-120b`**, com `reasoning_effort: low` e `include_reasoning: false`, porque o Llama 8B saiu do plano Free do Groq), OpenRouter
   `google/gemma-4-31b-it:free` (confirmado ao vivo via `GET
   https://openrouter.ai/api/v1/models`), Mistral `mistral-small-latest`, Cerebras
   `gpt-oss-120b` (confirmado ao vivo via `GET

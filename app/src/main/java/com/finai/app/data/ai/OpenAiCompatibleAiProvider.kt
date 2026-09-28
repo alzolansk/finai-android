@@ -29,6 +29,12 @@ abstract class OpenAiCompatibleAiProvider(
     /** Extra headers beyond `Authorization`/`Content-Type` — only [OpenRouterAiProvider] needs this. */
     protected open fun extraHeaders(): Map<String, String> = emptyMap()
 
+    /** Campos extras no corpo da requisição (ex.: controle de raciocínio do gpt-oss no Groq). */
+    protected open fun extraBody(body: JSONObject) {}
+
+    /** Teto de tokens da resposta. Modelos que raciocinam antes de responder precisam de mais. */
+    protected open val maxTokens: Int = 500
+
     override suspend fun generate(request: AiRequest): AiResponse {
         val apiKey = keyStore.currentKey(providerId)?.takeIf { it.isNotBlank() }
             ?: return AiResponse.Unavailable(
@@ -57,7 +63,8 @@ abstract class OpenAiCompatibleAiProvider(
                             .put(JSONObject().put("role", "user").put("content", request.prompt)),
                     )
                     put("temperature", 0.4)
-                    put("max_tokens", 500)
+                    put("max_tokens", maxTokens)
+                    extraBody(this)
                 }
 
                 connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
