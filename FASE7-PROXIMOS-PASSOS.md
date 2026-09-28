@@ -19,13 +19,17 @@ arquivos, armadilhas e o que conta como pronto. Ao terminar um item, marque ✅ 
   - **Item 2** (`6c7b0aa`): folha "Entenda este valor" (`domain/SpendExplanation.kt`,
     `ui/components/SpendExplanationSheet.kt`).
 - 165 testes JVM verdes. O banco Room está na **versão 9**.
-- APK `pessoal` dos itens 1 e 2 enviado ao usuário. **O retorno dele ainda não foi
-  registrado**: pergunte no começo da sessão, principalmente se a folha faz sentido no
-  caso com salário. Esse caso só foi coberto por teste JVM, não visto rodando.
+- APK `pessoal` dos itens 1 e 2 foi enviado, mas **o usuário só vai testar quando a fase
+  inteira estiver pronta** (decisão de 28/09/2026). Não mande APK a cada item e não pergunte
+  pelo retorno no meio do caminho. Confira você mesmo no emulador (ver "Como testar"),
+  inclusive o caso **com salário** da folha "Entenda este valor", que até agora só foi
+  coberto por teste JVM. Um único APK sai no fim da fase (ver "Entrega final").
+- Decisões do usuário já tomadas estão em "Decisões" no fim deste arquivo. Uma ainda está
+  em aberto (a do dia fixo da dívida).
 
 ## Ordem sugerida
 
-3 → 4 → 5 → 6 → 10 → 7/8/9 (juntos, tela a tela) → 11 → 12.
+3 → 4 → 5 → 6 → 10 (só o "+") → 7/8/9 (juntos, tela a tela) → 11 → 12 → entrega final.
 
 O 3 e o 4 mudam a Início inteira e tocam os mesmos arquivos, então é melhor fazer um
 logo depois do outro. O 5 precisa de migração do banco, então vale fechar o 3 e o 4
@@ -49,14 +53,26 @@ dias aparecem quase no fim.
      explícito, **uma** ação pertinente e o link "Entenda este valor".
      - A ação pertinente depende do estado: com falta, "Ver compromissos" (abre a
        Agenda); sem salário, "Informar renda"; no caso normal, "Posso comprar?".
-     - Hoje são dois cartões dizendo coisas parecidas: "R$ X livres" até o salário e
-       "Pode gastar R$ Y hoje". Decida com o usuário se o bloco mostra o livre total ou
-       o valor por dia como número principal. A crítica pede **um** valor principal.
-       Sugestão: por dia como número principal e o livre total como linha de apoio.
+     - **Decidido (28/09/2026): o número principal é o livre até o salário**, não o
+       valor por dia. Hoje são dois cartões com números parecidos ("R$ X livres" e
+       "Pode gastar R$ Y hoje"); vira um só:
+       - Rótulo: "LIVRE ATÉ O SALÁRIO · 30/10" (ou "LIVRE ATÉ O FIM DO MÊS" sem ciclo).
+       - Valor grande: `safeToday.slackThisMonthCents.coerceAtLeast(0)`, que é o dia mais
+         apertado menos a reserva das metas, **não** `PayCycle.livreCents`. É o mesmo
+         número da linha "Livre até o salário" da folha "Entenda este valor"; os dois
+         precisam bater.
+       - Apoio, menor: "cerca de R$ Y por dia · N dias", com `safeTodayCents`.
+       - Com falta: o valor grande vira "Faltam R$ X" em vermelho, como já é hoje.
+       - Ajuste o rótulo do resumo da IA (`FinanceUiState.toAiSummaryText`) e o
+         `safeNote` para falarem do mesmo número. Hoje o resumo abre com "Pode gastar
+         hoje".
    - **Próximos vencimentos:** `NextWeekSection` sobe para logo abaixo da situação.
    - **Planejamento:** depois, com peso visual menor: `SaldoCard`, `GoalsCarousel`,
      `DecisionsCard`, `TimelineSection`, `CoachCard`.
-2. "Ajustar limites" sai do cartão principal (ver item 10).
+2. **"Ajustar limites" continua no bloco de situação.** Decisão do usuário: Limites fica
+   acessível só pelos caminhos de sempre, que são este botão e os avisos de orçamento do
+   sino. Não crie outra entrada (ver item 10). Pode virar um botão secundário menor, mas
+   não pode sumir.
 3. A saudação ("Bom dia" + "Você tem N contas...") pode encolher, porque a frase de
    situação passa a ser a mensagem principal.
 
@@ -151,11 +167,23 @@ ficar mais fiel".
 
 **Cuidados.**
 - Voltar para um APK v9 com banco v10 apaga os dados, porque
-  `fallbackToDestructiveMigrationOnDowngrade` fica ativo. **Avise o usuário antes de
-  mandar o APK:** depois de instalar esta versão, ele não pode voltar para o APK do
-  `main`.
-- Também é o momento da pendência antiga (a) do `CLAUDE.md`: `DividaEntity.diaVencimento`
-  pede migração. Vale juntar na mesma 9 → 10, mas **confirme com o usuário**.
+  `fallbackToDestructiveMigrationOnDowngrade` fica ativo. Como o usuário só testa no fim,
+  isso vira um aviso da **entrega final**, não deste item.
+- **Pergunta em aberto: dia fixo da dívida.** A pendência antiga (a) do `CLAUDE.md` também
+  pede migração. Na primeira vez que foi perguntado, o usuário não entendeu. Explique
+  assim:
+  > "Uma dívida que vence todo dia 29 hoje fica guardada só com a *próxima* data. Quando
+  > você paga a parcela de 29/01, a próxima seria 29/02, que não existe, então vira 28/02.
+  > A partir daí o app acha que ela vence no último dia de cada mês (31/03, 30/04...) em
+  > vez de voltar para o dia 29. Para corrigir, o app precisa guardar o dia combinado (29).
+  > Quer que eu faça isso junto com a renda principal, numa única atualização do banco?"
+
+  **Padrão, se ele não se opuser: juntar.** Como ele só instala no fim, uma migração ou
+  duas dá no mesmo para ele, e juntar é menos código de migração. A mudança é
+  `DividaEntity.diaVencimento: Int?`, preenchido na migração com o dia do
+  `proximoVencimento` atual. `DebtSchedule` (projeção, `afterPayment`, `undoPayment`) e
+  `DebtCalculator` ("Livre em") passam a usar esse dia em vez de derivar do vencimento, e
+  a regra de fim de mês de `monthlyOccurrence` só vale quando o dia combinado for ≥ 29.
 
 ---
 
@@ -171,9 +199,47 @@ conclusão). É muito trabalho antes de ver qualquer benefício.
   R$ X, R$ Y por dia".
 - Dívidas, metas e gastos fixos viram convites na própria tela, no estado vazio (ver
   item 9), e não passos obrigatórios.
-- O tour encolhe para 2 ou 3 passos, ou vira dicas contextuais na primeira visita a cada
-  tela. **Decida com o usuário.**
 - Depende do item 5, que define a flag de renda principal que o assistente grava.
+
+**Decidido (28/09/2026): o tour vira dicas dentro de cada tela, com destaque no componente
+explicado.** O `OnboardingTour` de 7 passos em tela cheia sai.
+
+Como construir:
+1. **Registro de alvos.** Um `TipTargetRegistry` exposto por `CompositionLocal` em
+   `FinaiApp`, e um `Modifier.tipTarget("home.safe")` que, via `onGloballyPositioned`,
+   grava os limites do componente na raiz (`boundsInRoot`). Nada de coordenada fixa.
+2. **Camada de destaque.** Um overlay por cima de tudo que escurece a tela com um
+   **recorte** no formato do alvo (retângulo arredondado com folga de ~8 dp).
+   - Desenhe em `Canvas` com `Path` + `PathFillType.EvenOdd`, ou com
+     `graphicsLayer(compositingStrategy = Offscreen)` + `BlendMode.Clear`.
+   - Um balão com título curto, uma frase, "1 de 3" e os botões "Próximo" e "Entendi"
+     fica acima ou abaixo do alvo, conforme o espaço.
+   - O toque fora do balão avança ou fecha e **não** passa para a tela de trás.
+   - O botão voltar do sistema fecha a dica: entra no `anyLayerOpen` do `FinaiApp`.
+3. **Roteiro por tela**, poucas dicas cada, só com os componentes que existem na hora.
+   Se o alvo não está na tela (lista vazia, cartão ausente), pule a dica.
+   - **Início:** o bloco de situação e o valor livre; "Entenda este valor"; os próximos
+     vencimentos; o "+" central.
+   - **Agenda:** navegação de mês; toque numa conta para marcar como paga; lançamentos
+     do mês.
+   - **Objetivos:** o cartão da meta e o aporte; a leitura da IA.
+   - **Dívidas:** ordem pelo custo do juro; "Paguei a parcela"; "Ensaiar a ligação".
+   - **Limites:** só quando o usuário chegar lá pelo caminho de sempre.
+   - **Assistente (chat):** as sugestões de pergunta.
+4. **Quando mostrar.** Na primeira visita a cada tela, depois do assistente inicial, e
+   nunca com outra camada aberta (chat, "+", folhas, comemoração). Espere o layout
+   estabilizar, ~300 ms depois de a tela aparecer, para os limites estarem certos.
+5. **Persistência.** `FinaiPreferences` ganha um `Set<String>` de telas já vistas
+   (`tipsSeen`), que substitui o uso de `onboardingComplete` para o tour.
+   - "Rever tour guiado" (Configurações → Ajuda) limpa o conjunto.
+   - "Apagar todos os dados" também limpa (hoje chama `restartOnboarding`).
+   - Quem já concluiu o tour antigo **não** deve ver as dicas de novo sozinho: na
+     primeira leitura, se `onboardingComplete == true`, marque todas as telas como
+     vistas.
+6. **Visual:** fundo escuro com ~60% de opacidade, balão branco, texto com os tamanhos e
+   contrastes do item 4, e alvo de toque de 48 dp nos botões do balão.
+7. **Teste:** o registro e o roteiro (quais dicas aparecem, dado quais alvos existem e o
+   que já foi visto) em Kotlin puro, testável na JVM. O desenho é conferido no emulador.
 
 ---
 
@@ -187,15 +253,17 @@ conclusão). É muito trabalho antes de ver qualquer benefício.
 - O "+" (`QuickActionSheet` + `FinaiFixtures` perto da linha 48) mistura lançar,
   importar, simular e novo objetivo.
 
-**O que fazer.** Proponha ao usuário, **antes de implementar**, uma destas opções:
-- (a) Trocar "Dívidas" por "Gastos" (Limites + lançamentos do mês) na barra, e levar
-  Dívidas para dentro de Objetivos ou da Início.
-- (b) Manter as 4 abas e colocar "Gastos e limites" como bloco fixo na Início.
+**Decidido (28/09/2026): Limites não ganha acesso mais fácil.** A barra de baixo fica
+como está (Início, Agenda, Objetivos, Dívidas), e Limites continua só pelos caminhos de
+sempre: "Ajustar limites" no bloco de situação da Início e os avisos de orçamento do sino.
+A pendência (c) do `CLAUDE.md` fica **encerrada por decisão do usuário**; atualize o
+`CLAUDE.md` para dizer isso. Não crie atalho, aba ou bloco novo para Limites em nenhum item
+desta fase (7, 8, 9 e as dicas do item 6 incluídos).
 
-No "+", a ação primária "Lançar gasto" vem em destaque, e importar e simular ficam como
-secundárias. Lembre que Limites e Importação empilham por cima da tela atual
-(`navigateTo` em `FinaiApp.kt`), por causa da correção do botão voltar. Se Limites virar
-aba, ajuste isso.
+O que sobra deste item é **só o "+"**: "Lançar gasto" vem em destaque como ação primária,
+e importar, simular e novo objetivo ficam como secundárias. Limites e Importação continuam
+empilhando por cima da tela atual (`navigateTo` em `FinaiApp.kt`), como na correção do
+botão voltar.
 
 ---
 
@@ -262,11 +330,10 @@ aparelho perde tudo.
 
 ## Como testar neste ambiente
 
-- **Testes JVM:** `./gradlew testDebugUnitTest`. **APK para o usuário:**
-  `./gradlew assemblePessoal`, que gera `app/build/outputs/apk/pessoal/app-pessoal.apk`
-  (~16 MB). Mande com SendUserFile. O `versionCode` é o número de commits, então o APK da
-  branch instala por cima do `main` sem apagar dados, **exceto depois da migração 9 → 10**
-  (ver item 5).
+- **Testes JVM:** `./gradlew testDebugUnitTest`. Rode a cada item.
+- **APK:** `./gradlew assemblePessoal` gera `app/build/outputs/apk/pessoal/app-pessoal.apk`
+  (~16 MB). **Não mande ao usuário a cada item**; use no emulador. Ele sai uma vez só, na
+  entrega final.
 - **Emulador:** `~/AppData/Local/Android/Sdk/emulator/emulator.exe -avd Pixel_6_API_34
   -no-snapshot-save -no-boot-anim -gpu swiftshader_indirect`, em background. O `adb` fica
   em `~/AppData/Local/Android/Sdk/platform-tools/adb.exe` (não está no PATH). Encerre com
@@ -283,12 +350,34 @@ aparelho perde tudo.
 - **Tour e assistente:** voltam a aparecer depois de instalar por cima. Use "Pular" e
   depois "Pular tudo", pelas coordenadas do `uiautomator`.
 
-## Decisões que dependem do usuário
+## Entrega final
 
-1. Número principal da Início: valor por dia ou livre até o salário (item 3).
-2. Juntar `diaVencimento` da dívida na migração 9 → 10 (item 5).
-3. Tour: encolher ou virar dicas contextuais (item 6).
-4. Barra de baixo: opção (a) ou (b) (item 10).
-5. Retorno do teste dos itens 1 e 2 no celular.
+Quando todos os itens estiverem feitos:
+1. Rode `testDebugUnitTest` e `connectedDebugAndroidTest`, este principalmente pela
+   migração 9 → 10 em `FinaiDatabaseMigrationTest`. Faça uma passada completa no
+   emulador: todas as telas, as dicas de cada uma, e os casos com e sem salário.
+2. Gere o `pessoal` e **copie para o scratchpad com nome único**, por exemplo
+   `finai-fase7-clareza.apk`, antes do SendUserFile. Envios repetidos de
+   `app-pessoal.apk` travaram em "baixando" no celular.
+3. Avise, em destaque: **"depois de instalar este APK, não dá para voltar ao do `main`
+   sem perder os dados"**. O banco sobe para a versão 10, e o downgrade apaga tudo.
+   Ele instala por cima do app atual sem perder nada, porque o `versionCode` é maior.
+4. Se ele baixar pelo navegador do celular, o arquivo vem como `.apk.zip`: ele deve
+   renomear e tirar o `.zip`, sem extrair.
+5. Só depois do teste dele: merge de `v2-clareza` no `main`, com o aval dele.
 
-Registre as respostas no `planning.md` §11, não só na conversa.
+## Decisões
+
+Tomadas pelo usuário em 28/09/2026 (também registradas no `planning.md` §11):
+
+1. **Número principal da Início: o livre até o salário** (item 3). O valor por dia vira
+   apoio.
+2. **Tour: dicas dentro de cada tela, com destaque no componente explicado** (item 6).
+3. **Limites continua escondido de propósito:** só por "Ajustar limites" e pelos avisos
+   (itens 3 e 10). A pendência (c) está encerrada.
+4. **Teste só no fim:** nenhum APK no meio da fase (ver "Entrega final").
+
+Em aberto:
+
+5. **Dia fixo da dívida junto com a renda principal** (item 5). O usuário não entendeu a
+   primeira pergunta. Use a explicação do item 5. Padrão, se ele não se opuser: juntar.

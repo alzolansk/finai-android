@@ -637,7 +637,9 @@ já mergeado no `main`):
   hoje" desconta o aporte mensal das metas (R$ 2.052 no caso dele) mesmo quando os cartões
   de meta dizem "sem capacidade de poupança" — o usuário não entendeu a divergência e
   pediu para voltar nisso depois; (c) Limites não aparece na barra de baixo (só pelo
-  "Ajustar limites" do cartão preto) — o usuário não achava a tela.
+  "Ajustar limites" do cartão preto) — o usuário não achava a tela. **(c) encerrada em
+  28/09/2026 por decisão do usuário:** Limites continua só por esse caminho e pelos avisos.
+  **(b) resolvida** em "Capacidade de poupança = balanço do mês" (seção da IA, 27/09).
 
 Configurações viraram central de gerenciamento (27/09/2026):
 - **`ui/components/SettingsScreen.kt`** (antes `AiSettingsDialog.kt`, as menções acima a esse
@@ -788,6 +790,9 @@ e tipografia; depois renda principal explícita, onboarding mínimo e o resto. `
   mensal" (recorrente), que não casa com `PayCycle.isSalary`: o ciclo funciona pela "maior
   receita recorrente", mas a folha "Entenda este valor" pede para renomear. A marcação
   explícita de renda principal resolve.
+- **Decisões do usuário (28/09/2026):** número principal da Início = livre até o salário;
+  tour vira dicas por tela com destaque no componente; Limites não ganha acesso novo; ele
+  **só testa no celular com a fase inteira pronta** — não mandar APK por item.
 - **Próxima sessão: leia `FASE7-PROXIMOS-PASSOS.md`**, que detalha os itens 3 a 12
   (arquivos, armadilhas, critério de pronto), como testar no emulador deste ambiente e as
   decisões que dependem do usuário.

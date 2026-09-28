@@ -252,8 +252,8 @@ Itens, em ordem de prioridade:
    toque real; destrutivas ("Excluir") num menu secundário.
 9. **[Média] Estados vazios que orientam** (ação concreta: lançar conta, importar fatura) e
    distinção visual entre zero real, dado não cadastrado e estimativa.
-10. **[Média] Navegação previsível:** acesso direto a gastos/limites (pendência (c) — Limites
-    fora da barra) e ações frequentes explícitas em vez de tudo no "+".
+10. **[Média] Navegação previsível:** ações frequentes explícitas em vez de tudo no "+".
+    Limites **não** ganha acesso mais fácil (decisão do usuário, 28/09/2026 — ver §11).
 11. **[Média] Importação:** total selecionado + confirmar fixos no rodapé; filtro
     "Precisa revisar".
 12. **[Expansão] Exportação/restauração de dados** (arquivo controlado pelo usuário —
@@ -276,6 +276,14 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
 - **Fase 7 pronta quando:** "Pode gastar hoje" nunca aparece positivo junto de uma falta prevista no mesmo ciclo; o valor tem decomposição acessível em um toque; nenhum texto útil fica abaixo de 4,5:1 de contraste; e as três perguntas de validação da Fase 7 se respondem na primeira tela.
 
 ## 11. Perguntas em aberto
+
+- **Fase 7, respondidas em 28/09/2026:**
+  - O número principal da Início é o **livre até o salário**; o valor por dia é apoio.
+  - O tour vira **dicas dentro de cada tela, com destaque no componente** explicado.
+  - **Limites não ganha acesso mais fácil**: fica só por "Ajustar limites" e pelos avisos.
+  - O usuário **só testa no aparelho quando a fase inteira estiver pronta**.
+  - Em aberto: guardar o dia fixo da dívida (`diaVencimento`) na mesma migração da renda
+    principal. Ver `FASE7-PROXIMOS-PASSOS.md`, item 5.
 
 - O usuário final é só você (single-user, sem conta/login) ou o app deve prever múltiplos perfis no mesmo aparelho?
 - Existe hoje algum dado real (lançamentos, dívidas, faturas) do site atual que precisa ser migrado para o app, ou o app Android começa do zero?
