@@ -236,7 +236,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             saldoCents = saldoCents,
             saldoLabel = formatBrl(saldoCents / 100.0),
             payCycle = payCycle,
-            safeNote = safeNoteFor(safe, payCycle != null, aporteMensalMetasCents(goalPlans)),
+            safeNote = safeNoteFor(safe, payCycle, aporteMensalMetasCents(goalPlans)),
             nextWeekBills = weekBills,
             timeline = timelineExtras.map { it.toUiTimelineEntry() },
             timelineNote = if (timelineExtras.isEmpty())
@@ -264,29 +264,40 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 ?: "Nenhuma dívida cadastrada",
             budgets = budgetProgress.map { it.toUiBudget() },
             subscriptions = subscriptionInsights.map { it.assinatura.toUiSubscription(it) },
-            alerts = AlertCalculator.alerts(s.contas, budgetProgress, subscriptionInsights, goalPlans, today),
+            alerts = AlertCalculator.alerts(s.contas, budgetProgress, subscriptionInsights, goalPlans, today, payCycle?.shortfall),
         )
     }
 
     /**
-     * Separa "falta dinheiro para as contas" de "a meta não cabe". Antes as duas
-     * coisas viravam um único "Faltam R$ X para cobrir contas e metas", e a IA
+     * Uma frase só, na ordem de urgência: falta prevista antes de tudo (com quando e por
+     * quê), depois "a meta não cabe", depois quanto sobra. Separa "falta dinheiro para as
+     * contas" de "a meta não cabe" — antes as duas viravam um único "Faltam R$ X", e a IA
      * lia o aporte das metas como um rombo no mês.
      */
-    private fun safeNoteFor(safe: SafeToSpendResult, byCycle: Boolean, reservedForGoalsCents: Long): String {
-        val until = if (byCycle) "até o salário do dia ${safe.lastDayOfMonth}" else "até o dia ${safe.lastDayOfMonth}"
-        val billsSlack = safe.slackThisMonthCents + reservedForGoalsCents
-        return when {
-            billsSlack < 0 ->
-                "Faltam ${formatBrl0(-billsSlack / 100.0)} para cobrir as contas $until."
-            safe.slackThisMonthCents < 0 ->
-                "As contas estão cobertas $until, mas o aporte das metas não cabe inteiro agora."
-            reservedForGoalsCents > 0 ->
-                "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} $until, já descontadas as contas e o aporte das metas."
-            else ->
-                "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} $until, já descontadas as contas."
+    private fun safeNoteFor(safe: SafeToSpendResult, cycle: com.finai.app.domain.PayCycle?, reservedForGoalsCents: Long): String {
+        val until = if (cycle != null) "até o salário do dia ${safe.lastDayOfMonth}" else "até o dia ${safe.lastDayOfMonth}"
+        safe.shortfall?.let { falta ->
+            val valor = formatBrl0(falta.cents / 100.0)
+            val porque = falta.causa?.let { " — $it" }.orEmpty()
+            val today = cycle?.today ?: LocalDate.now()
+            return if (falta.date.isAfter(today))
+                "Em ${dayMonth(falta.date)} faltam $valor$porque, antes do salário do dia ${safe.lastDayOfMonth}. Não há valor livre para gastar até lá."
+            else
+                "O dinheiro já não fecha: faltam $valor$porque $until. Não há valor livre para gastar até lá."
         }
+        val billsSlack = safe.slackThisMonthCents + reservedForGoalsCents
+        if (billsSlack < 0) return "Faltam ${formatBrl0(-billsSlack / 100.0)} para cobrir as contas $until."
+        if (safe.slackThisMonthCents < 0) return "As contas estão cobertas $until, mas o aporte das metas não cabe inteiro agora."
+        val descontado = if (reservedForGoalsCents > 0) "já descontadas as contas e o aporte das metas" else "já descontadas as contas"
+        val floor = safe.floor
+        // O dia mais apertado vem antes do fim do ciclo: o valor é o que sobra nele, não no fim.
+        return if (cycle != null && floor != null && floor.cents < cycle.livreCents && floor.date.isAfter(cycle.today))
+            "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} $until contando o dia mais apertado (${dayMonth(floor.date)}), $descontado."
+        else
+            "Sobram ${formatBrl0(safe.slackThisMonthCents / 100.0)} $until, $descontado."
     }
+
+    private fun dayMonth(d: LocalDate): String = "%02d/%02d".format(d.dayOfMonth, d.monthValue)
 
     private fun aporteMensalMetasCents(plans: List<GoalPlan>): Long =
         plans.sumOf { it.monthlyContributionFundedCents }

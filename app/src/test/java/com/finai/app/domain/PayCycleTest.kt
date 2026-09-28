@@ -70,7 +70,7 @@ class PayCycleTest {
             contas = listOf(conta("Fatura", 400_000, LocalDate.of(2026, 10, 12))),
         )
         assertEquals(100_000L, c.livreCents)
-        assertEquals(CycleShortfall(LocalDate.of(2026, 10, 12), 100_000), c.shortfall)
+        assertEquals(CycleShortfall(LocalDate.of(2026, 10, 12), 100_000, "Fatura"), c.shortfall)
     }
 
     @Test fun unpaidBillFromLastCycleIsStillOwed() {
@@ -150,5 +150,61 @@ class PayCycleTest {
             dividas = listOf(DebtSchedule.afterPayment(picpay, today)),
         )
         assertEquals(antes.livreCents, depois.livreCents)
+    }
+
+    // ── Fase 7: disponibilidade por data ─────────────────────────────
+
+    /** Sobra final de R$ 1.000, mas no dia 12 sobram só R$ 200: gastar mais que isso hoje descobre a fatura. */
+    @Test fun spendableComesFromTheTightestDayNotTheEndOfTheCycle() {
+        val c = cycle(
+            transacoes = listOf(salario(300_000), tx(LocalDate.of(2026, 10, 20), 200_000, TransactionType.Receita)),
+            contas = listOf(conta("Fatura", 100_000, LocalDate.of(2026, 10, 12))),
+        )
+        assertEquals(400_000L, c.livreCents)
+        assertEquals(CycleFloor(LocalDate.of(2026, 10, 12), 200_000), c.floor)
+        assertNull(c.shortfall)
+
+        val safe = SafeToSpendCalculator.fromCycle(c, aporteMensalMetasCents = 50_000)
+        assertEquals(150_000L, safe.slackThisMonthCents)
+        assertEquals(150_000L / 25, safe.safeTodayCents)
+        assertEquals(50_000L, safe.reservedForGoalsCents)
+    }
+
+    /** O caso da crítica: total positivo, falta no meio — não pode dizer "pode gastar". */
+    @Test fun aForecastShortfallZeroesSpendableAndReservesNothingForGoals() {
+        val c = cycle(
+            transacoes = listOf(salario(300_000), tx(LocalDate.of(2026, 10, 20), 200_000, TransactionType.Receita)),
+            contas = listOf(conta("Fatura", 400_000, LocalDate.of(2026, 10, 12))),
+        )
+        val safe = SafeToSpendCalculator.fromCycle(c, aporteMensalMetasCents = 50_000)
+        assertEquals(0L, safe.safeTodayCents)
+        assertEquals(0L, safe.reservedForGoalsCents)
+        assertEquals(c.shortfall, safe.shortfall)
+    }
+
+    /** Buraco que já passou e foi coberto por uma entrada depois não é falta de agora. */
+    @Test fun aPastHoleThatClosedIsNotAShortfall() {
+        val c = cycle(
+            transacoes = listOf(salario(100_000), tx(LocalDate.of(2026, 10, 3), 300_000, TransactionType.Receita)),
+            contas = listOf(conta("Aluguel", 200_000, LocalDate.of(2026, 10, 1), status = "pago")),
+        )
+        assertNull(c.shortfall)
+        assertEquals(200_000L, c.floor.cents)
+    }
+
+    @Test fun alreadyShortTodayPointsToWhenItStarted() {
+        val c = cycle(
+            transacoes = listOf(salario(100_000)),
+            contas = listOf(conta("Aluguel", 200_000, LocalDate.of(2026, 10, 1), status = "pago")),
+        )
+        assertEquals(CycleShortfall(LocalDate.of(2026, 10, 1), 100_000, "Aluguel"), c.shortfall)
+    }
+
+    @Test fun shortfallBecomesTheFirstAlert() {
+        val falta = CycleShortfall(LocalDate.of(2026, 10, 12), 100_000, "Fatura")
+        val alerts = AlertCalculator.alerts(
+            listOf(conta("Luz", 10_000, LocalDate.of(2026, 10, 6))), emptyList(), emptyList(), emptyList(), today, falta,
+        )
+        assertEquals("falta-ciclo", alerts.first().id)
     }
 }

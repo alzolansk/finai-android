@@ -104,6 +104,14 @@ fun FinanceUiState.toAiSummaryText(): String = buildString {
             "Até o próximo salário (${cycle.proximo.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM"))}): " +
                 "${com.finai.app.util.formatBrl0(cycle.livreCents / 100.0)} livres depois das contas e parcelas do período.",
         )
+        cycle.shortfall?.let { falta ->
+            appendLine(
+                "ATENÇÃO: falta prevista de ${com.finai.app.util.formatBrl0(falta.cents / 100.0)} a partir de " +
+                    "${falta.date.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM"))}" +
+                    (falta.causa?.let { " ($it)" } ?: "") +
+                    ", porque uma saída vem antes da entrada que a cobriria. Nada é livre para gastar até o salário; não sugira gastos.",
+            )
+        }
     }
     appendLine("Sobra deste mês (balanço do mês sem entradas extras): $monthlyCapacityLabel. É só o mês atual, não o potencial dos próximos.")
     savingsProjection?.let { p ->

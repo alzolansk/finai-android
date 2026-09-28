@@ -761,8 +761,17 @@ Fase 7 — Clareza e confiança (branch `v2-clareza`, aberta em 27/09/2026 a par
 `747ee3e` no `main`): roteiro de 12 itens derivado de uma crítica de UX/produto, registrado
 em `planning.md` §9 "Fase 7". Ordem: (1) veredito único de disponibilidade — falta prevista
 comanda o "Pode gastar hoje"; (2) "Entenda este valor"; (3) Home por urgência; (4) contraste
-e tipografia; depois renda principal explícita, onboarding mínimo e o resto. Nada
-implementado ainda; `main` continua sendo a versão em uso no celular.
+e tipografia; depois renda principal explícita, onboarding mínimo e o resto. `main` continua sendo a versão em uso no celular.
+
+- **Item 1 feito — veredito único de disponibilidade.** `PayCycle.floor` = menor saldo
+  corrido de hoje até a véspera do salário; `SafeToSpendCalculator.fromCycle` parte dele,
+  não de `livreCents` (sobra final). `PayCycle.shortfall` passou a olhar só de hoje em
+  diante (buraco passado já coberto não conta) e ganhou `causa` (o compromisso que abriu o
+  buraco). Com falta: "Pode gastar hoje" vira "VAI FALTAR ANTES DO SALÁRIO · Faltam R$ X",
+  o cartão do ciclo troca "R$ X livres" por "Faltam R$ X", o aporte das metas não é
+  reservado, o `safeNote` e o resumo da IA dizem quando/por quê, e o sino/rotina diária
+  ganham o aviso `falta-ciclo` no topo. Sem ciclo (nenhum salário), o cálculo pelo mês
+  (`calculate`) não mudou e não enxerga falta intra-mês. 5 testes novos em `PayCycleTest`.
 
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja

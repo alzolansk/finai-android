@@ -44,8 +44,22 @@ object AlertCalculator {
         subscriptions: List<SubscriptionInsight>,
         goals: List<GoalPlan> = emptyList(),
         today: LocalDate = LocalDate.now(),
+        shortfall: CycleShortfall? = null,
     ): List<FinanceAlert> {
         val result = mutableListOf<FinanceAlert>()
+
+        // A falta prevista no ciclo é o aviso mais importante: vem antes das contas uma a uma.
+        shortfall?.let { falta ->
+            val quando = if (falta.date.isAfter(today)) "em ${formatDayMonthPt(falta.date)}" else "desde ${formatDayMonthPt(falta.date)}"
+            result += FinanceAlert(
+                id = "falta-ciclo",
+                kind = AlertKind.Bill,
+                severity = AlertSeverity.Urgent,
+                title = "Vai faltar dinheiro antes do salário",
+                body = "Faltam até ${formatBrl0(centsToReais(falta.cents))} $quando" +
+                    (falta.causa?.let { ", quando sai $it" } ?: "") + ". Vale adiar um gasto ou rever a data de uma conta.",
+            )
+        }
 
         val aPagarEmAberto = contas.filter { it.tipo == "a_pagar" && it.status != "pago" }
 

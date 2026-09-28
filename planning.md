@@ -220,7 +220,7 @@ ensaiar negociação); identidade sóbria (branco, grafite, verde).
 
 Itens, em ordem de prioridade:
 
-1. **[Crítica] Um único veredito de disponibilidade.** Hoje "Pode gastar hoje" usa a sobra
+1. ✅ **[Crítica] Um único veredito de disponibilidade.** Hoje "Pode gastar hoje" usa a sobra
    total do ciclo (`SafeToSpendCalculator.fromCycle`) enquanto `PayCycle.shortfall` pode
    apontar falta numa data intermediária — o usuário vê "pode gastar" e "vai faltar" ao
    mesmo tempo. A disponibilidade por data passa a comandar o resumo: com falta prevista,

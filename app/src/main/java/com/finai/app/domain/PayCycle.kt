@@ -10,8 +10,14 @@ import java.time.temporal.ChronoUnit
 /** Um movimento dentro do ciclo: positivo entra, negativo sai. */
 data class CycleEntry(val date: LocalDate, val descricao: String, val cents: Long, val done: Boolean)
 
-/** Primeiro dia em que o dinheiro do ciclo não fecha, e o maior buraco até o próximo salário. */
-data class CycleShortfall(val date: LocalDate, val cents: Long)
+/**
+ * Dia em que o dinheiro do ciclo deixa de fechar, o maior buraco até o próximo salário e o
+ * compromisso que abriu o buraco ([causa]). Já negativo hoje: [date] é quando ficou negativo.
+ */
+data class CycleShortfall(val date: LocalDate, val cents: Long, val causa: String? = null)
+
+/** Menor saldo previsto de hoje até a véspera do próximo salário, e o dia em que ele acontece. */
+data class CycleFloor(val date: LocalDate, val cents: Long)
 
 /**
  * O ciclo entre dois salários — responde "o dinheiro que tenho aguenta até o próximo
@@ -57,20 +63,45 @@ data class PayCycle(
         return if (total <= 0f) 0f else (ChronoUnit.DAYS.between(start, today) / total).coerceIn(0f, 1f)
     }
 
+    private val ordered: List<CycleEntry> get() =
+        entries.sortedWith(compareBy<CycleEntry> { it.date }.thenByDescending { it.cents })
+
     /**
-     * Saldo dia a dia, na ordem em que as coisas acontecem: o total do ciclo pode fechar
-     * positivo e ainda assim faltar dinheiro no dia 12 se uma entrada só cai no dia 20.
+     * O menor saldo corrido de hoje em diante. É o que dá para gastar agora sem que nenhum
+     * compromisso até o salário fique sem dinheiro: o total do ciclo ([livreCents]) pode
+     * fechar positivo e ainda assim faltar no dia 12 se uma entrada só cai no dia 20.
+     */
+    val floor: CycleFloor get() {
+        var running = entries.filter { it.date.isBefore(today) }.sumOf { it.cents }
+        var floor = CycleFloor(today, running)
+        ordered.filter { !it.date.isBefore(today) }.forEach { e ->
+            running += e.cents
+            if (running < floor.cents) floor = CycleFloor(e.date, running)
+        }
+        return floor
+    }
+
+    /**
+     * Falta prevista de hoje até o salário. Um buraco que já passou e se fechou (uma entrada
+     * cobriu depois) não conta: o que importa é se o dinheiro fecha daqui para frente.
      */
     val shortfall: CycleShortfall? get() {
+        val worst = floor.cents
+        if (worst >= 0) return null
         var running = 0L
-        var firstNegative: LocalDate? = null
-        var worst = 0L
-        entries.sortedWith(compareBy<CycleEntry> { it.date }.thenByDescending { it.cents }).forEach { e ->
+        var since: CycleEntry? = null
+        for (e in ordered) {
+            val before = running
             running += e.cents
-            if (running < 0 && firstNegative == null) firstNegative = e.date
-            if (running < worst) worst = running
+            if (e.date.isBefore(today)) {
+                since = if (running < 0) since ?: e else null
+                continue
+            }
+            if (before >= 0 && running < 0 && since == null) since = e
+            if (since != null) break
         }
-        return firstNegative?.let { CycleShortfall(it, -worst) }
+        val causa = since?.takeIf { it.cents < 0 }?.descricao?.ifBlank { null }
+        return CycleShortfall(since?.date ?: today, -worst, causa)
     }
 
     companion object {

@@ -79,7 +79,8 @@ class FinanceCheckWorker(
         val subscriptionInsights = SubscriptionCalculator.insights(assinaturas, today)
 
         // ── 2. Detecção de eventos — mesma regra determinística da tela ────
-        val alerts = AlertCalculator.alerts(contas, budgetProgress, subscriptionInsights, goalPlans, today)
+        val shortfall = runCatching { com.finai.app.domain.PayCycle.of(contas, transacoes, dividas, today)?.shortfall }.getOrNull()
+        val alerts = AlertCalculator.alerts(contas, budgetProgress, subscriptionInsights, goalPlans, today, shortfall)
         val pattern = BehaviorCoach.detect(transacoes, today).firstOrNull()
 
         // ── 3. Deduplicação — só o que ainda não foi notificado hoje ───────

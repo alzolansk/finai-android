@@ -12,6 +12,12 @@ data class SafeToSpendResult(
     val daysRemaining: Int,
     val monthProgressFraction: Float,
     val lastDayOfMonth: Int,
+    /** Falta prevista antes do salário. Com ela, [safeTodayCents] é zero e a falta vem primeiro. */
+    val shortfall: CycleShortfall? = null,
+    /** Menor saldo previsto até o salário; nulo no cálculo pelo mês (sem ciclo). */
+    val floor: CycleFloor? = null,
+    /** Quanto do aporte das metas coube no dinheiro disponível. */
+    val reservedForGoalsCents: Long = 0,
 )
 
 /**
@@ -63,22 +69,30 @@ object SafeToSpendCalculator {
             daysRemaining = daysRemaining,
             monthProgressFraction = monthProgress.coerceIn(0f, 1f),
             lastDayOfMonth = lastDay,
+            reservedForGoalsCents = aporteMensalMetasCents.coerceAtMost((slack + aporteMensalMetasCents).coerceAtLeast(0)),
         )
     }
 
     /**
-     * Com salário recorrente cadastrado, o dinheiro precisa durar até o próximo salário,
-     * não até o fim do mês: folga = livre do ciclo − aporte das metas, dividida pelos dias
-     * que faltam para ele cair. [SafeToSpendResult.lastDayOfMonth] vira o dia do salário.
+     * Com salário cadastrado, o dinheiro precisa durar até o próximo salário, não até o fim
+     * do mês. A folga parte do **menor saldo previsto** até lá ([PayCycle.floor]), não da
+     * sobra final do ciclo: gastar a sobra final hoje deixaria descoberto um compromisso que
+     * vence antes da próxima entrada. Com falta prevista, não há nada para gastar e o aporte
+     * das metas não é reservado. [SafeToSpendResult.lastDayOfMonth] vira o dia do salário.
      */
     fun fromCycle(cycle: PayCycle, aporteMensalMetasCents: Long): SafeToSpendResult {
-        val slack = cycle.livreCents - aporteMensalMetasCents
+        val floor = cycle.floor
+        val available = floor.cents.coerceAtLeast(0)
+        val slack = floor.cents - aporteMensalMetasCents
         return SafeToSpendResult(
             safeTodayCents = (slack / cycle.diasAteProximo).coerceAtLeast(0),
             slackThisMonthCents = slack,
             daysRemaining = cycle.diasAteProximo,
             monthProgressFraction = cycle.progress,
             lastDayOfMonth = cycle.proximo.dayOfMonth,
+            shortfall = cycle.shortfall,
+            floor = floor,
+            reservedForGoalsCents = aporteMensalMetasCents.coerceAtMost(available),
         )
     }
 

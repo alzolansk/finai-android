@@ -194,10 +194,15 @@ private fun CycleContent(cycle: PayCycle) {
                 "ATÉ O PRÓXIMO SALÁRIO · ${dayMonth(cycle.proximo)}" + if (cycle.proximoEstimado) " (ESTIMADO)" else "",
                 fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted,
             )
+            // A falta prevista manda no título: "R$ X livres" ao lado de "vai faltar" se contradiz.
+            val falta = cycle.shortfall
             Text(
-                if (livre >= 0) "${formatBrl0(livre / 100.0)} livres" else "Faltam ${formatBrl0(-livre / 100.0)}",
+                when {
+                    falta != null -> "Faltam ${formatBrl0(falta.cents / 100.0)}"
+                    else -> "${formatBrl0(livre / 100.0)} livres"
+                },
                 fontSize = 26.sp, fontWeight = FontWeight.ExtraBold,
-                color = if (livre >= 0) FinaiColors.EmeraldDark else Rose,
+                color = if (falta == null) FinaiColors.EmeraldDark else Rose,
                 modifier = Modifier.padding(top = 4.dp),
             )
             Text(
@@ -230,8 +235,10 @@ private fun CycleContent(cycle: PayCycle) {
     }
     cycle.shortfall?.let { falta ->
         val quando = if (falta.date.isAfter(cycle.today)) "Em ${dayMonth(falta.date)}" else "Desde ${dayMonth(falta.date)}"
+        val porque = falta.causa?.let { ", quando sai $it" }.orEmpty()
+        val sobraFinal = if (livre > 0) " O ciclo fecha com ${formatBrl0(livre / 100.0)}, mas essa entrada chega tarde." else ""
         Text(
-            "$quando o dinheiro não fecha: faltam até ${formatBrl0(falta.cents / 100.0)} antes do próximo salário.",
+            "$quando o dinheiro não fecha$porque: faltam até ${formatBrl0(falta.cents / 100.0)} antes do próximo salário.$sobraFinal",
             fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, color = Rose,
             modifier = Modifier
                 .padding(top = 10.dp)
@@ -363,10 +370,18 @@ private fun SafeToSpendCard(
         Column {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("PODE GASTAR HOJE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextOnDarkFaint)
+                    // Falta prevista vem antes de qualquer sugestão de gasto (planning.md §9 Fase 7, item 1).
+                    val falta = safeToday?.shortfall
                     Text(
-                        safeTodayLabel, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold,
-                        color = Color.White, modifier = Modifier.padding(top = 6.dp),
+                        if (falta != null) "VAI FALTAR ANTES DO SALÁRIO" else "PODE GASTAR HOJE",
+                        fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                        color = if (falta != null) FinaiColors.Rose else FinaiColors.TextOnDarkFaint,
+                    )
+                    Text(
+                        if (falta != null) "Faltam ${formatBrl0(falta.cents / 100.0)}" else safeTodayLabel,
+                        fontSize = 34.sp, fontWeight = FontWeight.ExtraBold,
+                        color = if (falta != null) FinaiColors.Rose else Color.White,
+                        modifier = Modifier.padding(top = 6.dp),
                     )
                     Text(
                         safeNote, fontSize = 12.sp, lineHeight = 17.sp,
