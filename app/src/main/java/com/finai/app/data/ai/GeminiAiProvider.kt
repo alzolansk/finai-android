@@ -129,6 +129,6 @@ class GeminiAiProvider(
          * (planning.md §7.2). Nothing else in the app depends on a specific
          * model name.
          */
-        const val DEFAULT_MODEL = "gemini-3.5-flash-lite"
+        const val DEFAULT_MODEL = "gemini-3.6-flash"
     }
 }
