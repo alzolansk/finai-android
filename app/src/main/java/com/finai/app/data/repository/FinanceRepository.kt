@@ -77,6 +77,49 @@ class FinanceRepository(private val db: FinaiDatabase) {
      * `ProviderUsageStore`) são configuração técnica, não dado financeiro —
      * ficam de fora de propósito.
      */
+    /** Retrato de todas as tabelas de dado do usuário, para exportar (Fase 7, item 12). */
+    suspend fun exportar(schemaVersion: Int, now: Long): com.finai.app.data.backup.FinaiBackup = db.withTransaction {
+        com.finai.app.data.backup.FinaiBackup(
+            schemaVersion = schemaVersion,
+            exportedAt = now,
+            transacoes = transacaoDao.getAll(),
+            faturas = faturaCartaoDao.getAll(),
+            contas = contaDao.getAll(),
+            objetivos = objetivoDao.getAll(),
+            dividas = dividaDao.getAll(),
+            orcamentos = orcamentoDao.getAll(),
+            assinaturas = assinaturaDao.getAll(),
+            mensagens = mensagemChatDao.getAll(),
+        )
+    }
+
+    /**
+     * Restaurar **substitui tudo**: apaga os dados atuais e grava os do arquivo, com os mesmos
+     * ids (a fatura aponta para a conta, o item para a fatura), numa transação só — uma falha
+     * no meio deixa o banco como estava.
+     */
+    suspend fun restaurar(backup: com.finai.app.data.backup.FinaiBackup) {
+        db.withTransaction {
+            transacaoDao.deleteAll()
+            faturaCartaoDao.deleteAll()
+            contaDao.deleteAll()
+            objetivoDao.deleteAll()
+            dividaDao.deleteAll()
+            orcamentoDao.deleteAll()
+            assinaturaDao.deleteAll()
+            mensagemChatDao.deleteAll()
+            notificacaoEnviadaDao.deleteAll()
+            backup.contas.forEach { contaDao.upsert(it) }
+            backup.faturas.forEach { faturaCartaoDao.insert(it) }
+            backup.transacoes.forEach { transacaoDao.upsert(it) }
+            backup.objetivos.forEach { objetivoDao.upsert(it) }
+            backup.dividas.forEach { dividaDao.upsert(it) }
+            backup.orcamentos.forEach { orcamentoDao.upsert(it) }
+            backup.assinaturas.forEach { assinaturaDao.upsert(it) }
+            backup.mensagens.forEach { mensagemChatDao.insert(it) }
+        }
+    }
+
     suspend fun apagarTodosOsDados() {
         db.withTransaction {
             transacaoDao.deleteAll()

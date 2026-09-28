@@ -502,6 +502,64 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // ── Configurações: exportar e restaurar (Fase 7, item 12) ────
+    /** Resultado da última exportação/restauração, para a tela avisar. */
+    private val _backupStatus = MutableStateFlow<String?>(null)
+    val backupStatus: StateFlow<String?> = _backupStatus.asStateFlow()
+    fun dismissBackupStatus() { _backupStatus.value = null }
+
+    /** Backup lido e validado, esperando o "substitui tudo" do usuário. */
+    private val _pendingRestore = MutableStateFlow<com.finai.app.data.backup.FinaiBackup?>(null)
+    val pendingRestore: StateFlow<com.finai.app.data.backup.FinaiBackup?> = _pendingRestore.asStateFlow()
+    fun cancelRestore() { _pendingRestore.value = null }
+
+    /** Grava o JSON no arquivo que o usuário escolheu pelo seletor do sistema (SAF, sem permissão nova). */
+    fun exportBackup(uri: android.net.Uri) = viewModelScope.launch {
+        try {
+            val backup = repository.exportar(com.finai.app.data.local.FINAI_DB_VERSION, System.currentTimeMillis())
+            val json = com.finai.app.data.backup.BackupCodec.encode(backup)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use { it.write(json.toByteArray()) }
+                    ?: error("sem stream")
+            }
+            _backupStatus.value = "Backup salvo: ${backup.summary()}. Guarde o arquivo em lugar seguro — ele tem seus dados financeiros sem criptografia."
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            FinaiLog.e(TAG, "Falha ao exportar o backup", t)
+            _backupStatus.value = "Não foi possível salvar o backup. Tente outro local."
+        }
+    }
+
+    /** Lê e valida o arquivo; só grava depois da confirmação ([confirmRestore]). */
+    fun readBackup(uri: android.net.Uri) = viewModelScope.launch {
+        try {
+            val text = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+            } ?: error("sem stream")
+            _pendingRestore.value = com.finai.app.data.backup.BackupCodec.decode(text, com.finai.app.data.local.FINAI_DB_VERSION)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: com.finai.app.data.backup.BackupFormatException) {
+            _backupStatus.value = e.message
+        } catch (t: Throwable) {
+            FinaiLog.e(TAG, "Falha ao ler o backup", t)
+            _backupStatus.value = "Não foi possível abrir o arquivo."
+        }
+    }
+
+    fun confirmRestore(onDone: () -> Unit = {}) {
+        val backup = _pendingRestore.value ?: return
+        _pendingRestore.value = null
+        launchSafely("restaurar o backup") {
+            repository.restaurar(backup)
+            AiResponseCache.clear()
+            FinaiNotifier(getApplication()).cancelAll()
+            _backupStatus.value = "Dados restaurados: ${backup.summary()}."
+            onDone()
+        }
+    }
+
     // ── Configurações: apagar todos os dados ────────────────────
     /**
      * "Apagar todos os dados" (Configurações). Limpa o Room e as duas

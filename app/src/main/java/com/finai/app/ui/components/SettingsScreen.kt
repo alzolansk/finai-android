@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +33,8 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -99,6 +102,13 @@ fun SettingsScreen(
     onRemoveAccount: (String) -> Unit,
     onRestartTour: () -> Unit,
     onEraseAllData: () -> Unit,
+    onExportData: (android.net.Uri) -> Unit = {},
+    onPickRestore: (android.net.Uri) -> Unit = {},
+    pendingRestoreSummary: String? = null,
+    onConfirmRestore: () -> Unit = {},
+    onCancelRestore: () -> Unit = {},
+    backupStatus: String? = null,
+    onDismissBackupStatus: () -> Unit = {},
 ) {
     var page by rememberSaveable { mutableStateOf(SettingsPage.MAIN) }
     var providerName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -161,7 +171,10 @@ fun SettingsScreen(
                 }
                 SettingsPage.NOTIFICATIONS -> NotificationsPage(notificationsEnabled, onRunNotificationCheck)
                 SettingsPage.ACCOUNTS -> AccountsPage(knownAccounts, onAddAccount, onRemoveAccount)
-                SettingsPage.PRIVACY -> PrivacyPage(onEraseAllData)
+                SettingsPage.PRIVACY -> PrivacyPage(
+                    onEraseAllData, onExportData, onPickRestore, pendingRestoreSummary, onConfirmRestore, onCancelRestore,
+                    backupStatus, onDismissBackupStatus,
+                )
             }
         }
     }
@@ -588,13 +601,28 @@ private fun AccountsPage(accounts: Set<String>, onAdd: (String) -> Unit, onRemov
 // ── privacidade e dados ─────────────────────────────────────────────────
 
 /**
- * O que fica e o que sai do aparelho (resumo de PRIVACY.md) + "Apagar todos
- * os dados", que exige confirmação porque é irreversível: o backup do Android
- * está desligado e não há export (planning.md §11).
+ * O que fica e o que sai do aparelho (resumo de PRIVACY.md), exportar/restaurar (Fase 7,
+ * item 12 — o backup do Android está desligado, então é o jeito de trocar de aparelho sem
+ * perder os dados) e "Apagar todos os dados", que exige confirmação porque é irreversível.
  */
 @Composable
-private fun PrivacyPage(onEraseAllData: () -> Unit) {
+private fun PrivacyPage(
+    onEraseAllData: () -> Unit,
+    onExportData: (android.net.Uri) -> Unit,
+    onPickRestore: (android.net.Uri) -> Unit,
+    pendingRestoreSummary: String?,
+    onConfirmRestore: () -> Unit,
+    onCancelRestore: () -> Unit,
+    backupStatus: String?,
+    onDismissBackupStatus: () -> Unit,
+) {
     var showEraseConfirm by remember { mutableStateOf(false) }
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri -> uri?.let(onExportData) }
+    val restoreLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let(onPickRestore) }
 
     SettingsGroup {
         SettingsRow(
@@ -616,6 +644,40 @@ private fun PrivacyPage(onEraseAllData: () -> Unit) {
         )
     }
 
+    GroupLabel("Backup")
+    SettingsGroup {
+        SettingsRow(
+            icon = Icons.Filled.Upload,
+            title = "Exportar dados",
+            status = StatusLine("Salva um arquivo com lançamentos, contas, objetivos, dívidas, limites e chat", StatusTone.Neutral),
+            onClick = { exportLauncher.launch("finai-backup-${java.time.LocalDate.now()}.json") },
+        )
+        RowDivider()
+        SettingsRow(
+            icon = Icons.Filled.Download,
+            title = "Restaurar de um arquivo",
+            status = StatusLine("Substitui todos os dados deste aparelho pelos do arquivo", StatusTone.Neutral),
+            onClick = { restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) },
+        )
+    }
+    FootNote(
+        null,
+        "O arquivo exportado sai do controle do app: fica sem criptografia onde você salvar. Chaves de IA nunca vão nele.",
+    )
+    backupStatus?.let { msg ->
+        Row(
+            modifier = Modifier
+                .padding(top = 10.dp)
+                .fillMaxWidth()
+                .background(FinaiColors.SurfaceMuted, RoundedCornerShape(12.dp))
+                .padding(start = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(msg, fontSize = 14.sp, lineHeight = 20.sp, color = FinaiColors.TextBody, modifier = Modifier.weight(1f).padding(vertical = 10.dp))
+            TextButton(onClick = onDismissBackupStatus, modifier = Modifier.heightIn(min = 48.dp)) { Text("OK") }
+        }
+    }
+
     GroupLabel("Zona de risco")
     SettingsGroup {
         SettingsRow(
@@ -629,6 +691,27 @@ private fun PrivacyPage(onEraseAllData: () -> Unit) {
         )
     }
     FootNote(null, "Suas chaves de IA não são apagadas.")
+
+    pendingRestoreSummary?.let { summary ->
+        AlertDialog(
+            onDismissRequest = onCancelRestore,
+            icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = FinaiColors.AmberDark) },
+            title = { Text("Substituir todos os dados?") },
+            text = {
+                Text(
+                    "O arquivo traz $summary. Tudo o que está neste aparelho hoje será apagado e trocado pelo " +
+                        "conteúdo do arquivo. Suas chaves de IA continuam como estão.",
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = onConfirmRestore,
+                    colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.Ink, contentColor = Color.White),
+                ) { Text("Substituir tudo") }
+            },
+            dismissButton = { TextButton(onClick = onCancelRestore) { Text("Cancelar") } },
+        )
+    }
 
     if (showEraseConfirm) {
         AlertDialog(
@@ -689,7 +772,7 @@ private fun SettingsGroup(modifier: Modifier = Modifier, content: @Composable Co
 private fun GroupLabel(text: String) {
     Text(
         text.uppercase(),
-        fontSize = 11.sp,
+        fontSize = 12.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.6.sp,
         color = FinaiColors.TextTertiary,

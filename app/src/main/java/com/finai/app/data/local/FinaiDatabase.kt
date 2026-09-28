@@ -31,6 +31,9 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
  * The app's only local database — everything financial lives here, on-device,
  * per planning.md §4's privacy-first requirement.
  */
+/** Versão do schema do Room — também é a que o backup exportado carrega (Fase 7, item 12). */
+const val FINAI_DB_VERSION = 10
+
 @Database(
     entities = [
         TransacaoEntity::class,
@@ -44,7 +47,7 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
         UsoProvedorIaEntity::class,
         NotificacaoEnviadaEntity::class,
     ],
-    version = 10,
+    version = FINAI_DB_VERSION,
     // Fase 6: o schema de cada versão passa a ser exportado para
     // `app/schemas/` e versionado no git. É o que permite escrever (e testar)
     // uma migração sem adivinhar o DDL que o Room gerou na versão anterior —

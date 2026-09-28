@@ -182,4 +182,21 @@ class Fase7ClarezaTest {
     @Test fun everyScreenHasAScript() {
         TipScript.screens.forEach { assertTrue(it, TipScript.forScreen(it).isNotEmpty()) }
     }
+
+    // ── Importação: filtro "Precisa revisar" (item 11) ─────────────
+
+    @Test fun reviewFilterCatchesDuplicatesUncategorizedAndRecurring() {
+        fun item(id: String, dup: com.finai.app.domain.importer.DuplicateVerdict = com.finai.app.domain.importer.DuplicateVerdict.NONE, review: Boolean = false,
+                 rec: com.finai.app.domain.importer.RecurrenceVerdict = com.finai.app.domain.importer.RecurrenceVerdict.NONE) = com.finai.app.domain.importer.ImportItem(
+            id = id, entry = com.finai.app.domain.importer.ParsedEntry(today, "Loja", 1_000), categoria = if (review) "Outros" else "Compras",
+            categorySource = com.finai.app.domain.importer.CategorySource.RULE, needsCategoryReview = review, duplicate = dup, recurrence = rec, selected = true,
+        )
+        val items = listOf(
+            item("ok"),
+            item("dup", dup = com.finai.app.domain.importer.DuplicateVerdict.POSSIBLE),
+            item("cat", review = true),
+            item("rec", rec = com.finai.app.domain.importer.RecurrenceVerdict.LIKELY),
+        )
+        assertEquals(listOf("dup", "cat", "rec"), items.filter { it.needsReview }.map { it.id })
+    }
 }

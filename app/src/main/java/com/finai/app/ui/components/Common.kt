@@ -241,6 +241,23 @@ fun ActionButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifi
     }
 }
 
+/** Chip de filtro com alvo de 48 dp (Importar, Fatura). */
+@Composable
+fun SelectChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(99.dp))
+            .background(if (selected) FinaiColors.Ink else FinaiColors.Surface)
+            .border(1.dp, if (selected) FinaiColors.Ink else FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (selected) Color.White else FinaiColors.TextSecondary, maxLines = 1)
+    }
+}
+
 /** Uma opção do menu ⋮. [destructive] pinta de vermelho (excluir). */
 data class OverflowAction(val label: String, val destructive: Boolean = false, val onClick: () -> Unit)
 

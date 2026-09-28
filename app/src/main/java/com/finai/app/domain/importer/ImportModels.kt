@@ -117,7 +117,14 @@ data class ImportItem(
     val recurrenceReason: String? = null,
     /** Marcado para salvar. Duplicata provável entra desmarcada por padrão. */
     val selected: Boolean,
-)
+) {
+    /**
+     * O que o filtro "Precisa revisar" mostra (Fase 7, item 11): possível/provável duplicata,
+     * categoria que a regra local não resolveu ("Outros" com selo "a revisar") e recorrência.
+     */
+    val needsReview: Boolean
+        get() = duplicate != DuplicateVerdict.NONE || needsCategoryReview || recurrence != RecurrenceVerdict.NONE
+}
 
 /** Resultado completo de uma importação, pronto para a tela de revisão. */
 data class ImportPreview(
@@ -135,6 +142,7 @@ data class ImportPreview(
     val invoiceMetadata: InvoiceMetadata = InvoiceMetadata(),
 ) {
     val selectedItems: List<ImportItem> get() = items.filter { it.selected }
+    val needsReviewCount: Int get() = items.count { it.needsReview }
     val duplicateCount: Int get() = items.count { it.duplicate != DuplicateVerdict.NONE }
     val reviewCount: Int get() = items.count { it.needsCategoryReview }
     val recurringCount: Int get() = items.count { it.recurrence != RecurrenceVerdict.NONE }

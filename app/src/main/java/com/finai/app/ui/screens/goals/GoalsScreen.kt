@@ -40,6 +40,12 @@ import androidx.compose.ui.unit.sp
 import com.finai.app.data.ai.AiText
 import com.finai.app.data.model.Goal
 import com.finai.app.ui.components.ConfirmDeleteDialog
+import com.finai.app.ui.components.ActionButton
+import com.finai.app.ui.components.EmptyStateCard
+import com.finai.app.ui.components.OverflowAction
+import com.finai.app.ui.components.OverflowMenu
+import com.finai.app.ui.components.tipTarget
+import androidx.compose.material3.MaterialTheme
 import com.finai.app.ui.components.FadeInAppear
 import com.finai.app.ui.components.PillTag
 import com.finai.app.ui.components.ProgressTrack
@@ -71,22 +77,14 @@ fun GoalsScreen(
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("Objetivos", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Objetivos", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
                     Text(
-                        "Compras, viagens e reservas em andamento", fontSize = 13.sp, color = FinaiColors.TextTertiary,
-                        modifier = Modifier.padding(top = 3.dp),
+                        "Compras, viagens e reservas em andamento", fontSize = 14.sp, color = FinaiColors.TextTertiary,
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(FinaiColors.Ink)
-                        .clickable(onClick = onNewGoal)
-                        .padding(10.dp),
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Novo objetivo", tint = Color.White, modifier = Modifier.size(18.dp))
-                }
+                ActionButton("+ Novo", onNewGoal, primary = true)
             }
         }
 
@@ -98,14 +96,14 @@ fun GoalsScreen(
                     .background(FinaiColors.Ink)
                     .padding(16.dp),
             ) {
-                Text("CAPACIDADE DE POUPANÇA", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextOnDarkFaint)
+                Text("CAPACIDADE DE POUPANÇA", style = MaterialTheme.typography.labelSmall, color = FinaiColors.TextOnDarkMuted)
                 Row(modifier = Modifier.padding(top = 6.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(monthlyCapacityLabel, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                    Text("por mês", fontSize = 12.sp, color = FinaiColors.TextOnDarkMuted)
+                    Text("por mês", fontSize = 14.sp, color = FinaiColors.TextOnDarkMuted)
                 }
                 Text(
                     "Balanço deste mês na Agenda, sem entradas extras. As metas também contam com a sobra projetada dos próximos meses até o prazo.",
-                    fontSize = 12.sp, lineHeight = 18.sp, color = FinaiColors.TextOnDarkMuted,
+                    fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextOnDarkMuted,
                     modifier = Modifier.padding(top = 8.dp),
                 )
             }
@@ -114,30 +112,34 @@ fun GoalsScreen(
         if (goals.isEmpty()) {
             item {
                 FadeInAppear {
-                    Text(
-                        if (completedGoals.isEmpty()) "Nenhum objetivo cadastrado ainda. Toque em \"+\" para criar o primeiro."
-                        else "Nenhuma meta em andamento. Toque em \"+\" para criar a próxima.",
-                        fontSize = 13.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(vertical = 12.dp),
+                    EmptyStateCard(
+                        if (completedGoals.isEmpty())
+                            "Nenhum objetivo ainda. Uma viagem, uma reserva de emergência, uma compra planejada: " +
+                                "o app diz quanto guardar por mês e se isso cabe no que sobra."
+                        else "Nenhuma meta em andamento. Que tal a próxima?",
+                        "Criar objetivo", onNewGoal,
                     )
                 }
             }
         }
 
         items(goals, key = { it.id }) { goal ->
+            val first = goal.id == goals.first().id
             GoalCard(
                 goal, goalInsights[goal.id], onContribute, onEdit, { pendingDelete = goal }, onSimulate,
-                modifier = Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard)),
+                modifier = Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard)).then(if (first) Modifier.tipTarget("goals.card") else Modifier),
+                insightModifier = if (first) Modifier.tipTarget("goals.insight") else Modifier,
             )
         }
 
         if (completedGoals.isNotEmpty()) {
             item(key = "completed-header") {
                 Column(modifier = Modifier.padding(top = 8.dp)) {
-                    Text("Metas concluídas", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                    Text("Metas concluídas", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
                     Text(
                         "${completedGoals.size} " + (if (completedGoals.size == 1) "conquista" else "conquistas") +
                             " · aportes continuam valendo",
-                        fontSize = 12.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                        fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             }
@@ -171,22 +173,21 @@ private fun GoalInsightBody(text: String) {
         AiRichText(text, modifier = Modifier.padding(top = 5.dp))
         return
     }
-    Column(modifier = Modifier.padding(top = 7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    Column(modifier = Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         rows.forEach { (label, body) ->
             val risk = label == "Risco"
             val calm = risk && body.lowercase().startsWith("nenhum")
-            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Column {
                 Text(
                     label.uppercase(),
-                    fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 12.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     color = when {
-                        risk && !calm -> Color(0xFFB45309)
+                        risk && !calm -> FinaiColors.AmberDark
                         label == "Próximo passo" -> FinaiColors.EmeraldDark
                         else -> FinaiColors.TextMuted
                     },
-                    modifier = Modifier.width(64.dp).padding(top = 3.dp),
                 )
-                AiRichText(body, modifier = Modifier.weight(1f))
+                AiRichText(body, modifier = Modifier.padding(top = 2.dp))
             }
         }
     }
@@ -208,7 +209,7 @@ private fun CompletedGoalCard(
             .clip(RoundedCornerShape(18.dp))
             .background(FinaiColors.Surface)
             .border(1.dp, FinaiColors.EmeraldSoftBorder, RoundedCornerShape(18.dp))
-            .padding(14.dp),
+            .padding(start = 14.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -227,24 +228,24 @@ private fun CompletedGoalCard(
             )
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(goal.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            Text(goal.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
             Text(
                 "${goal.completedLabel ?: "Concluída"} · ${formatBrl0(goal.saved)} guardados",
-                fontSize = 11.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
             )
             if (goal.exceeded > 0) {
                 Text(
                     "+${formatBrl0(goal.exceeded)} além do alvo de ${formatBrl0(goal.target)}",
-                    fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark,
+                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
-            Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("Registrar aporte", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark, modifier = Modifier.clickable(onClick = onContribute))
-                Text("Editar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextSecondary, modifier = Modifier.clickable(onClick = onEdit))
-                Text("Excluir", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE11D48), modifier = Modifier.clickable(onClick = onDelete))
-            }
+            ActionButton("Registrar aporte", onContribute, modifier = Modifier.padding(top = 8.dp))
         }
+        OverflowMenu(
+            listOf(OverflowAction("Editar", onClick = onEdit), OverflowAction("Excluir", destructive = true, onClick = onDelete)),
+            contentDescription = "Mais ações para ${goal.name}",
+        )
     }
 }
 
@@ -257,6 +258,7 @@ private fun GoalCard(
     onDelete: (Goal) -> Unit,
     onSimulate: (Goal) -> Unit,
     modifier: Modifier = Modifier,
+    insightModifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
@@ -264,33 +266,40 @@ private fun GoalCard(
             .clip(RoundedCornerShape(20.dp))
             .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
             .background(FinaiColors.Surface)
-            .padding(16.dp),
+            .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 16.dp),
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(goal.kind.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted)
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(modifier = Modifier.weight(1f).padding(top = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(goal.kind.uppercase(), style = MaterialTheme.typography.labelSmall, color = FinaiColors.TextMuted)
+                    PillTag(goal.badge.label, goal.badge.bg, goal.badge.fg)
+                }
                 Text(
                     goal.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
                     modifier = Modifier.padding(top = 4.dp),
                 )
                 if (goal.description.isNotBlank()) {
                     Text(
-                        goal.description, fontSize = 11.5.sp, lineHeight = 16.sp, color = FinaiColors.TextTertiary,
+                        goal.description, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary,
                         maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 3.dp),
                     )
                 }
             }
-            PillTag(goal.badge.label, goal.badge.bg, goal.badge.fg)
+            OverflowMenu(
+                listOf(OverflowAction("Editar", onClick = { onEdit(goal) }), OverflowAction("Excluir", destructive = true, onClick = { onDelete(goal) })),
+                contentDescription = "Mais ações para ${goal.name}",
+            )
         }
-        Row(modifier = Modifier.padding(top = 12.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(modifier = Modifier.padding(end = 12.dp)) {
+        Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(formatBrl0(goal.saved), fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.EmeraldDark)
-            Text("de ${formatBrl0(goal.target)}", fontSize = 12.sp, color = FinaiColors.TextMuted)
+            Text("de ${formatBrl0(goal.target)}", fontSize = 14.sp, color = FinaiColors.TextMuted)
         }
         ProgressTrack(progress = goal.progress, fillColor = FinaiColors.Emerald, height = 8.dp, modifier = Modifier.padding(top = 9.dp))
-        Text(goal.note, fontSize = 11.5.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 8.dp))
+        Text(goal.note, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 8.dp))
         Column(
-            modifier = Modifier
+            modifier = insightModifier
                 .padding(top = 12.dp)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
@@ -298,57 +307,23 @@ private fun GoalCard(
                 .border(1.dp, FinaiColors.BorderFaint, RoundedCornerShape(14.dp))
                 .padding(12.dp),
         ) {
-            Text("LEITURA DA IA", fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted)
+            Text("LEITURA DA IA", style = MaterialTheme.typography.labelSmall, color = FinaiColors.TextMuted)
             when (insight) {
                 is AiText.Ready -> GoalInsightBody(insight.text)
                 is AiText.Unavailable -> Text(
-                    insight.reason, fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
+                    insight.reason, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary,
                     modifier = Modifier.padding(top = 5.dp),
                 )
                 AiText.Loading, null -> Text(
-                    "Analisando este objetivo com IA...", fontSize = 12.sp, color = FinaiColors.TextTertiary,
+                    "Analisando este objetivo com IA...", fontSize = 13.sp, color = FinaiColors.TextTertiary,
                     modifier = Modifier.padding(top = 5.dp),
                 )
             }
         }
         Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(FinaiColors.Ink)
-                    .clickable { onContribute(goal) }
-                    .padding(10.dp),
-            ) {
-                Text(goal.action, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            }
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(12.dp))
-                    .clickable { onEdit(goal) }
-                    .padding(horizontal = 13.dp, vertical = 10.dp),
-            ) {
-                Icon(Icons.Filled.Edit, contentDescription = "Editar objetivo", tint = FinaiColors.TextTertiary, modifier = Modifier.size(16.dp))
-            }
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(12.dp))
-                    .clickable { onSimulate(goal) }
-                    .padding(horizontal = 13.dp, vertical = 10.dp),
-            ) {
-                Text("Simular", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary)
-            }
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(12.dp))
-                    .clickable { onDelete(goal) }
-                    .padding(horizontal = 13.dp, vertical = 10.dp),
-            ) {
-                Text("Excluir", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFE11D48))
-            }
+            ActionButton(goal.action, { onContribute(goal) }, modifier = Modifier.weight(1f), primary = true)
+            ActionButton("Simular", { onSimulate(goal) })
+        }
         }
     }
 }

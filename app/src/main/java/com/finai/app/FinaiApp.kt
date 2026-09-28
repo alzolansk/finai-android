@@ -367,6 +367,8 @@ fun FinaiApp(
                         val context = LocalContext.current
                         val exhaustedAiProviders by aiViewModel.exhaustedToday.collectAsState()
                         val aiConnectionTests by aiViewModel.connectionTests.collectAsState()
+                        val backupStatus by financeViewModel.backupStatus.collectAsState()
+                        val pendingRestore by financeViewModel.pendingRestore.collectAsState()
                         SettingsScreen(
                             onExit = { navController.navigateUp() },
                             configuredProviders = configuredAiProviders,
@@ -393,6 +395,19 @@ fun FinaiApp(
                                     navigateTo(FinaiDestination.Home)
                                 }
                             },
+                            onExportData = financeViewModel::exportBackup,
+                            onPickRestore = financeViewModel::readBackup,
+                            pendingRestoreSummary = pendingRestore?.summary(),
+                            onConfirmRestore = {
+                                financeViewModel.confirmRestore {
+                                    aiViewModel.resetMemoizedState()
+                                    importViewModel.reset()
+                                    viewModel.completeInitialSetup()
+                                }
+                            },
+                            onCancelRestore = financeViewModel::cancelRestore,
+                            backupStatus = backupStatus,
+                            onDismissBackupStatus = financeViewModel::dismissBackupStatus,
                         )
                     }
                 }

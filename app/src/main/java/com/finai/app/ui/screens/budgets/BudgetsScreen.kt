@@ -13,6 +13,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.heightIn
+import com.finai.app.ui.components.ActionButton
+import com.finai.app.ui.components.EmptyStateCard
+import com.finai.app.ui.components.OverflowAction
+import com.finai.app.ui.components.OverflowMenu
+import com.finai.app.ui.components.SectionHeader
+import com.finai.app.ui.components.tipTarget
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +50,7 @@ import com.finai.app.ui.theme.FinaiMotion
 import com.finai.app.ui.theme.finaiTween
 import com.finai.app.util.formatBrl0
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BudgetsScreen(
     budgets: List<Budget>,
@@ -58,62 +71,65 @@ fun BudgetsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("Limites do mês", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Limites do mês", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
                     Text(
-                        "Onde o dinheiro está indo este mês", fontSize = 13.sp, color = FinaiColors.TextTertiary,
-                        modifier = Modifier.padding(top = 3.dp),
+                        "Onde o dinheiro está indo este mês", fontSize = 14.sp, color = FinaiColors.TextTertiary,
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(FinaiColors.Ink)
-                        .clickable(onClick = onNewTransaction)
-                        .padding(horizontal = 13.dp, vertical = 10.dp),
-                ) {
-                    Text("Lançar gasto", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                }
+                ActionButton("Lançar gasto", onNewTransaction, primary = true)
             }
         }
 
-        if (budgets.isNotEmpty()) {
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
-                        .background(FinaiColors.Surface)
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(15.dp),
-                ) {
-                    budgets.forEach { budget -> BudgetRow(budget, onEditLimit) }
+        item {
+            Column(modifier = Modifier.tipTarget("budgets.list")) {
+                if (budgets.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
+                            .background(FinaiColors.Surface)
+                            .padding(vertical = 6.dp),
+                    ) {
+                        budgets.forEachIndexed { index, budget ->
+                            if (index > 0) HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp, modifier = Modifier.padding(horizontal = 16.dp))
+                            BudgetRow(budget, onEditLimit)
+                        }
+                    }
+                } else {
+                    // Sem cadastro ≠ zero real (Fase 7, item 9).
+                    EmptyStateCard(
+                        "Nenhum limite definido. Escolha uma categoria abaixo para definir quanto quer gastar nela por mês; " +
+                            "o app avisa quando estiver perto de estourar.",
+                        null, null,
+                    )
                 }
             }
         }
 
         if (missing.isNotEmpty()) {
             item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .border(1.dp, FinaiColors.BorderFaint, RoundedCornerShape(20.dp))
-                        .padding(16.dp),
-                ) {
-                    Text("Sem limite definido", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
-                    Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("Sem limite definido · toque para definir", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary)
+                    FlowRow(
+                        modifier = Modifier.padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         missing.forEach { cat ->
-                            Row(
+                            Box(
                                 modifier = Modifier
+                                    .heightIn(min = 48.dp)
                                     .clip(RoundedCornerShape(99.dp))
                                     .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
                                     .clickable { onEditLimit(cat) }
-                                    .padding(horizontal = 11.dp, vertical = 6.dp),
+                                    .padding(horizontal = 14.dp),
+                                contentAlignment = Alignment.Center,
                             ) {
-                                Text(cat, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
+                                Text("+ $cat", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
                             }
                         }
                     }
@@ -123,52 +139,49 @@ fun BudgetsScreen(
 
         if (subscriptions.isNotEmpty()) {
             item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
-                        .background(FinaiColors.Surface)
-                        .padding(16.dp),
-                ) {
-                    Text("Assinaturas ativas", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-                    Text(
-                        "Sinalizadas quando sem uso há 45 dias ou mais", fontSize = 11.sp, color = FinaiColors.TextMuted,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SectionHeader("Assinaturas ativas", subtitle = "Sinalizadas quando sem uso há 45 dias ou mais")
                     Column(
-                        modifier = Modifier.padding(top = 12.dp).animateContentSize(finaiTween(FinaiMotion.Standard)),
-                        verticalArrangement = Arrangement.spacedBy(9.dp),
+                        modifier = Modifier
+                            .padding(top = 10.dp)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(FinaiColors.Surface)
+                            .animateContentSize(finaiTween(FinaiMotion.Standard)),
                     ) {
-                        subscriptions.forEach { sub -> SubscriptionRow(sub, onSubscriptionAction) }
+                        subscriptions.forEachIndexed { index, sub ->
+                            if (index > 0) HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp, modifier = Modifier.padding(horizontal = 14.dp))
+                            SubscriptionRow(sub, onSubscriptionAction)
+                        }
                     }
                 }
             }
         }
 
         item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(20.dp))
-                    .background(FinaiColors.Surface)
-                    .padding(16.dp),
-            ) {
-                Text("Lançamentos deste mês", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                SectionHeader("Lançamentos deste mês")
                 if (recentTransactions.isEmpty()) {
                     FadeInAppear {
-                        Text(
-                            "Nenhum lançamento ainda.", fontSize = 12.sp, color = FinaiColors.TextMuted,
-                            modifier = Modifier.padding(top = 10.dp),
+                        EmptyStateCard(
+                            "Nenhum gasto lançado neste mês. Lance o que gastou, ou importe a fatura do cartão, para ver os limites se movendo.",
+                            "Lançar gasto", onNewTransaction,
+                            modifier = Modifier.padding(top = 8.dp),
                         )
                     }
                 } else {
                     Column(
-                        modifier = Modifier.padding(top = 10.dp).animateContentSize(finaiTween(FinaiMotion.Standard)),
-                        verticalArrangement = Arrangement.spacedBy(9.dp),
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(FinaiColors.Surface)
+                            .animateContentSize(finaiTween(FinaiMotion.Standard)),
                     ) {
-                        recentTransactions.forEach { t -> TransactionRow(t) { pendingDelete = t } }
+                        recentTransactions.forEachIndexed { index, t ->
+                            if (index > 0) HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp, modifier = Modifier.padding(horizontal = 14.dp))
+                            TransactionRow(t) { pendingDelete = t }
+                        }
                     }
                 }
             }
@@ -187,63 +200,56 @@ fun BudgetsScreen(
 
 @Composable
 private fun BudgetRow(budget: Budget, onEditLimit: (String) -> Unit) {
-    Column(modifier = Modifier.clickable { onEditLimit(budget.name) }) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-            Text(budget.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable { onEditLimit(budget.name) }
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(budget.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, modifier = Modifier.weight(1f))
             Text(
-                "${formatBrl0(budget.spent)} / ${formatBrl0(budget.limit)}", fontSize = 12.sp,
+                "${formatBrl0(budget.spent)} / ${formatBrl0(budget.limit)}", fontSize = 14.sp,
                 fontWeight = FontWeight.Bold, color = budget.valueColor,
             )
         }
         ProgressTrack(progress = budget.progressPct, fillColor = budget.barColor, modifier = Modifier.padding(top = 7.dp))
-        Text(budget.note, fontSize = 11.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 5.dp))
+        Row(modifier = Modifier.padding(top = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(budget.note, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.weight(1f))
+            Text("Ajustar ›", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark)
+        }
     }
 }
 
 @Composable
 private fun SubscriptionRow(sub: Subscription, onAction: (Subscription) -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(FinaiColors.SurfaceSunken)
-            .border(1.dp, FinaiColors.BorderFaint, RoundedCornerShape(14.dp))
-            .padding(11.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(sub.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-            Text(sub.note, fontSize = 11.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 1.dp))
+            Text(sub.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+            Text(sub.note, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
         }
-        Text(sub.amount, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(FinaiColors.Ink)
-                .clickable { onAction(sub) }
-                .padding(horizontal = 11.dp, vertical = 7.dp),
-        ) {
-            Text(sub.cta, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
+        Text(sub.amount, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        ActionButton(sub.cta, { onAction(sub) })
     }
 }
 
 @Composable
 private fun TransactionRow(t: TransacaoEntity, onDelete: (TransacaoEntity) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(t.descricao, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-            Text(t.categoria, fontSize = 11.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 1.dp))
+            Text(t.descricao, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+            Text(t.categoria, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
         }
-        Text(formatBrl0(t.valorCentavos / 100.0), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-        Text(
-            "Excluir", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE11D48),
-            modifier = Modifier.clickable { onDelete(t) },
-        )
+        Text(formatBrl0(t.valorCentavos / 100.0), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        OverflowMenu(listOf(OverflowAction("Excluir", destructive = true) { onDelete(t) }), contentDescription = "Mais ações para ${t.descricao}")
     }
 }

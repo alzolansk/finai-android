@@ -203,6 +203,9 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // org.json de verdade nos testes JVM: o android.jar só tem stubs, e o codec do backup
+    // (data/backup) depende dele.
+    testImplementation("org.json:json:20231013")
     androidTestImplementation(libs.androidx.junit)
     // MigrationTestHelper, para testar migrações a partir da versão 4 (a
     // primeira com schema exportado). O teste de migração de hoje monta o banco

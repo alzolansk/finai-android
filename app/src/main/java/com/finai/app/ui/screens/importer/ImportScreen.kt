@@ -64,6 +64,17 @@ import com.finai.app.domain.importer.ImportPreview
 import com.finai.app.domain.importer.RecurrenceVerdict
 import com.finai.app.state.ImportUiState
 import com.finai.app.ui.components.PillTag
+import com.finai.app.ui.components.SelectChip
+import com.finai.app.ui.components.TextAction
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.shadow
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.util.formatBrl
@@ -76,6 +87,7 @@ import java.time.ZoneOffset
  * categoria, desmarcar duplicata e confirmar. Nenhum OCR, parsing ou chamada
  * de IA acontece aqui — tudo vem pronto do [com.finai.app.state.ImportViewModel].
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ImportScreen(
     state: ImportUiState,
@@ -99,42 +111,76 @@ fun ImportScreen(
         uri?.let(onPickDocument)
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = ScreenContentPadding,
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        item {
-            Column {
-                Text("Importar fatura", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-                Text(
-                    "PDF, planilha ou foto — lidos aqui no aparelho",
-                    fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 3.dp),
-                )
+    // Filtro da lista de revisão; volta a "Todos" a cada importação nova.
+    var onlyReview by rememberSaveable(state.preview?.sourceName) { mutableStateOf(false) }
+    val preview = state.preview
+    val showConfirm = preview != null && state.savedCount == null && !state.busy && state.stage == null && state.error == null
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            // A barra de confirmação fica fixa por cima; o último item precisa rolar para cima dela.
+            contentPadding = if (showConfirm) PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 250.dp) else ScreenContentPadding,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item {
+                Column {
+                    Text("Importar fatura", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
+                    Text(
+                        "PDF, planilha ou foto — lidos aqui no aparelho",
+                        fontSize = 14.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+
+            when {
+                state.savedCount != null -> item { SavedCard(state, onOpenAgenda, onReset) }
+                state.busy || state.stage != null -> item { ProgressCard(state.stage) }
+                state.error != null -> item { ErrorCard(state.error, onReset) }
+                preview != null -> {
+                    item { PreviewSummaryCard(preview, onSetAllSelected, onSetInvoiceReference, onSetInvoiceDueDate, onReset) }
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SelectChip("Todos · ${preview.items.size}", !onlyReview) { onlyReview = false }
+                            SelectChip("Precisa revisar · ${preview.needsReviewCount}", onlyReview) { onlyReview = true }
+                        }
+                    }
+                    val shown = if (onlyReview) preview.items.filter { it.needsReview } else preview.items
+                    if (shown.isEmpty()) {
+                        item {
+                            Text(
+                                "Nada para revisar: categoria, duplicatas e assinaturas foram resolvidas pela regra local.",
+                                fontSize = 14.sp, lineHeight = 20.sp, color = FinaiColors.TextTertiary,
+                            )
+                        }
+                    }
+                    items(shown, key = { it.id }) { item ->
+                        ImportItemRow(item, onToggleItem, onSetCategory)
+                    }
+                }
+                else -> {
+                    item {
+                        PickerCard(
+                            onPickPdf = { pdfPicker.launch(arrayOf("application/pdf")) },
+                            onPickSpreadsheet = { sheetPicker.launch(SPREADSHEET_MIME_TYPES) },
+                            onPickImage = { imagePicker.launch(arrayOf("image/*")) },
+                        )
+                    }
+                    item { PrivacyCard() }
+                }
             }
         }
 
-        when {
-            state.savedCount != null -> item { SavedCard(state, onOpenAgenda, onReset) }
-            state.busy || state.stage != null -> item { ProgressCard(state.stage) }
-            state.error != null -> item { ErrorCard(state.error, onReset) }
-            state.preview != null -> {
-                item { PreviewSummaryCard(state.preview, onSetAllSelected, onSetInvoiceReference, onSetInvoiceDueDate, onReset) }
-                items(state.preview.items, key = { it.id }) { item ->
-                    ImportItemRow(item, onToggleItem, onSetCategory)
-                }
-                item { ConfirmBar(state.preview, onConfirm) }
-            }
-            else -> {
-                item {
-                    PickerCard(
-                        onPickPdf = { pdfPicker.launch(arrayOf("application/pdf")) },
-                        onPickSpreadsheet = { sheetPicker.launch(SPREADSHEET_MIME_TYPES) },
-                        onPickImage = { imagePicker.launch(arrayOf("image/*")) },
-                    )
-                }
-                item { PrivacyCard() }
-            }
+        // Fixa no rodapé, acima da barra de navegação (Fase 7, item 11): numa fatura grande,
+        // como item da lista, ela ficava lá embaixo.
+        if (showConfirm && preview != null) {
+            ConfirmBar(
+                preview, onConfirm,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 92.dp),
+            )
         }
     }
 }
@@ -243,7 +289,7 @@ private fun StepRow(number: Int, text: String, done: Boolean = false) {
                 color = if (done) FinaiColors.EmeraldDark else FinaiColors.TextMuted,
             )
         }
-        Text(text, fontSize = 12.5.sp, lineHeight = 18.sp, color = if (done) FinaiColors.TextPrimary else FinaiColors.TextTertiary)
+        Text(text, fontSize = 14.sp, lineHeight = 18.sp, color = if (done) FinaiColors.TextPrimary else FinaiColors.TextTertiary)
     }
 }
 
@@ -287,7 +333,7 @@ private fun ErrorCard(message: String, onReset: () -> Unit) {
             .padding(16.dp),
     ) {
         Text("Não deu para importar", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.RoseDeep)
-        Text(message, fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.RoseDeep, modifier = Modifier.padding(top = 6.dp))
+        Text(message, fontSize = 14.sp, lineHeight = 18.sp, color = FinaiColors.RoseDeep, modifier = Modifier.padding(top = 6.dp))
         Box(
             modifier = Modifier
                 .padding(top = 14.dp)
@@ -296,7 +342,7 @@ private fun ErrorCard(message: String, onReset: () -> Unit) {
                 .clickable(onClick = onReset)
                 .padding(horizontal = 18.dp, vertical = 10.dp),
         ) {
-            Text("Escolher outro arquivo", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Escolher outro arquivo", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
@@ -322,17 +368,17 @@ private fun SavedCard(state: ImportUiState, onOpenAgenda: () -> Unit, onReset: (
                     append(" ${state.savedSubscriptions} assinatura(s) nova(s) foram cadastradas na tela Limites.")
                 }
             },
-            fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.EmeraldDeep, modifier = Modifier.padding(top = 6.dp),
+            fontSize = 14.sp, lineHeight = 18.sp, color = FinaiColors.EmeraldDeep, modifier = Modifier.padding(top = 6.dp),
         )
         Row(modifier = Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(13.dp))
-                    .background(FinaiColors.Emerald)
+                    .background(FinaiColors.EmeraldDark)
                     .clickable(onClick = onOpenAgenda)
                     .padding(horizontal = 18.dp, vertical = 10.dp),
             ) {
-                Text("Ver na Agenda", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Ver na Agenda", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
             Box(
                 modifier = Modifier
@@ -341,13 +387,13 @@ private fun SavedCard(state: ImportUiState, onOpenAgenda: () -> Unit, onReset: (
                     .clickable(onClick = onReset)
                     .padding(horizontal = 18.dp, vertical = 10.dp),
             ) {
-                Text("Importar outra", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextBody)
+                Text("Importar outra", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextBody)
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun PreviewSummaryCard(
     preview: ImportPreview,
@@ -373,7 +419,7 @@ private fun PreviewSummaryCard(
         )
         Text(
             "Confirme os dados abaixo. Campos ausentes não são inventados.",
-            fontSize = 11.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+            fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
         )
         OutlinedTextField(
             value = preview.invoiceMetadata.reference.orEmpty(),
@@ -401,7 +447,7 @@ private fun PreviewSummaryCard(
         preview.invoiceMetadata.closingDate?.let { closing ->
             Text(
                 "Fechamento identificado: %02d/%02d/%04d".format(closing.dayOfMonth, closing.monthValue, closing.year),
-                fontSize = 11.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 5.dp),
+                fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 5.dp),
             )
         }
         Text(
@@ -417,7 +463,7 @@ private fun PreviewSummaryCard(
                 PillTag("${preview.duplicateCount} duplicada(s)", FinaiColors.AmberSoftBg, FinaiColors.AmberDark)
             }
             if (preview.recurringCount > 0) {
-                PillTag("${preview.recurringCount} recorrente(s)", FinaiColors.IndigoSoftBg, FinaiColors.Indigo)
+                PillTag("${preview.recurringCount} recorrente(s)", FinaiColors.SurfaceMuted, FinaiColors.TextSecondary)
             }
             if (preview.reviewCount > 0) {
                 PillTag("${preview.reviewCount} a revisar", FinaiColors.SurfaceMuted, FinaiColors.TextSecondary)
@@ -426,30 +472,21 @@ private fun PreviewSummaryCard(
         preview.aiNote?.let { note ->
             Text(
                 "IA indisponível: $note",
-                fontSize = 11.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
+                fontSize = 13.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
                 modifier = Modifier.padding(top = 10.dp),
             )
         }
         if (preview.aiUsed) {
             Text(
                 "A IA foi usada só nos itens ambíguos, com o nome do estabelecimento, valor e dia — nunca com o arquivo.",
-                fontSize = 11.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
+                fontSize = 13.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
                 modifier = Modifier.padding(top = 10.dp),
             )
         }
-        Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(
-                "Marcar todos", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark,
-                modifier = Modifier.clickable { onSetAllSelected(true) },
-            )
-            Text(
-                "Desmarcar todos", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary,
-                modifier = Modifier.clickable { onSetAllSelected(false) },
-            )
-            Text(
-                "Cancelar", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary,
-                modifier = Modifier.clickable { onReset() },
-            )
+        FlowRow(modifier = Modifier.padding(top = 6.dp).offset(x = (-6).dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            TextAction("Marcar todos", { onSetAllSelected(true) })
+            TextAction("Desmarcar todos", { onSetAllSelected(false) }, color = FinaiColors.TextSecondary)
+            TextAction("Cancelar", onReset, color = FinaiColors.TextSecondary)
         }
     }
 
@@ -476,6 +513,7 @@ private fun PreviewSummaryCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ImportItemRow(
     item: ImportItem,
@@ -497,19 +535,19 @@ private fun ImportItemRow(
         Checkbox(
             checked = item.selected,
             onCheckedChange = { onToggleItem(item.id) },
-            colors = CheckboxDefaults.colors(checkedColor = FinaiColors.Emerald),
+            colors = CheckboxDefaults.colors(checkedColor = FinaiColors.EmeraldDark),
         )
         Column(modifier = Modifier.weight(1f).padding(start = 4.dp, top = 10.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Text(
                     item.entry.description,
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
+                    fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     formatBrl(item.entry.amountCents / 100.0),
-                    fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = amountColor,
+                    fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = amountColor,
                 )
             }
             Text(
@@ -518,16 +556,16 @@ private fun ImportItemRow(
                     item.entry.installment?.let { append(" · parcela ${it.label}") }
                     if (item.entry.isRefund) append(" · estorno")
                 },
-                fontSize = 11.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
             )
 
-            Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FlowRow(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box {
                     PillTag(
                         text = item.categoria + if (item.categorySource == CategorySource.AI) " · IA" else "",
                         background = if (item.needsCategoryReview) FinaiColors.AmberSoftBg else FinaiColors.SurfaceMuted,
                         foreground = if (item.needsCategoryReview) FinaiColors.AmberDark else FinaiColors.TextSecondary,
-                        modifier = Modifier.clickable { menuOpen = true },
+                        modifier = Modifier.heightIn(min = 32.dp).clickable { menuOpen = true },
                     )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         Categorias.all.forEach { categoria ->
@@ -545,8 +583,8 @@ private fun ImportItemRow(
                     IconPill(
                         icon = Icons.Filled.Repeat,
                         label = if (item.recurrence == RecurrenceVerdict.LIKELY) "assinatura" else "talvez assinatura",
-                        background = FinaiColors.IndigoSoftBg,
-                        foreground = FinaiColors.Indigo,
+                        background = FinaiColors.SurfaceMuted,
+                        foreground = FinaiColors.TextSecondary,
                     )
                 }
                 if (item.duplicate != DuplicateVerdict.NONE) {
@@ -560,7 +598,7 @@ private fun ImportItemRow(
             }
 
             (item.duplicateReason ?: item.recurrenceReason)?.let { reason ->
-                Text(reason, fontSize = 11.sp, lineHeight = 16.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 6.dp))
+                Text(reason, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 6.dp))
             }
         }
     }
@@ -573,18 +611,19 @@ private fun IconPill(icon: ImageVector, label: String, background: Color, foregr
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = foreground, modifier = Modifier.size(11.dp))
-        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = foreground)
+        Icon(icon, contentDescription = null, tint = foreground, modifier = Modifier.size(13.dp))
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = foreground)
     }
 }
 
 @Composable
-private fun ConfirmBar(preview: ImportPreview, onConfirm: () -> Unit) {
+private fun ConfirmBar(preview: ImportPreview, onConfirm: () -> Unit, modifier: Modifier = Modifier) {
     val selected = preview.selectedItems
     val totalCents = selected.sumOf { it.entry.amountCents }
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .shadow(10.dp, RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
             .background(FinaiColors.Ink)
             .padding(16.dp),
@@ -593,7 +632,7 @@ private fun ConfirmBar(preview: ImportPreview, onConfirm: () -> Unit) {
             Icon(Icons.Filled.Checklist, contentDescription = null, tint = FinaiColors.TextOnDarkMuted, modifier = Modifier.size(16.dp))
             Text(
                 "${selected.size} de ${preview.items.size} selecionados · ${formatBrl(totalCents / 100.0)}",
-                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextOnDarkFull,
+                fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextOnDarkFull,
             )
         }
         Box(
@@ -601,15 +640,16 @@ private fun ConfirmBar(preview: ImportPreview, onConfirm: () -> Unit) {
                 .padding(top = 12.dp)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .background(if (selected.isEmpty()) FinaiColors.InkBorder else FinaiColors.Emerald)
+                .heightIn(min = 48.dp)
+                .background(if (selected.isEmpty()) FinaiColors.InkBorder else FinaiColors.EmeraldDark)
                 .clickable(enabled = selected.isNotEmpty(), onClick = onConfirm)
                 .padding(vertical = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 if (selected.isEmpty()) "Selecione ao menos um lançamento" else "Salvar ${selected.size} lançamento(s)",
-                fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                color = if (selected.isEmpty()) FinaiColors.TextOnDarkFaint else Color.White,
+                fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                color = if (selected.isEmpty()) FinaiColors.TextOnDarkMuted else Color.White,
             )
         }
     }

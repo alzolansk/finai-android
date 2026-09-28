@@ -26,6 +26,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TransacaoDao {
+    /** Leitura única de tudo, para exportar o backup (Fase 7, item 12). */
+    @Query("SELECT * FROM transacoes")
+    suspend fun getAll(): List<TransacaoEntity>
+
     @Query("SELECT * FROM transacoes ORDER BY data DESC")
     fun observeAll(): Flow<List<TransacaoEntity>>
 
@@ -44,6 +48,10 @@ interface TransacaoDao {
 
 @Dao
 interface FaturaCartaoDao {
+    /** Leitura única de tudo, para exportar o backup (Fase 7, item 12). */
+    @Query("SELECT * FROM faturas_cartao")
+    suspend fun getAll(): List<FaturaCartaoEntity>
+
     @Query("SELECT * FROM faturas_cartao ORDER BY vencimento DESC, id DESC")
     fun observeAll(): Flow<List<FaturaCartaoEntity>>
 
@@ -56,6 +64,10 @@ interface FaturaCartaoDao {
 
 @Dao
 interface ContaDao {
+    /** Leitura única de tudo, para exportar o backup (Fase 7, item 12). */
+    @Query("SELECT * FROM contas")
+    suspend fun getAll(): List<ContaEntity>
+
     @Query("SELECT * FROM contas ORDER BY vencimento ASC")
     fun observeAll(): Flow<List<ContaEntity>>
 
@@ -74,6 +86,10 @@ interface ContaDao {
 
 @Dao
 interface ObjetivoDao {
+    /** Leitura única de tudo, para exportar o backup (Fase 7, item 12). */
+    @Query("SELECT * FROM objetivos")
+    suspend fun getAll(): List<ObjetivoEntity>
+
     @Query("SELECT * FROM objetivos ORDER BY prioridade ASC")
     fun observeAll(): Flow<List<ObjetivoEntity>>
 
@@ -92,6 +108,10 @@ interface ObjetivoDao {
 
 @Dao
 interface DividaDao {
+    /** Leitura única de tudo, para exportar o backup (Fase 7, item 12). */
+    @Query("SELECT * FROM dividas")
+    suspend fun getAll(): List<DividaEntity>
+
     @Query("SELECT * FROM dividas ORDER BY taxaJurosMensalBasisPoints DESC")
     fun observeAll(): Flow<List<DividaEntity>>
 
@@ -110,6 +130,10 @@ interface DividaDao {
 
 @Dao
 interface OrcamentoCategoriaDao {
+    /** Leitura única de tudo, para exportar o backup (Fase 7, item 12). */
+    @Query("SELECT * FROM orcamento_categorias")
+    suspend fun getAll(): List<OrcamentoCategoriaEntity>
+
     @Query("SELECT * FROM orcamento_categorias WHERE mesReferencia = :mesReferencia")
     fun observeForMonth(mesReferencia: String): Flow<List<OrcamentoCategoriaEntity>>
 
@@ -122,6 +146,10 @@ interface OrcamentoCategoriaDao {
 
 @Dao
 interface AssinaturaDao {
+    /** Leitura única de tudo, para exportar o backup (Fase 7, item 12). */
+    @Query("SELECT * FROM assinaturas")
+    suspend fun getAll(): List<AssinaturaEntity>
+
     @Query("SELECT * FROM assinaturas ORDER BY nome ASC")
     fun observeAll(): Flow<List<AssinaturaEntity>>
 
@@ -137,6 +165,10 @@ interface AssinaturaDao {
 
 @Dao
 interface MensagemChatDao {
+    /** Leitura única de tudo, para exportar o backup (Fase 7, item 12). */
+    @Query("SELECT * FROM mensagens_chat")
+    suspend fun getAll(): List<MensagemChatEntity>
+
     // id desempata mensagens gravadas no mesmo milissegundo (pergunta + resposta rápida da IA).
     @Query("SELECT * FROM mensagens_chat ORDER BY timestamp ASC, id ASC")
     fun observeAll(): Flow<List<MensagemChatEntity>>
