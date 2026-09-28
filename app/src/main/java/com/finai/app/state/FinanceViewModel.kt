@@ -237,6 +237,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             saldoLabel = formatBrl(saldoCents / 100.0),
             payCycle = payCycle,
             safeNote = safeNoteFor(safe, payCycle, aporteMensalMetasCents(goalPlans)),
+            spendExplanation = com.finai.app.domain.SpendExplanation.of(safe, payCycle, today),
             nextWeekBills = weekBills,
             timeline = timelineExtras.map { it.toUiTimelineEntry() },
             timelineNote = if (timelineExtras.isEmpty())

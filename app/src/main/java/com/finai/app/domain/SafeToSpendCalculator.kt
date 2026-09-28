@@ -18,6 +18,10 @@ data class SafeToSpendResult(
     val floor: CycleFloor? = null,
     /** Quanto do aporte das metas coube no dinheiro disponível. */
     val reservedForGoalsCents: Long = 0,
+    /** Só no cálculo pelo mês: as parcelas da folga, para explicar o valor. */
+    val monthIncomeCents: Long = 0,
+    val monthSpentCents: Long = 0,
+    val monthBillsCents: Long = 0,
 )
 
 /**
@@ -70,6 +74,11 @@ object SafeToSpendCalculator {
             monthProgressFraction = monthProgress.coerceIn(0f, 1f),
             lastDayOfMonth = lastDay,
             reservedForGoalsCents = aporteMensalMetasCents.coerceAtMost((slack + aporteMensalMetasCents).coerceAtLeast(0)),
+            monthIncomeCents = rendaDoMes,
+            monthSpentCents = gastosDoMes,
+            monthBillsCents = contasAPagarRestantes,
+            // Sem ciclo não há dia a dia: a falta é a do mês inteiro, já hoje.
+            shortfall = (slack + aporteMensalMetasCents).takeIf { it < 0 }?.let { CycleShortfall(today, -it) },
         )
     }
 

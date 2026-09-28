@@ -771,7 +771,22 @@ e tipografia; depois renda principal explícita, onboarding mínimo e o resto. `
   o cartão do ciclo troca "R$ X livres" por "Faltam R$ X", o aporte das metas não é
   reservado, o `safeNote` e o resumo da IA dizem quando/por quê, e o sino/rotina diária
   ganham o aviso `falta-ciclo` no topo. Sem ciclo (nenhum salário), o cálculo pelo mês
-  (`calculate`) não mudou e não enxerga falta intra-mês. 5 testes novos em `PayCycleTest`.
+  (`calculate`) não enxerga falta intra-mês; nele a falta é a do mês inteiro (conta
+  negativa antes das metas vira `shortfall` com a data de hoje, e o cartão diz "VAI FALTAR
+  ESTE MÊS"). 5 testes novos em `PayCycleTest`.
+- **Item 2 feito — "Entenda este valor".** `domain/SpendExplanation.kt` monta, dos números
+  que `PayCycle`/`SafeToSpendCalculator` já calcularam, os passos da conta (já entrou, vai
+  entrar, já saiu, vai sair, sobra do ciclo, ajuste do dia mais apertado, reserva das metas,
+  livre ÷ dias), a lista do que ainda vai sair, o que o app supõe (não é saldo do banco, sem
+  sobra do ciclo anterior, cartão pela fatura, salário estimado) e o que falta cadastrar
+  (salário deduzido pela maior recorrente — `PayCycle.salarioPeloNome` —, próximo salário
+  não lançado). Folha em `ui/components/SpendExplanationSheet.kt`, aberta pelo link de 48 dp
+  "Entenda este valor ›" no cartão preto (`AppViewModel.explainOpen`, fecha com voltar).
+  Os passos somam o valor final (testado em `SpendExplanationTest`). Conferido no emulador
+  só no caminho sem salário; o do ciclo está coberto por teste JVM.
+- **Achado no emulador para o item 5/6:** o assistente inicial pré-preenche a renda como
+  "Renda mensal", que não casa com `PayCycle.isSalary` — quem aceita o padrão fica sem ciclo
+  se a renda não for recorrente. A marcação explícita de renda principal resolve.
 
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja

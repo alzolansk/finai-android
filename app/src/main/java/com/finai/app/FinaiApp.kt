@@ -248,6 +248,7 @@ fun FinaiApp(
                             onNewGoal = { showAddGoal = true },
                             onOpenSimulator = viewModel::openSimulator,
                             onOpenBudgets = { navigateTo(FinaiDestination.Budgets) },
+                            onExplainSafe = viewModel::openSpendExplanation,
                             onOpenAgenda = { navigateTo(FinaiDestination.Agenda) },
                             onAskAbout = askAbout,
                             onNewIncomeEntry = { transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name; transactionEntryInitialExtra = true; showAddTransaction = true },
@@ -480,6 +481,37 @@ fun FinaiApp(
         }
 
         AnimatedVisibility(
+            visible = uiState.explainOpen && financeState.spendExplanation != null,
+            enter = fadeIn(finaiTween(FinaiMotion.Standard)),
+            exit = fadeOut(finaiTween(FinaiMotion.Quick)),
+        ) {
+            Scrim(onDismiss = viewModel::closeSpendExplanation)
+        }
+        AnimatedVisibility(
+            visible = uiState.explainOpen && financeState.spendExplanation != null,
+            enter = fadeIn(finaiTween(FinaiMotion.Standard)) + slideInVertically(finaiTween(FinaiMotion.Standard)) { it / 8 },
+            exit = fadeOut(finaiTween(FinaiMotion.Quick)) + slideOutVertically(finaiTween(FinaiMotion.Quick)) { it / 8 },
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+        ) {
+            // Guarda a última explicação para a animação de saída não piscar vazia.
+            var shown by remember { mutableStateOf(financeState.spendExplanation) }
+            financeState.spendExplanation?.let { shown = it }
+            Surface(
+                modifier = Modifier.fillMaxWidth().sizeIn(maxHeight = 720.dp),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = FinaiColors.Surface,
+            ) {
+                shown?.let {
+                    com.finai.app.ui.components.SpendExplanationContent(
+                        explanation = it,
+                        onClose = viewModel::closeSpendExplanation,
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(
             visible = uiState.notifsOpen,
             enter = fadeIn(finaiTween(FinaiMotion.Standard)),
             exit = fadeOut(finaiTween(FinaiMotion.Quick)),
@@ -682,11 +714,12 @@ fun FinaiApp(
         // tela *atrás* da sobreposição (ou fechava o app, se já estava na
         // Início) e deixava a sobreposição aberta. Lançamento, fatura,
         // dívida e Configurações têm o próprio BackHandler.
-        val overlayOpen = uiState.chatOpen || uiState.simOpen || uiState.addOpen || uiState.notifsOpen
+        val overlayOpen = uiState.chatOpen || uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen
         BackHandler(enabled = overlayOpen) {
             when {
                 uiState.chatOpen -> viewModel.closeChat()
                 uiState.simOpen -> viewModel.closeSimulator()
+                uiState.explainOpen -> viewModel.closeSpendExplanation()
                 uiState.addOpen -> viewModel.closeAddMenu()
                 uiState.notifsOpen -> viewModel.closeNotifications()
             }

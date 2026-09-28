@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -74,6 +75,7 @@ fun HomeScreen(
     onNewGoal: () -> Unit,
     onOpenSimulator: () -> Unit,
     onOpenBudgets: () -> Unit,
+    onExplainSafe: () -> Unit,
     onOpenAgenda: () -> Unit,
     onAskAbout: (com.finai.app.domain.AssistantTopic) -> Unit,
     onNewIncomeEntry: () -> Unit,
@@ -99,7 +101,7 @@ fun HomeScreen(
 
         item { GoalsCarousel(goals, onOpenGoals, onNewGoal) }
 
-        item { SafeToSpendCard(safeToday, safeTodayLabel, safeNote, onOpenSimulator, onOpenBudgets) }
+        item { SafeToSpendCard(safeToday, safeTodayLabel, safeNote, payCycle != null, onOpenSimulator, onOpenBudgets, onExplainSafe) }
 
         item { DecisionsCard(decisions, onAskAbout) }
 
@@ -355,8 +357,10 @@ private fun SafeToSpendCard(
     safeToday: SafeToSpendResult?,
     safeTodayLabel: String,
     safeNote: String,
+    byCycle: Boolean,
     onOpenSimulator: () -> Unit,
     onOpenBudgets: () -> Unit,
+    onExplain: () -> Unit,
 ) {
     val dayLeftLabel = safeToday?.daysRemaining?.toString() ?: "—"
     val dayProgressFraction = safeToday?.monthProgressFraction ?: 0f
@@ -373,7 +377,7 @@ private fun SafeToSpendCard(
                     // Falta prevista vem antes de qualquer sugestão de gasto (planning.md §9 Fase 7, item 1).
                     val falta = safeToday?.shortfall
                     Text(
-                        if (falta != null) "VAI FALTAR ANTES DO SALÁRIO" else "PODE GASTAR HOJE",
+                        when { falta == null -> "PODE GASTAR HOJE"; byCycle -> "VAI FALTAR ANTES DO SALÁRIO"; else -> "VAI FALTAR ESTE MÊS" },
                         fontSize = 10.sp, fontWeight = FontWeight.Bold,
                         color = if (falta != null) FinaiColors.Rose else FinaiColors.TextOnDarkFaint,
                     )
@@ -387,6 +391,16 @@ private fun SafeToSpendCard(
                         safeNote, fontSize = 12.sp, lineHeight = 17.sp,
                         color = FinaiColors.TextOnDarkMuted, modifier = Modifier.padding(top = 7.dp),
                     )
+                    // Alvo de toque de 48 dp: o valor precisa ser explicável em um toque.
+                    Box(
+                        modifier = Modifier.heightIn(min = 48.dp).clickable(onClick = onExplain),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        Text(
+                            "Entenda este valor ›", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            color = FinaiColors.Emerald,
+                        )
+                    }
                 }
                 Box(
                     modifier = Modifier

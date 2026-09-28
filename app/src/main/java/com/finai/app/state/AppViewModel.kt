@@ -146,6 +146,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun openSimulator() = _uiState.update { it.copy(simOpen = true, addOpen = false) }
     fun closeSimulator() = _uiState.update { it.copy(simOpen = false) }
 
+    fun openSpendExplanation() = _uiState.update { it.copy(explainOpen = true, addOpen = false) }
+    fun closeSpendExplanation() = _uiState.update { it.copy(explainOpen = false) }
+
     /**
      * Ícone do assistente na topbar: continua a conversa mais recente se ela
      * teve mensagem hoje; senão começa uma nova — o assunto de ontem não

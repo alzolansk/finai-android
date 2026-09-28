@@ -47,6 +47,8 @@ data class PayCycle(
     val proximoEstimado: Boolean,
     val entries: List<CycleEntry>,
     val today: LocalDate,
+    /** Falso quando nenhuma receita tem "salário" no nome e o app deduziu a maior recorrente. */
+    val salarioPeloNome: Boolean = true,
 ) {
     val entradasCents: Long get() = entries.filter { it.cents > 0 }.sumOf { it.cents }
     val aReceberCents: Long get() = entries.filter { it.cents > 0 && !it.done }.sumOf { it.cents }
@@ -199,6 +201,7 @@ data class PayCycle(
 
             return PayCycle(
                 salarioNome = salario.descricao.ifBlank { salario.categoria },
+                salarioPeloNome = isSalary(salario),
                 salarioCents = salario.valorCentavos,
                 inicio = inicio,
                 proximo = proximo,

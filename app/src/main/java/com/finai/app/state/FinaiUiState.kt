@@ -16,6 +16,8 @@ import java.time.LocalDate
 data class FinaiUiState(
     val addOpen: Boolean = false,
     val simOpen: Boolean = false,
+    /** Folha "Entenda este valor" do "Pode gastar hoje". */
+    val explainOpen: Boolean = false,
     val chatOpen: Boolean = false,
     val notifsOpen: Boolean = false,
     val showCoach: Boolean = true,

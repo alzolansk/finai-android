@@ -49,6 +49,8 @@ data class FinanceUiState(
     val safeToday: SafeToSpendResult? = null,
     val safeTodayLabel: String = "",
     val safeNote: String = "",
+    /** De onde vem o "Pode gastar hoje" — folha "Entenda este valor". */
+    val spendExplanation: com.finai.app.domain.SpendExplanation? = null,
     /** Ciclo entre salários ([com.finai.app.domain.PayCycle]); nulo sem receita recorrente cadastrada. */
     val payCycle: com.finai.app.domain.PayCycle? = null,
     /** Balanço do mês corrente — recebimentos − contas a pagar, a mesma conta da Agenda (MonthCashFlow). */

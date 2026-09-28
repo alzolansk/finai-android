@@ -227,7 +227,7 @@ Itens, em ordem de prioridade:
    o valor gastável é zero e a falta (quanto, quando, qual compromisso causa) aparece antes
    de qualquer sugestão. Valor gastável = menor saldo corrido projetado até o salário, não
    a sobra final.
-2. **[Alta] "Entenda este valor".** Decomposição simples do "Pode gastar hoje": período
+2. ✅ **[Alta] "Entenda este valor".** Decomposição simples do "Pode gastar hoje": período
    considerado, o que já entrou, o que está previsto, compromissos descontados, reserva de
    metas, o que falta cadastrar, e o aviso explícito de que não é saldo bancário e que a
    sobra do ciclo anterior não é carregada.
