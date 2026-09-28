@@ -784,9 +784,13 @@ e tipografia; depois renda principal explícita, onboarding mínimo e o resto. `
   "Entenda este valor ›" no cartão preto (`AppViewModel.explainOpen`, fecha com voltar).
   Os passos somam o valor final (testado em `SpendExplanationTest`). Conferido no emulador
   só no caminho sem salário; o do ciclo está coberto por teste JVM.
-- **Achado no emulador para o item 5/6:** o assistente inicial pré-preenche a renda como
-  "Renda mensal", que não casa com `PayCycle.isSalary` — quem aceita o padrão fica sem ciclo
-  se a renda não for recorrente. A marcação explícita de renda principal resolve.
+- **Achado no emulador para o item 5/6:** o assistente inicial grava a renda como "Renda
+  mensal" (recorrente), que não casa com `PayCycle.isSalary`: o ciclo funciona pela "maior
+  receita recorrente", mas a folha "Entenda este valor" pede para renomear. A marcação
+  explícita de renda principal resolve.
+- **Próxima sessão: leia `FASE7-PROXIMOS-PASSOS.md`**, que detalha os itens 3 a 12
+  (arquivos, armadilhas, critério de pronto), como testar no emulador deste ambiente e as
+  decisões que dependem do usuário.
 
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
