@@ -70,8 +70,8 @@ fun QuickActionSheet(
                 QuickActionGlyph(primary.icon, Color.White)
             }
             Column {
-                Text(primary.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text(primary.sub, fontSize = 13.sp, color = Color.White.copy(alpha = 0.85f))
+                Text(primary.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(primary.sub, fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.85f))
             }
         }
         Text(
@@ -99,8 +99,8 @@ fun QuickActionSheet(
                     QuickActionGlyph(action.icon, FinaiColors.TextSecondary, size = 18)
                 }
                 Column {
-                    Text(action.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-                    Text(action.sub, fontSize = 13.sp, color = FinaiColors.TextTertiary)
+                    Text(action.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+                    Text(action.sub, fontSize = 12.5.sp, color = FinaiColors.TextTertiary)
                 }
             }
         }

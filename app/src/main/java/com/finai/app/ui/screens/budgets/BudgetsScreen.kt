@@ -75,7 +75,7 @@ fun BudgetsScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Limites do mês", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
                     Text(
-                        "Onde o dinheiro está indo este mês", fontSize = 14.sp, color = FinaiColors.TextTertiary,
+                        "Onde o dinheiro está indo este mês", fontSize = 13.sp, color = FinaiColors.TextTertiary,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
@@ -113,7 +113,7 @@ fun BudgetsScreen(
         if (missing.isNotEmpty()) {
             item {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("Sem limite definido · toque para definir", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary)
+                    Text("Sem limite definido · toque para definir", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary)
                     FlowRow(
                         modifier = Modifier.padding(top = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -129,7 +129,7 @@ fun BudgetsScreen(
                                     .padding(horizontal = 14.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text("+ $cat", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
+                                Text("+ $cat", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
                             }
                         }
                     }
@@ -208,16 +208,16 @@ private fun BudgetRow(budget: Budget, onEditLimit: (String) -> Unit) {
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(budget.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, modifier = Modifier.weight(1f))
+            Text(budget.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, modifier = Modifier.weight(1f))
             Text(
-                "${formatBrl0(budget.spent)} / ${formatBrl0(budget.limit)}", fontSize = 14.sp,
+                "${formatBrl0(budget.spent)} / ${formatBrl0(budget.limit)}", fontSize = 13.sp,
                 fontWeight = FontWeight.Bold, color = budget.valueColor,
             )
         }
         ProgressTrack(progress = budget.progressPct, fillColor = budget.barColor, modifier = Modifier.padding(top = 7.dp))
         Row(modifier = Modifier.padding(top = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(budget.note, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.weight(1f))
-            Text("Ajustar ›", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark)
+            Text(budget.note, fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.weight(1f))
+            Text("Ajustar ›", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark)
         }
     }
 }
@@ -230,10 +230,10 @@ private fun SubscriptionRow(sub: Subscription, onAction: (Subscription) -> Unit)
         horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(sub.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-            Text(sub.note, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
+            Text(sub.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+            Text(sub.note, fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
         }
-        Text(sub.amount, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        Text(sub.amount, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
         ActionButton(sub.cta, { onAction(sub) })
     }
 }
@@ -246,10 +246,10 @@ private fun TransactionRow(t: TransacaoEntity, onDelete: (TransacaoEntity) -> Un
         horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(t.descricao, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-            Text(t.categoria, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
+            Text(t.descricao, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+            Text(t.categoria, fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
         }
-        Text(formatBrl0(t.valorCentavos / 100.0), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        Text(formatBrl0(t.valorCentavos / 100.0), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
         OverflowMenu(listOf(OverflowAction("Excluir", destructive = true) { onDelete(t) }), contentDescription = "Mais ações para ${t.descricao}")
     }
 }

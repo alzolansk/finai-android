@@ -155,9 +155,9 @@ private fun TipBalloon(
             .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 4.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
-        Text(tip.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary, modifier = Modifier.padding(end = 8.dp))
+        Text(tip.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary, modifier = Modifier.padding(end = 8.dp))
         Text(
-            tip.body, fontSize = 14.sp, lineHeight = 20.sp, color = FinaiColors.TextSecondary,
+            tip.body, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary,
             modifier = Modifier.padding(top = 4.dp, end = 8.dp),
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -180,7 +180,7 @@ private fun TipButton(label: String, primary: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            label, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            label, fontSize = 13.sp, fontWeight = FontWeight.Bold,
             color = if (primary) FinaiColors.EmeraldDark else FinaiColors.TextSecondary,
         )
     }

@@ -106,7 +106,7 @@ fun BuySimulatorContent(
         )
         Text(
             "A IA compara a compra com seus limites, contas e objetivos antes de você decidir.",
-            fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 4.dp),
+            fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 4.dp),
         )
 
         Column(
@@ -178,10 +178,10 @@ fun BuySimulatorContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Column {
-                        Text(effect.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+                        Text(effect.label, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
                         Text(effect.detail, fontSize = 12.sp, color = FinaiColors.TextMuted)
                     }
-                    Text(effect.delta, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = effect.color)
+                    Text(effect.delta, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = effect.color)
                 }
             }
         }
@@ -196,7 +196,7 @@ fun BuySimulatorContent(
                 shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.Ink, contentColor = Color.White),
             ) {
-                Text("Decidir depois", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("Decidir depois", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
             }
             OutlinedButton(
                 onClick = {
@@ -209,7 +209,7 @@ fun BuySimulatorContent(
                 shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = FinaiColors.TextSecondary),
             ) {
-                Text("Perguntar", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("Perguntar", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }

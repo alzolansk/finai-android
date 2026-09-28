@@ -120,7 +120,7 @@ private fun InvoiceContent(
     ) {
         Box(Modifier.fillMaxWidth().height(58.dp).background(FinaiColors.Surface)) {
             IconButton(onClick = onClose, modifier = Modifier.align(Alignment.CenterStart)) { EntryGlyph("back", FinaiColors.TextPrimary, "Voltar") }
-            Text("Fatura do cartão", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary, modifier = Modifier.align(Alignment.Center))
+            Text("Fatura do cartão", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary, modifier = Modifier.align(Alignment.Center))
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(FinaiColors.BorderHairline))
         }
         LazyColumn(
@@ -135,7 +135,7 @@ private fun InvoiceContent(
 
             item {
                 Column {
-                    Text("Todos os lançamentos", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+                    Text("Todos os lançamentos", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
                     Row(Modifier.padding(top = 10.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ItemFilter.values().forEach { f ->
                             val count = when (f) {
@@ -197,7 +197,7 @@ private fun HeroCard(conta: ContaEntity, fatura: FaturaCartaoEntity?, status: Bi
         Text(
             "Vence em ${vencimento.dayOfMonth} de ${MONTH_NAMES_PT[vencimento.monthValue - 1].lowercase()}" +
                 (fechamento?.let { " · fechou ${it.dayOfMonth} ${MONTH_ABBREV_PT[it.monthValue - 1].lowercase()}" } ?: ""),
-            fontSize = 13.sp, color = Color.White.copy(alpha = .6f), modifier = Modifier.padding(top = 2.dp),
+            fontSize = 12.5.sp, color = Color.White.copy(alpha = .6f), modifier = Modifier.padding(top = 2.dp),
         )
         Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             HeroStat("Compras", formatBrl(summary.comprasCents / 100.0), "${summary.comprasCount} ite${if (summary.comprasCount == 1) "m" else "ns"}", Modifier.weight(1f))
@@ -219,7 +219,7 @@ private fun HeroCard(conta: ContaEntity, fatura: FaturaCartaoEntity?, status: Bi
                 if (paga) EntryGlyph("check", Color(0xFF6EE7B7), size = 18)
                 Text(
                     if (paga) "Fatura paga · toque para desfazer" else "Marcar fatura como paga",
-                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(start = if (paga) 8.dp else 0.dp),
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(start = if (paga) 8.dp else 0.dp),
                 )
             }
         }
@@ -230,7 +230,7 @@ private fun HeroCard(conta: ContaEntity, fatura: FaturaCartaoEntity?, status: Bi
 private fun HeroStat(label: String, value: String, note: String, modifier: Modifier, valueColor: Color = Color.White) {
     Column(modifier.clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = .07f)).padding(12.dp)) {
         Text(label.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextOnDarkMuted, letterSpacing = .5.sp)
-        Text(value, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = valueColor, modifier = Modifier.padding(top = 4.dp), maxLines = 1)
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = valueColor, modifier = Modifier.padding(top = 4.dp), maxLines = 1)
         Text(note, fontSize = 12.sp, color = FinaiColors.TextOnDarkMuted, modifier = Modifier.padding(top = 1.dp))
     }
 }
@@ -241,7 +241,7 @@ private fun SectionCard(title: String, subtitle: String? = null, content: @Compo
         Modifier.fillMaxWidth().clip(CardShape).border(1.dp, FinaiColors.BorderHairline, CardShape)
             .background(FinaiColors.Surface).padding(16.dp),
     ) {
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
         if (subtitle != null) Text(subtitle, fontSize = 12.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 2.dp))
         Spacer(Modifier.height(14.dp))
         content()
@@ -268,10 +268,10 @@ private fun CategoriesCard(summary: InvoiceSummary) {
                         EntryGlyph(c.categoria, categoryColor(c.categoria), size = 17)
                     }
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                        Text(c.categoria, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+                        Text(c.categoria, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
                         Text("${c.count} compra${if (c.count == 1) "" else "s"} · ${Math.round(c.fraction * 100)}%", fontSize = 12.sp, color = FinaiColors.TextMuted)
                     }
-                    Text(formatBrl(c.cents / 100.0), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                    Text(formatBrl(c.cents / 100.0), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
                 }
             }
         }
@@ -287,11 +287,11 @@ private fun MerchantsCard(summary: InvoiceSummary) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${index + 1}", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextMuted, modifier = Modifier.width(20.dp))
-                        Text(m.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, maxLines = 1,
+                        Text(m.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, maxLines = 1,
                             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         if (m.count > 1) Text("${m.count}x", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextSecondary,
                             modifier = Modifier.padding(horizontal = 8.dp).clip(CircleShape).background(FinaiColors.SurfaceMuted).padding(horizontal = 7.dp, vertical = 2.dp))
-                        Text(formatBrl(m.cents / 100.0), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                        Text(formatBrl(m.cents / 100.0), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
                     }
                     Box(Modifier.padding(start = 20.dp, top = 6.dp).fillMaxWidth().height(4.dp).clip(CircleShape).background(FinaiColors.SurfaceSunken)) {
                         Box(Modifier.fillMaxWidth(m.cents.toFloat() / top).fillMaxHeight().clip(CircleShape).background(FinaiColors.TextPrimary.copy(alpha = .75f)))
@@ -314,13 +314,13 @@ private fun InstallmentsCard(summary: InvoiceSummary) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(p.nome, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(p.nome, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 "Parcela ${p.atual} de ${p.total}" + if (p.restantes == 0) " · última" else " · faltam ${p.restantes}",
                                 fontSize = 12.sp, color = if (p.restantes == 0) FinaiColors.EmeraldDark else FinaiColors.TextMuted,
                             )
                         }
-                        Text(formatBrl(p.item.valorCentavos / 100.0), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                        Text(formatBrl(p.item.valorCentavos / 100.0), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
                     }
                     // Um segmento por parcela: preenchido = já cobrada.
                     Row(Modifier.padding(top = 7.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -368,7 +368,7 @@ private fun ItemRow(item: TransacaoEntity) {
             EntryGlyph(if (estorno) "back" else item.categoria, color, size = 17)
         }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(InvoiceSummary.cleanName(item.descricao), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
+            Text(InvoiceSummary.cleanName(item.descricao), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
                 maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                 Text(if (estorno) "Estorno" else item.categoria, fontSize = 12.sp, color = FinaiColors.TextMuted)
@@ -380,7 +380,7 @@ private fun ItemRow(item: TransacaoEntity) {
         }
         Text(
             (if (estorno) "− " else "") + formatBrl(kotlin.math.abs(item.valorCentavos) / 100.0),
-            fontSize = 15.sp, fontWeight = FontWeight.Bold, color = if (estorno) FinaiColors.EmeraldDark else FinaiColors.TextPrimary,
+            fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (estorno) FinaiColors.EmeraldDark else FinaiColors.TextPrimary,
         )
     }
 }

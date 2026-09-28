@@ -117,7 +117,7 @@ private fun HighlightRow(highlights: List<AiReplyFormat.Highlight>, palette: AiT
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    h.value, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = valueColor,
+                    h.value, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = valueColor,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
                 )
             }

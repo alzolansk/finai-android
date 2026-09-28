@@ -174,7 +174,7 @@ fun TextAction(label: String, onClick: () -> Unit, modifier: Modifier = Modifier
             .padding(horizontal = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = color)
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = color)
     }
 }
 
@@ -183,8 +183,8 @@ fun TextAction(label: String, onClick: () -> Unit, modifier: Modifier = Modifier
 fun SectionHeader(title: String, modifier: Modifier = Modifier, subtitle: String? = null, action: String? = null, onAction: (() -> Unit)? = null) {
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-            subtitle?.let { Text(it, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp)) }
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            subtitle?.let { Text(it, fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp)) }
         }
         if (action != null && onAction != null) TextAction(action, onAction)
     }
@@ -211,7 +211,7 @@ fun EmptyStateCard(
             .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(18.dp))
             .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = if (actionLabel != null) 2.dp else 14.dp),
     ) {
-        Text(message, fontSize = 14.sp, lineHeight = 20.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(end = 8.dp))
+        Text(message, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(end = 8.dp))
         Row(modifier = Modifier.offset(x = (-6).dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (actionLabel != null && onAction != null) TextAction("$actionLabel ›", onAction)
             if (secondaryLabel != null && onSecondary != null) TextAction("$secondaryLabel ›", onSecondary, color = FinaiColors.TextSecondary)
@@ -237,7 +237,7 @@ fun ActionButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifi
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (primary) Color.White else FinaiColors.TextPrimary)
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (primary) Color.White else FinaiColors.TextPrimary)
     }
 }
 
@@ -254,7 +254,7 @@ fun SelectChip(label: String, selected: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (selected) Color.White else FinaiColors.TextSecondary, maxLines = 1)
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (selected) Color.White else FinaiColors.TextSecondary, maxLines = 1)
     }
 }
 
@@ -275,7 +275,7 @@ fun OverflowMenu(actions: List<OverflowAction>, contentDescription: String, modi
         androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             actions.forEach { a ->
                 androidx.compose.material3.DropdownMenuItem(
-                    text = { Text(a.label, fontSize = 15.sp, color = if (a.destructive) FinaiColors.RoseDark else FinaiColors.TextPrimary) },
+                    text = { Text(a.label, fontSize = 14.sp, color = if (a.destructive) FinaiColors.RoseDark else FinaiColors.TextPrimary) },
                     onClick = { open = false; a.onClick() },
                 )
             }

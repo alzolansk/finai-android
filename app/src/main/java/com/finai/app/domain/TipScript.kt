@@ -28,7 +28,7 @@ object TipScript {
         ),
         AGENDA to listOf(
             Tip("agenda.month", "Navegue pelos meses", "Use as setas para ver o que vence em outros meses."),
-            Tip("agenda.bill", "Marque como paga", "Use \"Marcar paga\" quando pagar uma conta; dá para reabrir depois."),
+            Tip("agenda.bill", "Marque como paga", "Toque numa conta para marcar como paga (tocar de novo reabre) e numa parcela para registrar o pagamento."),
             Tip("agenda.transactions", "Lançamentos do mês", "Tudo que você lançou ou importou aparece aqui, com as ações de cada item."),
         ),
         GOALS to listOf(

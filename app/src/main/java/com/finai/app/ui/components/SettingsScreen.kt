@@ -279,7 +279,7 @@ private fun AiPage(
                 "Se ele falhar ou esgotar a cota do dia, o FinAI passa sozinho para o próximo conectado, na ordem abaixo."
     }
     Text(headline, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-    Text(detail, fontSize = 13.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
+    Text(detail, fontSize = 12.5.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
 
     GroupLabel("Provedores · ordem de uso")
     SettingsGroup {
@@ -318,7 +318,7 @@ private fun OrderBadge(position: Int, connected: Boolean) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            "$position", fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            "$position", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
             color = if (connected) FinaiColors.EmeraldDark else FinaiColors.TextMuted,
         )
     }
@@ -359,7 +359,7 @@ private fun ProviderPage(
             active -> "É o provedor que o FinAI está usando agora."
             else -> "Fica de reserva: é usado se os provedores acima dele falharem ou ficarem sem cota."
         },
-        fontSize = 13.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 4.dp),
+        fontSize = 12.5.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 4.dp),
     )
 
     GroupLabel("Chave de API")
@@ -561,7 +561,7 @@ private fun AccountsPage(accounts: Set<String>, onAdd: (String) -> Unit, onRemov
             }
         }
     } else {
-        Text("Nenhuma conta ou cartão cadastrado ainda.", fontSize = 13.sp, color = FinaiColors.TextSecondary)
+        Text("Nenhuma conta ou cartão cadastrado ainda.", fontSize = 12.5.sp, color = FinaiColors.TextSecondary)
     }
 
     GroupLabel("Adicionar")
@@ -673,7 +673,7 @@ private fun PrivacyPage(
                 .padding(start = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(msg, fontSize = 14.sp, lineHeight = 20.sp, color = FinaiColors.TextBody, modifier = Modifier.weight(1f).padding(vertical = 10.dp))
+            Text(msg, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextBody, modifier = Modifier.weight(1f).padding(vertical = 10.dp))
             TextButton(onClick = onDismissBackupStatus, modifier = Modifier.heightIn(min = 48.dp)) { Text("OK") }
         }
     }
@@ -799,7 +799,7 @@ private fun FootNote(icon: ImageVector?, text: String) {
 @Composable
 private fun TextAction(label: String, onClick: () -> Unit) {
     Text(
-        label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark,
+        label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark,
         modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 4.dp),
     )
 }
@@ -832,7 +832,7 @@ private fun SettingsRow(
             ) { Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp)) }
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (status != null) {
                 Text(status.text, fontSize = 12.sp, color = status.tone.color, modifier = Modifier.padding(top = 1.dp))
             }

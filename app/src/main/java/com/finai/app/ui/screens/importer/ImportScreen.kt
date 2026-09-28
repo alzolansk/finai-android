@@ -128,7 +128,7 @@ fun ImportScreen(
                     Text("Importar fatura", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
                     Text(
                         "PDF, planilha ou foto — lidos aqui no aparelho",
-                        fontSize = 14.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                        fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             }
@@ -150,7 +150,7 @@ fun ImportScreen(
                         item {
                             Text(
                                 "Nada para revisar: categoria, duplicatas e assinaturas foram resolvidas pela regra local.",
-                                fontSize = 14.sp, lineHeight = 20.sp, color = FinaiColors.TextTertiary,
+                                fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary,
                             )
                         }
                     }
@@ -213,12 +213,12 @@ private fun PickerCard(onPickPdf: () -> Unit, onPickSpreadsheet: () -> Unit, onP
             Icon(Icons.Filled.Upload, contentDescription = null, tint = FinaiColors.EmeraldDark, modifier = Modifier.size(24.dp))
         }
         Text(
-            "Escolha a fatura", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+            "Escolha a fatura", fontSize = 14.sp, fontWeight = FontWeight.Bold,
             color = FinaiColors.TextPrimary, modifier = Modifier.padding(top = 12.dp),
         )
         Text(
             "O texto é extraído no próprio aparelho. O arquivo não é enviado para nenhum servidor.",
-            fontSize = 12.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary,
+            fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
             textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp),
         )
         Spacer(Modifier.height(16.dp))
@@ -257,7 +257,7 @@ private fun PrivacyCard() {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Filled.Lock, contentDescription = null, tint = FinaiColors.EmeraldDark, modifier = Modifier.size(16.dp))
-            Text("O que acontece com o arquivo", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            Text("O que acontece com o arquivo", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
         }
         Spacer(Modifier.height(12.dp))
         Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -289,7 +289,7 @@ private fun StepRow(number: Int, text: String, done: Boolean = false) {
                 color = if (done) FinaiColors.EmeraldDark else FinaiColors.TextMuted,
             )
         }
-        Text(text, fontSize = 14.sp, lineHeight = 18.sp, color = if (done) FinaiColors.TextPrimary else FinaiColors.TextTertiary)
+        Text(text, fontSize = 13.sp, lineHeight = 17.sp, color = if (done) FinaiColors.TextPrimary else FinaiColors.TextTertiary)
     }
 }
 
@@ -313,7 +313,7 @@ private fun ProgressCard(stage: ImportStage?) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = FinaiColors.Emerald)
-            Text("Processando a fatura", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            Text("Processando a fatura", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
         }
         Spacer(Modifier.height(14.dp))
         Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -332,8 +332,8 @@ private fun ErrorCard(message: String, onReset: () -> Unit) {
             .background(FinaiColors.RoseSoftBg)
             .padding(16.dp),
     ) {
-        Text("Não deu para importar", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.RoseDeep)
-        Text(message, fontSize = 14.sp, lineHeight = 18.sp, color = FinaiColors.RoseDeep, modifier = Modifier.padding(top = 6.dp))
+        Text("Não deu para importar", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.RoseDeep)
+        Text(message, fontSize = 13.sp, lineHeight = 17.sp, color = FinaiColors.RoseDeep, modifier = Modifier.padding(top = 6.dp))
         Box(
             modifier = Modifier
                 .padding(top = 14.dp)
@@ -342,7 +342,7 @@ private fun ErrorCard(message: String, onReset: () -> Unit) {
                 .clickable(onClick = onReset)
                 .padding(horizontal = 18.dp, vertical = 10.dp),
         ) {
-            Text("Escolher outro arquivo", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Escolher outro arquivo", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
@@ -359,7 +359,7 @@ private fun SavedCard(state: ImportUiState, onOpenAgenda: () -> Unit, onReset: (
     ) {
         Text(
             "${state.savedCount} lançamento(s) importado(s)",
-            fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.EmeraldDeep,
+            fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.EmeraldDeep,
         )
         Text(
             buildString {
@@ -368,7 +368,7 @@ private fun SavedCard(state: ImportUiState, onOpenAgenda: () -> Unit, onReset: (
                     append(" ${state.savedSubscriptions} assinatura(s) nova(s) foram cadastradas na tela Limites.")
                 }
             },
-            fontSize = 14.sp, lineHeight = 18.sp, color = FinaiColors.EmeraldDeep, modifier = Modifier.padding(top = 6.dp),
+            fontSize = 13.sp, lineHeight = 17.sp, color = FinaiColors.EmeraldDeep, modifier = Modifier.padding(top = 6.dp),
         )
         Row(modifier = Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             Box(
@@ -378,7 +378,7 @@ private fun SavedCard(state: ImportUiState, onOpenAgenda: () -> Unit, onReset: (
                     .clickable(onClick = onOpenAgenda)
                     .padding(horizontal = 18.dp, vertical = 10.dp),
             ) {
-                Text("Ver na Agenda", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Ver na Agenda", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
             Box(
                 modifier = Modifier
@@ -387,7 +387,7 @@ private fun SavedCard(state: ImportUiState, onOpenAgenda: () -> Unit, onReset: (
                     .clickable(onClick = onReset)
                     .padding(horizontal = 18.dp, vertical = 10.dp),
             ) {
-                Text("Importar outra", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextBody)
+                Text("Importar outra", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextBody)
             }
         }
     }
@@ -412,14 +412,14 @@ private fun PreviewSummaryCard(
             .background(FinaiColors.Surface)
             .padding(16.dp),
     ) {
-        Text(preview.sourceName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        Text(preview.sourceName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
         Text(
-            "Dados da fatura", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
+            "Dados da fatura", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
             modifier = Modifier.padding(top = 14.dp),
         )
         Text(
             "Confirme os dados abaixo. Campos ausentes não são inventados.",
-            fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+            fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
         )
         OutlinedTextField(
             value = preview.invoiceMetadata.reference.orEmpty(),
@@ -447,7 +447,7 @@ private fun PreviewSummaryCard(
         preview.invoiceMetadata.closingDate?.let { closing ->
             Text(
                 "Fechamento identificado: %02d/%02d/%04d".format(closing.dayOfMonth, closing.monthValue, closing.year),
-                fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 5.dp),
+                fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 5.dp),
             )
         }
         Text(
@@ -472,14 +472,14 @@ private fun PreviewSummaryCard(
         preview.aiNote?.let { note ->
             Text(
                 "IA indisponível: $note",
-                fontSize = 13.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
+                fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
                 modifier = Modifier.padding(top = 10.dp),
             )
         }
         if (preview.aiUsed) {
             Text(
                 "A IA foi usada só nos itens ambíguos, com o nome do estabelecimento, valor e dia — nunca com o arquivo.",
-                fontSize = 13.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
+                fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
                 modifier = Modifier.padding(top = 10.dp),
             )
         }
@@ -541,13 +541,13 @@ private fun ImportItemRow(
             Row(verticalAlignment = Alignment.Top) {
                 Text(
                     item.entry.description,
-                    fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     formatBrl(item.entry.amountCents / 100.0),
-                    fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = amountColor,
+                    fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = amountColor,
                 )
             }
             Text(
@@ -556,7 +556,7 @@ private fun ImportItemRow(
                     item.entry.installment?.let { append(" · parcela ${it.label}") }
                     if (item.entry.isRefund) append(" · estorno")
                 },
-                fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
             )
 
             FlowRow(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -598,7 +598,7 @@ private fun ImportItemRow(
             }
 
             (item.duplicateReason ?: item.recurrenceReason)?.let { reason ->
-                Text(reason, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 6.dp))
+                Text(reason, fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 6.dp))
             }
         }
     }
@@ -632,7 +632,7 @@ private fun ConfirmBar(preview: ImportPreview, onConfirm: () -> Unit, modifier: 
             Icon(Icons.Filled.Checklist, contentDescription = null, tint = FinaiColors.TextOnDarkMuted, modifier = Modifier.size(16.dp))
             Text(
                 "${selected.size} de ${preview.items.size} selecionados · ${formatBrl(totalCents / 100.0)}",
-                fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextOnDarkFull,
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextOnDarkFull,
             )
         }
         Box(
@@ -648,7 +648,7 @@ private fun ConfirmBar(preview: ImportPreview, onConfirm: () -> Unit, modifier: 
         ) {
             Text(
                 if (selected.isEmpty()) "Selecione ao menos um lançamento" else "Salvar ${selected.size} lançamento(s)",
-                fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                fontSize = 14.sp, fontWeight = FontWeight.Bold,
                 color = if (selected.isEmpty()) FinaiColors.TextOnDarkMuted else Color.White,
             )
         }

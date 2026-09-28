@@ -106,7 +106,7 @@ fun FinaiTopBar(
                 modifier = Modifier.height(34.dp),
             )
             Column {
-                Text("FinAI", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+                Text("FinAI", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
                 Text(
                     screenLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -180,7 +180,7 @@ fun FinaiTopBar(
                         modifier = Modifier.size(13.dp),
                     )
                 }
-                if (!narrow) Text("Assistente", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, softWrap = false)
+                if (!narrow) Text("Assistente", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, softWrap = false)
             }
         }
     }
@@ -212,7 +212,7 @@ fun FinaiSettingsTopBar(
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = FinaiColors.TextBody, modifier = Modifier.size(20.dp))
         }
-        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
     }
 }
 

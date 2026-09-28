@@ -56,13 +56,13 @@ fun SpendExplanationContent(explanation: SpendExplanation, onClose: () -> Unit, 
                 Icon(Icons.Filled.Close, contentDescription = "Fechar", tint = FinaiColors.TextSecondary)
             }
         }
-        Text(explanation.period, fontSize = 14.sp, lineHeight = 20.sp, color = FinaiColors.TextSecondary)
+        Text(explanation.period, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary)
 
         explanation.shortfall?.let { falta ->
             Text(
                 "Vai faltar até ${formatBrl0(falta.cents / 100.0)}" + (falta.causa?.let { ", a partir de \"$it\"" } ?: "") +
                     ". Por isso não há valor livre para gastar.",
-                fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.RoseDark,
+                fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.RoseDark,
                 modifier = Modifier
                     .padding(top = 14.dp)
                     .fillMaxWidth()
@@ -78,7 +78,7 @@ fun SpendExplanationContent(explanation: SpendExplanation, onClose: () -> Unit, 
             Text(
                 "${formatBrl0(explanation.steps.last().cents / 100.0)} ÷ ${explanation.days} dia(s) = " +
                     "${formatBrl0(explanation.perDayCents / 100.0)} por dia",
-                fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark,
+                fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark,
                 modifier = Modifier.padding(top = 10.dp),
             )
         }
@@ -91,10 +91,10 @@ fun SpendExplanationContent(explanation: SpendExplanation, onClose: () -> Unit, 
                 Row(modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "%02d/%02d".format(item.date.dayOfMonth, item.date.monthValue),
-                        fontSize = 14.sp, color = FinaiColors.TextSecondary, modifier = Modifier.width(56.dp),
+                        fontSize = 13.sp, color = FinaiColors.TextSecondary, modifier = Modifier.width(56.dp),
                     )
-                    Text(item.label, fontSize = 15.sp, color = FinaiColors.TextPrimary, modifier = Modifier.weight(1f))
-                    Text("− ${formatBrl0(item.cents / 100.0)}", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+                    Text(item.label, fontSize = 14.sp, color = FinaiColors.TextPrimary, modifier = Modifier.weight(1f))
+                    Text("− ${formatBrl0(item.cents / 100.0)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
                 }
             }
             val hidden = explanation.upcoming.size - UPCOMING_PREVIEW
@@ -103,7 +103,7 @@ fun SpendExplanationContent(explanation: SpendExplanation, onClose: () -> Unit, 
                     modifier = Modifier.heightIn(min = 48.dp).clickable { showAll = true },
                     contentAlignment = Alignment.CenterStart,
                 ) {
-                    Text("Ver mais $hidden", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark)
+                    Text("Ver mais $hidden", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark)
                 }
             }
         }
@@ -121,7 +121,7 @@ fun SpendExplanationContent(explanation: SpendExplanation, onClose: () -> Unit, 
 @Composable
 private fun SectionTitle(text: String) {
     Text(
-        text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextSecondary,
+        text, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextSecondary,
         modifier = Modifier.padding(top = 22.dp, bottom = 6.dp),
     )
 }
@@ -132,7 +132,7 @@ private fun StepRow(step: ExplainStep) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                step.label, fontSize = 15.sp,
+                step.label, fontSize = 14.sp,
                 fontWeight = if (step.total) FontWeight.Bold else FontWeight.Normal,
                 color = FinaiColors.TextPrimary, modifier = Modifier.weight(1f),
             )
@@ -143,12 +143,12 @@ private fun StepRow(step: ExplainStep) {
             }
             Text(
                 sign + formatBrl0(kotlin.math.abs(step.cents) / 100.0).let { if (step.total && step.cents < 0) "−$it" else it },
-                fontSize = 15.sp, fontWeight = if (step.total) FontWeight.ExtraBold else FontWeight.SemiBold,
+                fontSize = 14.sp, fontWeight = if (step.total) FontWeight.ExtraBold else FontWeight.SemiBold,
                 color = if (step.total && step.cents < 0) FinaiColors.RoseDark else FinaiColors.TextPrimary,
             )
         }
         step.detail?.let {
-            Text(it, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 2.dp))
+            Text(it, fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 2.dp))
         }
     }
 }
@@ -156,7 +156,7 @@ private fun StepRow(step: ExplainStep) {
 @Composable
 private fun Bullet(text: String) {
     Row(modifier = Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("•", fontSize = 14.sp, color = FinaiColors.TextSecondary)
-        Text(text, fontSize = 14.sp, lineHeight = 20.sp, color = FinaiColors.TextPrimary)
+        Text("•", fontSize = 13.sp, color = FinaiColors.TextSecondary)
+        Text(text, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextPrimary)
     }
 }

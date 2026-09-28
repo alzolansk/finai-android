@@ -206,7 +206,7 @@ fun ChatOverlay(
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(suggestion, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextBody)
+                        Text(suggestion, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextBody)
                     }
                 }
             }
@@ -225,8 +225,8 @@ fun ChatOverlay(
                     value = draft,
                     onValueChange = onDraftChange,
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Pergunte sobre suas finanças...", fontSize = 13.sp, color = FinaiColors.TextMuted) },
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = FinaiColors.TextPrimary),
+                    placeholder = { Text("Pergunte sobre suas finanças...", fontSize = 12.5.sp, color = FinaiColors.TextMuted) },
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.5.sp, color = FinaiColors.TextPrimary),
                     colors = androidx.compose.material3.TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
@@ -271,9 +271,9 @@ private fun ChatBubble(message: ChatMessage) {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
             if (fromMe) {
-                Text(message.text, fontSize = 13.sp, lineHeight = 20.sp, color = Color.White)
+                Text(message.text, fontSize = 12.5.sp, lineHeight = 18.sp, color = Color.White)
             } else {
-                AiRichText(message.text, fontSize = 13.sp, lineHeight = 20.sp, showHighlights = true)
+                AiRichText(message.text, fontSize = 12.5.sp, lineHeight = 18.sp, showHighlights = true)
             }
         }
     }
@@ -306,7 +306,7 @@ private fun ConversationHistory(
         Box(modifier = modifier.padding(32.dp), contentAlignment = Alignment.TopCenter) {
             Text(
                 "Nenhuma conversa ainda. As conversas ficam guardadas aqui para você voltar a elas.",
-                fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary, textAlign = TextAlign.Center,
+                fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary, textAlign = TextAlign.Center,
             )
         }
         return
@@ -335,7 +335,7 @@ private fun ConversationHistory(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         conversa.titulo ?: "Conversa sem pergunta",
-                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
+                        fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
@@ -400,7 +400,7 @@ private fun EmptyChatIntro() {
             .background(FinaiColors.Surface)
             .padding(16.dp),
     ) {
-        Text("Assistente FinAI", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        Text("Assistente FinAI", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
         Text(
             FinaiFixtures.chatPitch, fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
             modifier = Modifier.padding(top = 6.dp),

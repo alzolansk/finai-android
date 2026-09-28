@@ -152,14 +152,14 @@ private fun SaldoCard(saldoLabel: String, saldoPositivo: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Balanço de $mes", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+            Text("Balanço de $mes", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
             Text(
-                "Entradas − saídas do mês, como na Agenda", fontSize = 13.sp, color = FinaiColors.TextTertiary,
+                "Entradas − saídas do mês, como na Agenda", fontSize = 12.5.sp, color = FinaiColors.TextTertiary,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
         Text(
-            saldoLabel, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,
+            saldoLabel, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold,
             color = if (saldoPositivo) FinaiColors.EmeraldDark else FinaiColors.RoseDark,
         )
     }
@@ -188,10 +188,10 @@ private fun SituationCard(
             .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 14.dp),
     ) {
         if (situation == null) {
-            Text("Calculando…", fontSize = 15.sp, color = FinaiColors.TextOnDarkMuted)
+            Text("Calculando…", fontSize = 14.sp, color = FinaiColors.TextOnDarkMuted)
         } else {
             Text(
-                situation.headline, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold,
+                situation.headline, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
                 color = if (situation.shortfall) RoseOnDark else Color.White,
             )
             Text(
@@ -208,11 +208,11 @@ private fun SituationCard(
             if (!situation.shortfall) {
                 Text(
                     "cerca de ${formatBrl0(situation.perDayCents / 100.0)} por dia · ${situation.days} ${if (situation.days == 1) "dia" else "dias"}",
-                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextOnDarkMuted,
+                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextOnDarkMuted,
                 )
             }
             Text(
-                safeNote, fontSize = 13.sp, lineHeight = 18.sp,
+                safeNote, fontSize = 12.5.sp, lineHeight = 17.sp,
                 color = FinaiColors.TextOnDarkMuted, modifier = Modifier.padding(top = 8.dp),
             )
             // Alvo de toque de 48 dp: o valor precisa ser explicável em um toque.
@@ -220,7 +220,7 @@ private fun SituationCard(
                 modifier = Modifier.tipTarget("home.explain").heightIn(min = 48.dp).clickable(onClick = onExplain),
                 contentAlignment = Alignment.CenterStart,
             ) {
-                Text("Entenda este valor ›", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.Emerald)
+                Text("Entenda este valor ›", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.Emerald)
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -236,7 +236,7 @@ private fun SituationCard(
                         .clickable { onAction(situation.action) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(situation.action.label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(situation.action.label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
                 Box(
                     modifier = Modifier
@@ -247,7 +247,7 @@ private fun SituationCard(
                         .padding(horizontal = 14.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("Ajustar limites", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Text("Ajustar limites", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                 }
             }
         }
@@ -295,17 +295,17 @@ private fun GoalTeaserCard(goal: Goal, onClick: () -> Unit) {
             com.finai.app.ui.components.PillTag(goal.badge.label, goal.badge.bg, goal.badge.fg)
         }
         Text(
-            goal.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
+            goal.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
             modifier = Modifier.padding(top = 12.dp),
         )
-        Text(goal.eta, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp))
+        Text(goal.eta, fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp))
         Row(
             modifier = Modifier.padding(top = 12.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Text(formatBrl0(goal.saved), fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.EmeraldDark)
-            Text("de ${formatBrl0(goal.target)}", fontSize = 13.sp, color = FinaiColors.TextMuted)
+            Text("de ${formatBrl0(goal.target)}", fontSize = 12.5.sp, color = FinaiColors.TextMuted)
         }
         ProgressTrack(
             progress = goal.progress,
@@ -313,7 +313,7 @@ private fun GoalTeaserCard(goal: Goal, onClick: () -> Unit) {
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            goal.note, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary,
+            goal.note, fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextSecondary,
             modifier = Modifier.padding(top = 9.dp),
         )
     }
@@ -334,7 +334,7 @@ private fun NewGoalCard(onClick: () -> Unit) {
     ) {
         Icon(Icons.Filled.Add, contentDescription = null, tint = FinaiColors.TextMuted, modifier = Modifier.size(20.dp))
         Spacer(Modifier.height(6.dp))
-        Text("Novo objetivo", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
+        Text("Novo objetivo", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
     }
 }
 
@@ -362,15 +362,15 @@ private fun DecisionsCard(decisions: AiText?, onAskAbout: (AssistantTopic) -> Un
             ) {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = FinaiColors.TextMuted, modifier = Modifier.size(14.dp))
             }
-            Text("Decisões para você", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            Text("Decisões para você", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
         }
         when (decisions) {
             null, AiText.Loading -> Text(
                 "Analisando seus números para sugerir decisões...",
-                fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 10.dp),
+                fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 10.dp),
             )
             is AiText.Unavailable -> Text(
-                decisions.reason, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 10.dp),
+                decisions.reason, fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 10.dp),
             )
             is AiText.Ready -> {
                 // Uma linha só, sem "porquê", é o "está tudo sob controle": texto, não decisão.
@@ -410,12 +410,12 @@ private fun DecisionRow(decision: AiReplyFormat.Decision, onAsk: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 rememberAiAnnotated(decision.action),
-                fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
+                fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
             )
             decision.reason?.let {
                 Text(
                     rememberAiAnnotated(it),
-                    fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary,
+                    fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
@@ -427,7 +427,7 @@ private fun DecisionRow(decision: AiReplyFormat.Decision, onAsk: () -> Unit) {
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Conversar", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark)
+            Text("Conversar", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark)
         }
     }
 }
@@ -464,7 +464,7 @@ private fun TimelineSection(timeline: List<TimelineEntry>, timelineNote: String,
                                     .clip(RoundedCornerShape(2.dp))
                                     .background(t.tone.line),
                             )
-                            Text(t.amount, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = t.tone.color)
+                            Text(t.amount, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = t.tone.color)
                             Text(t.label, fontSize = 12.sp, lineHeight = 16.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 3.dp))
                         }
                     }
@@ -480,7 +480,7 @@ private fun TimelineSection(timeline: List<TimelineEntry>, timelineNote: String,
                     .border(1.dp, FinaiColors.BorderFaint, RoundedCornerShape(14.dp))
                     .padding(12.dp),
             ) {
-                Text(timelineNote, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
+                Text(timelineNote, fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextBody)
             }
         }
     }
@@ -525,15 +525,15 @@ private fun WeekBillRow(w: WeekBill) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(w.day, fontSize = 14.sp, lineHeight = 15.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+            Text(w.day, fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
             Text(w.mon, fontSize = 12.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(w.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Text(w.cat, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
+            Text(w.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(w.cat, fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text(w.amount, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            Text(w.amount, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
             Text(w.status, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = w.statusTone.color, modifier = Modifier.padding(top = 2.dp))
         }
     }
@@ -561,8 +561,8 @@ private fun CoachCard(pattern: BehaviorPattern, insight: AiText?, onOpenChat: ()
     ) {
         Text("PADRÃO DE GASTO DO MÊS", style = MaterialTheme.typography.labelSmall, color = FinaiColors.TextMuted)
         Text(
-            pattern.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
-            lineHeight = 21.sp, modifier = Modifier.padding(top = 6.dp),
+            pattern.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
+            lineHeight = 19.sp, modifier = Modifier.padding(top = 6.dp),
         )
         AiRichText(body, modifier = Modifier.padding(top = 6.dp))
         TextAction("Conversar sobre isso ›", onOpenChat, modifier = Modifier.offset(x = (-6).dp))

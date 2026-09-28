@@ -80,7 +80,7 @@ fun GoalsScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Objetivos", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
                     Text(
-                        "Compras, viagens e reservas em andamento", fontSize = 14.sp, color = FinaiColors.TextTertiary,
+                        "Compras, viagens e reservas em andamento", fontSize = 13.sp, color = FinaiColors.TextTertiary,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
@@ -99,11 +99,11 @@ fun GoalsScreen(
                 Text("CAPACIDADE DE POUPANÇA", style = MaterialTheme.typography.labelSmall, color = FinaiColors.TextOnDarkMuted)
                 Row(modifier = Modifier.padding(top = 6.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(monthlyCapacityLabel, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                    Text("por mês", fontSize = 14.sp, color = FinaiColors.TextOnDarkMuted)
+                    Text("por mês", fontSize = 13.sp, color = FinaiColors.TextOnDarkMuted)
                 }
                 Text(
                     "Balanço deste mês na Agenda, sem entradas extras. As metas também contam com a sobra projetada dos próximos meses até o prazo.",
-                    fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextOnDarkMuted,
+                    fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextOnDarkMuted,
                     modifier = Modifier.padding(top = 8.dp),
                 )
             }
@@ -135,11 +135,11 @@ fun GoalsScreen(
         if (completedGoals.isNotEmpty()) {
             item(key = "completed-header") {
                 Column(modifier = Modifier.padding(top = 8.dp)) {
-                    Text("Metas concluídas", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                    Text("Metas concluídas", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
                     Text(
                         "${completedGoals.size} " + (if (completedGoals.size == 1) "conquista" else "conquistas") +
                             " · aportes continuam valendo",
-                        fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                        fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             }
@@ -228,15 +228,15 @@ private fun CompletedGoalCard(
             )
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(goal.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+            Text(goal.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
             Text(
                 "${goal.completedLabel ?: "Concluída"} · ${formatBrl0(goal.saved)} guardados",
-                fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
             )
             if (goal.exceeded > 0) {
                 Text(
                     "+${formatBrl0(goal.exceeded)} além do alvo de ${formatBrl0(goal.target)}",
-                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark,
+                    fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
@@ -275,12 +275,12 @@ private fun GoalCard(
                     PillTag(goal.badge.label, goal.badge.bg, goal.badge.fg)
                 }
                 Text(
-                    goal.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
+                    goal.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
                     modifier = Modifier.padding(top = 4.dp),
                 )
                 if (goal.description.isNotBlank()) {
                     Text(
-                        goal.description, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary,
+                        goal.description, fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
                         maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 3.dp),
                     )
@@ -294,10 +294,10 @@ private fun GoalCard(
         Column(modifier = Modifier.padding(end = 12.dp)) {
         Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(formatBrl0(goal.saved), fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.EmeraldDark)
-            Text("de ${formatBrl0(goal.target)}", fontSize = 14.sp, color = FinaiColors.TextMuted)
+            Text("de ${formatBrl0(goal.target)}", fontSize = 13.sp, color = FinaiColors.TextMuted)
         }
         ProgressTrack(progress = goal.progress, fillColor = FinaiColors.Emerald, height = 8.dp, modifier = Modifier.padding(top = 9.dp))
-        Text(goal.note, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 8.dp))
+        Text(goal.note, fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 8.dp))
         Column(
             modifier = insightModifier
                 .padding(top = 12.dp)
@@ -311,11 +311,11 @@ private fun GoalCard(
             when (insight) {
                 is AiText.Ready -> GoalInsightBody(insight.text)
                 is AiText.Unavailable -> Text(
-                    insight.reason, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary,
+                    insight.reason, fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
                     modifier = Modifier.padding(top = 5.dp),
                 )
                 AiText.Loading, null -> Text(
-                    "Analisando este objetivo com IA...", fontSize = 13.sp, color = FinaiColors.TextTertiary,
+                    "Analisando este objetivo com IA...", fontSize = 12.5.sp, color = FinaiColors.TextTertiary,
                     modifier = Modifier.padding(top = 5.dp),
                 )
             }

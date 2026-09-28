@@ -92,7 +92,7 @@ fun DebtsScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Dívidas", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
                     Text(
-                        "Estratégia de quitação e negociação", fontSize = 14.sp, color = FinaiColors.TextTertiary,
+                        "Estratégia de quitação e negociação", fontSize = 13.sp, color = FinaiColors.TextTertiary,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
@@ -132,12 +132,12 @@ fun DebtsScreen(
                     )
                     Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         Column {
-                            Text("Juros por mês", fontSize = 13.sp, color = FinaiColors.TextOnDarkMuted)
-                            Text(monthlyInterestLabel, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 2.dp))
+                            Text("Juros por mês", fontSize = 12.5.sp, color = FinaiColors.TextOnDarkMuted)
+                            Text(monthlyInterestLabel, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 2.dp))
                         }
                         Column {
-                            Text("Livre em", fontSize = 13.sp, color = FinaiColors.TextOnDarkMuted)
-                            Text(debtFreeLabel, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 2.dp))
+                            Text("Livre em", fontSize = 12.5.sp, color = FinaiColors.TextOnDarkMuted)
+                            Text(debtFreeLabel, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 2.dp))
                         }
                     }
                 }
@@ -181,7 +181,7 @@ fun DebtsScreen(
                 ) {
                     Text("ROTEIRO DE NEGOCIAÇÃO", style = MaterialTheme.typography.labelSmall, color = FinaiColors.TextMuted)
                     Text(
-                        negotiationTitle, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
+                        negotiationTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
                         modifier = Modifier.padding(top = 6.dp),
                     )
                     val steps = when (negotiationScript) {
@@ -197,7 +197,7 @@ fun DebtsScreen(
                         else -> null
                     }
                     statusNote?.let {
-                        Text(it, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
+                        Text(it, fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
                     }
                     Column(modifier = Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         steps.forEachIndexed { index, text ->
@@ -208,7 +208,7 @@ fun DebtsScreen(
                                 ) {
                                     Text((index + 1).toString(), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextSecondary)
                                 }
-                                Text(com.finai.app.ui.components.rememberAiAnnotated(text), fontSize = 14.sp, lineHeight = 20.sp, color = FinaiColors.TextBody)
+                                Text(com.finai.app.ui.components.rememberAiAnnotated(text), fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextBody)
                             }
                         }
                     }
@@ -284,10 +284,10 @@ private fun PaidDebtRow(paid: PaidDebt, onDelete: () -> Unit) {
             Icon(Icons.Filled.TaskAlt, contentDescription = null, tint = FinaiColors.EmeraldDark, modifier = Modifier.size(18.dp))
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(paid.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-            Text("${paid.paidLabel} · ${paid.detail}", fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
+            Text(paid.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+            Text("${paid.paidLabel} · ${paid.detail}", fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
         }
-        Text(paid.originalLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextSecondary)
+        Text(paid.originalLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextSecondary)
         OverflowMenu(listOf(OverflowAction("Apagar do histórico", destructive = true, onClick = onDelete)), contentDescription = "Mais ações para ${paid.name}")
     }
 }
@@ -300,14 +300,14 @@ private fun DebtRow(debt: Debt, onEdit: () -> Unit, onDelete: () -> Unit, onPay:
                 modifier = Modifier.size(26.dp).clip(RoundedCornerShape(9.dp)).background(FinaiColors.SurfaceMuted),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(debt.rank.toString(), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextSecondary)
+                Text(debt.rank.toString(), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextSecondary)
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(debt.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-                Text(debt.meta, fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
+                Text(debt.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+                Text(debt.meta, fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 1.dp))
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(debt.amount, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                Text(debt.amount, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
                 Text(debt.rate, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = debt.rateColor, modifier = Modifier.padding(top = 2.dp))
             }
             OverflowMenu(

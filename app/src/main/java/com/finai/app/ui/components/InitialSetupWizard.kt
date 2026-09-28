@@ -140,7 +140,7 @@ fun InitialSetupWizard(
                         DateField("Próximo recebimento", nextPay, today) { nextPayString = it.toString() }
                         Text(
                             "Ela entra como sua renda principal, repetindo todo mês. Dá para mudar depois na Agenda.",
-                            fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary,
+                            fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
                         )
                     }
                     SetupStep.Bills -> StepScaffold(
@@ -162,15 +162,15 @@ fun InitialSetupWizard(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(bill.nome, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-                                    Text("${dm(bill.date)} · ${bill.categoria}", fontSize = 13.sp, color = FinaiColors.TextTertiary)
+                                    Text(bill.nome, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+                                    Text("${dm(bill.date)} · ${bill.categoria}", fontSize = 12.5.sp, color = FinaiColors.TextTertiary)
                                 }
-                                Text(formatBrl0(bill.cents / 100.0), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                                Text(formatBrl0(bill.cents / 100.0), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
                                 TextAction("Remover", { bills.removeAt(index) }, color = FinaiColors.RoseDark)
                             }
                         }
                         NewBillForm(today, onDraft = { pendingBill = it }) { bills.add(it) }
-                        error?.let { Text(it, color = FinaiColors.RoseDark, fontSize = 14.sp) }
+                        error?.let { Text(it, color = FinaiColors.RoseDark, fontSize = 13.sp) }
                     }
                     SetupStep.Result -> ResultStep(situation, incomeCents != null, onFinish)
                 }
@@ -187,7 +187,7 @@ private fun WizardHeader(step: SetupStep, onSkip: () -> Unit) {
     ) {
         Text(
             when (step) { SetupStep.Income -> "1 de 2"; SetupStep.Bills -> "2 de 2"; SetupStep.Result -> "Pronto" },
-            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary, modifier = Modifier.weight(1f),
+            fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary, modifier = Modifier.weight(1f),
         )
         // 48 dp e fora de qualquer área rolável: no emulador o antigo "Pular tudo" (TextButton de
         // 40 dp dentro de um Row com padding) não respondia na primeira tentativa.
@@ -216,7 +216,7 @@ private fun StepScaffold(
         ) {
             Spacer(Modifier.height(8.dp))
             Text(title, fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-            Text(subtitle, fontSize = 15.sp, lineHeight = 21.sp, color = FinaiColors.TextSecondary)
+            Text(subtitle, fontSize = 14.sp, lineHeight = 19.sp, color = FinaiColors.TextSecondary)
             Spacer(Modifier.height(4.dp))
             content()
             Spacer(Modifier.height(16.dp))
@@ -233,7 +233,7 @@ private fun StepScaffold(
                 onClick = onPrimary,
                 modifier = Modifier.heightIn(min = 48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.Ink, contentColor = Color.White),
-            ) { Text(primaryLabel, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+            ) { Text(primaryLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -255,7 +255,7 @@ private fun DateField(label: String, date: LocalDate, today: LocalDate, onPick: 
         Text(label, fontSize = 12.sp, color = FinaiColors.TextTertiary)
         Text(
             date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + if (date == today) " · hoje" else "",
-            fontSize = 16.sp, color = FinaiColors.TextPrimary,
+            fontSize = 15.sp, color = FinaiColors.TextPrimary,
         )
     }
     if (open) {
@@ -299,9 +299,9 @@ private fun NewBillForm(today: LocalDate, onDraft: (DraftBill?) -> Unit, onAdd: 
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
         )
-        Text("Vence em", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
+        Text("Vence em", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
         ChoiceRow(days.map { if (it == today) "Hoje" else dm(it) }, dayOffset) { dayOffset = it }
-        Text("Categoria", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
+        Text("Categoria", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
         ChoiceRow(TransactionEntry.categories, TransactionEntry.categories.indexOf(categoria)) { categoria = TransactionEntry.categories[it] }
         ActionButton(
             "Adicionar conta",
@@ -332,7 +332,7 @@ private fun ChoiceRow(options: List<String>, selected: Int, onSelect: (Int) -> U
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (on) Color.White else FinaiColors.TextPrimary)
+                Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (on) Color.White else FinaiColors.TextPrimary)
             }
         }
     }
@@ -349,7 +349,7 @@ private fun ResultStep(situation: HomeSituation?, informedIncome: Boolean, onFin
             Text("Tudo pronto", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
             Text(
                 "Sem a renda principal, o app calcula só até o fim do mês. Quando quiser, use \"Informar renda\" na Início.",
-                fontSize = 15.sp, lineHeight = 21.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 10.dp),
+                fontSize = 14.sp, lineHeight = 19.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 10.dp),
             )
         } else {
             Text(situation.headline, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
@@ -366,20 +366,20 @@ private fun ResultStep(situation: HomeSituation?, informedIncome: Boolean, onFin
                 Text(
                     "Até o próximo pagamento você tem ${formatBrl0(situation.mainCents / 100.0)}: cerca de " +
                         "${formatBrl0(situation.perDayCents / 100.0)} por dia, por ${situation.days} dia(s).",
-                    fontSize = 15.sp, lineHeight = 21.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 6.dp),
+                    fontSize = 14.sp, lineHeight = 19.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 6.dp),
                 )
             }
             Text(
                 "Conta feita com o que você informou: o que já saiu desde o último pagamento o app ainda não sabe. " +
                     "Lance seus gastos pelo + e o número acompanha.",
-                fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 14.dp),
+                fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 14.dp),
             )
         }
         Button(
             onClick = onFinish,
             modifier = Modifier.fillMaxWidth().padding(top = 28.dp).heightIn(min = 48.dp),
             colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.Ink, contentColor = Color.White),
-        ) { Text("Começar a usar", fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+        ) { Text("Começar a usar", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
     }
 }
 
