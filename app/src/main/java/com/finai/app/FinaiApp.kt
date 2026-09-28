@@ -226,13 +226,15 @@ fun FinaiApp(
                     popExitTransition = { fadeOut(tween(tabFadeMillis)) },
                 ) {
                     composable(FinaiDestination.Home.route) {
-                        LaunchedEffect(financeState.debts, financeState.budgets, financeState.subscriptions, financeState.goals, financeState.safeNote) {
+                        LaunchedEffect(financeState.debts, financeState.budgets, financeState.subscriptions, financeState.goals, financeState.safeNote, financeState.aiDebtsBlock, financeState.aiGoalsBlock) {
                             aiViewModel.ensureDecisions(
                                 topDebt = financeState.debts.firstOrNull(),
                                 budgets = financeState.budgets,
                                 subscriptions = financeState.subscriptions,
                                 goals = financeState.goals,
                                 safeNote = financeState.safeNote,
+                                debtsBlock = financeState.aiDebtsBlock,
+                                goalsBlock = financeState.aiGoalsBlock,
                             )
                         }
                         LaunchedEffect(financeState.behaviorPattern) {
@@ -295,9 +297,9 @@ fun FinaiApp(
                         )
                     }
                     composable(FinaiDestination.Goals.route) {
-                        LaunchedEffect(financeState.goals, financeState.monthlyCapacityLabel) {
+                        LaunchedEffect(financeState.goals, financeState.monthlyCapacityLabel, financeState.aiGoalsBlock) {
                             financeState.goals.forEach { goal ->
-                                aiViewModel.ensureGoalInsight(goal, financeState.monthlyCapacityLabel, financeState.goals.size - 1)
+                                aiViewModel.ensureGoalInsight(goal, financeState.monthlyCapacityLabel, financeState.aiGoalsBlock)
                             }
                         }
                         GoalsScreen(

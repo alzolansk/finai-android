@@ -134,15 +134,15 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val goalInsightKeys = mutableMapOf<String, String>()
     private val goalInsightJobs = mutableMapOf<String, Job>()
 
-    fun ensureGoalInsight(goal: Goal, monthlyCapacityLabel: String, otherActiveGoals: Int) {
-        val cacheKey = listOf(goal.name, goal.kind, goal.description, goal.projectionNote, goal.saved, goal.target, goal.eta, goal.badge.name, monthlyCapacityLabel, otherActiveGoals)
+    fun ensureGoalInsight(goal: Goal, monthlyCapacityLabel: String, goalsBlock: String) {
+        val cacheKey = listOf(goal.name, goal.kind, goal.description, goal.projectionNote, goal.saved, goal.target, goal.eta, goal.badge.name, monthlyCapacityLabel, goalsBlock)
             .joinToString("|")
         if (goalInsightKeys[goal.id] == cacheKey) return
         goalInsightKeys[goal.id] = cacheKey
         goalInsightJobs[goal.id]?.cancel()
         _goalInsights.update { it + (goal.id to AiText.Loading) }
         goalInsightJobs[goal.id] = viewModelScope.launch {
-            val text = requestText(AiPromptBuilder.goalInsight(goal, monthlyCapacityLabel, otherActiveGoals))
+            val text = requestText(AiPromptBuilder.goalInsight(goal, monthlyCapacityLabel, goalsBlock))
             _goalInsights.update { it + (goal.id to text) }
         }
     }
@@ -202,17 +202,19 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         subscriptions: List<Subscription>,
         goals: List<Goal>,
         safeNote: String,
+        debtsBlock: String = "",
+        goalsBlock: String = "",
     ) {
         val budgetsOver = budgets.filter { it.spent > it.limit }
         val unusedSubs = subscriptions.filter { it.cta == "Cancelar" }
         val reassessGoals = goals.filter { it.badge == GoalBadge.Reassess }
-        val cacheKey = listOf(topDebt?.id, budgetsOver.map { it.name }, unusedSubs.map { it.name }, reassessGoals.map { it.id }, safeNote).toString()
+        val cacheKey = listOf(topDebt?.id, budgetsOver.map { it.name }, unusedSubs.map { it.name }, reassessGoals.map { it.id }, safeNote, debtsBlock, goalsBlock).toString()
         if (decisionsKey == cacheKey) return
         decisionsKey = cacheKey
         decisionsJob?.cancel()
         _decisions.value = AiText.Loading
         decisionsJob = viewModelScope.launch {
-            _decisions.value = requestText(AiPromptBuilder.decisions(topDebt, budgetsOver, unusedSubs, reassessGoals, safeNote))
+            _decisions.value = requestText(AiPromptBuilder.decisions(topDebt, budgetsOver, unusedSubs, reassessGoals, safeNote, debtsBlock, goalsBlock))
         }
     }
 

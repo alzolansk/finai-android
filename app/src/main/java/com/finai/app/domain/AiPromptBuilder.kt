@@ -34,7 +34,12 @@ object AiPromptBuilder {
     /** Rótulos das três linhas da leitura do objetivo, na ordem em que a tela mostra. */
     val GOAL_INSIGHT_LABELS = listOf("Agora", "Próximo passo", "Risco")
 
-    fun goalInsight(goal: Goal, monthlyCapacityLabel: String, otherActiveGoals: Int): AiRequest {
+    /**
+     * [goalsBlock] traz todas as metas com a divisão da sobra que o app já fez por prioridade
+     * ([AiContext.goalsBlock]). Sem ele, cada leitura via a sobra inteira e todas diziam
+     * "coloque a sobra aqui".
+     */
+    fun goalInsight(goal: Goal, monthlyCapacityLabel: String, goalsBlock: String): AiRequest {
         val prompt = buildString {
             appendLine("Objetivo: \"${goal.name}\" (${goal.kind}).")
             if (goal.description.isNotBlank()) {
@@ -45,7 +50,14 @@ object AiPromptBuilder {
             appendLine("Status calculado localmente: ${goal.badge.label}. ${goal.note}")
             appendLine("Sobra deste mês (só o mês atual): $monthlyCapacityLabel.")
             if (goal.projectionNote.isNotBlank()) appendLine(goal.projectionNote)
-            if (otherActiveGoals > 0) appendLine("Há outro(s) $otherActiveGoals objetivo(s) ativo(s) dividindo a mesma sobra.")
+            if (goalsBlock.isNotBlank()) {
+                appendLine()
+                appendLine(goalsBlock)
+                appendLine(
+                    "Esta leitura é só de \"${goal.name}\". O próximo passo deve usar a parte da sobra reservada para ela, " +
+                        "não a sobra inteira. Se sugerir mudar a divisão, diga de qual outra meta o dinheiro sairia e por quê.",
+                )
+            }
             appendLine()
             appendLine("Julgue a meta pela sobra projetada até o prazo, não só pela sobra deste mês.")
             appendLine("O usuário já vê na tela o valor guardado, o alvo, o percentual e a previsão — não repita esses números.")
@@ -112,11 +124,15 @@ object AiPromptBuilder {
         unusedSubscriptions: List<Subscription>,
         reassessGoals: List<Goal>,
         safeNote: String,
+        debtsBlock: String = "",
+        goalsBlock: String = "",
     ): AiRequest {
         val prompt = buildString {
             appendLine("Resumo financeiro do mês do usuário:")
             appendLine("- Folga do mês: $safeNote")
-            topDebt?.let { appendLine("- Dívida de maior custo: \"${it.name}\" (${it.rate} ao mês, ${it.amount} em aberto).") }
+            if (debtsBlock.isNotBlank()) appendLine(debtsBlock)
+            else topDebt?.let { appendLine("- Dívida de maior custo: \"${it.name}\" (${it.rate} ao mês, ${it.amount} em aberto).") }
+            if (goalsBlock.isNotBlank()) appendLine(goalsBlock)
             if (budgetsOver.isNotEmpty()) appendLine("- Categorias de orçamento estouradas: ${budgetsOver.joinToString { b -> b.name }}.")
             if (unusedSubscriptions.isNotEmpty()) {
                 appendLine("- Assinaturas pouco usadas: ${unusedSubscriptions.joinToString { s -> s.name }}.")

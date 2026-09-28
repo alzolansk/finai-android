@@ -88,6 +88,11 @@ data class FinanceUiState(
     val budgets: List<Budget> = emptyList(),
     val subscriptions: List<Subscription> = emptyList(),
 
+    /** Cada dívida separada, na ordem de ataque — o que a IA recebe ([com.finai.app.domain.AiContext]). */
+    val aiDebtsBlock: String = "",
+    /** Metas com a divisão da sobra por prioridade — o que a IA recebe ([com.finai.app.domain.AiContext]). */
+    val aiGoalsBlock: String = "",
+
     /** Avisos do sino da topbar — planning.md §3.9, calculados por [com.finai.app.domain.AlertCalculator]. */
     val alerts: List<FinanceAlert> = emptyList(),
 )
@@ -149,9 +154,11 @@ fun FinanceUiState.toAiSummaryText(): String = buildString {
         )
     }
     if (debts.isNotEmpty()) {
-        appendLine("Dívidas: total em aberto $debtTotalLabel, juros $debtInterestLabel/mês, livre em $debtFreeLabel.")
+        appendLine("Soma de todas as dívidas: $debtTotalLabel em aberto, $debtInterestLabel de juros por mês somados, livre de todas em $debtFreeLabel.")
+        if (aiDebtsBlock.isNotBlank()) appendLine(aiDebtsBlock)
     }
-    if (goals.isNotEmpty()) {
+    if (aiGoalsBlock.isNotBlank()) appendLine(aiGoalsBlock)
+    else if (goals.isNotEmpty()) {
         appendLine("Objetivos ativos: " + goals.joinToString { "${it.name} (${(it.progress * 100).toInt()}%, ${it.badge.label})" } + ".")
     }
     if (completedGoals.isNotEmpty()) appendLine("Metas já concluídas: " + completedGoals.joinToString { it.name } + ".")

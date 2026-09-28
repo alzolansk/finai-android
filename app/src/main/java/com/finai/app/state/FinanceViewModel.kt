@@ -266,6 +266,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 ?: "Nenhuma dívida cadastrada",
             budgets = budgetProgress.map { it.toUiBudget() },
             subscriptions = subscriptionInsights.map { it.assinatura.toUiSubscription(it) },
+            aiDebtsBlock = com.finai.app.domain.AiContext.debtsBlock(debtSummary.ordered, today),
+            aiGoalsBlock = com.finai.app.domain.AiContext.goalsBlock(
+                goalPlans.filterNot { Completion.isDone(it.objetivo) }, monthlyCapacityCents,
+            ),
             alerts = AlertCalculator.alerts(s.contas, budgetProgress, subscriptionInsights, goalPlans, today, payCycle?.shortfall),
         )
     }
