@@ -69,6 +69,18 @@ class ProviderUsageStore private constructor(context: Context) : UsageTracker {
     }
 
     /** True if [provider] hit its rate limit earlier today (local date) — [AiRouter] skips it without calling out. */
+    /**
+     * Tira a marca de "sem cota hoje" — ao salvar uma chave nova ou quando o teste de conexão
+     * passa. Sem isto, uma marca errada (ou de uma chave antiga) só saía à meia-noite.
+     */
+    suspend fun clearExhausted(provider: ProviderId) {
+        try {
+            dataStore.edit { prefs -> prefs.remove(exhaustedDateKey(provider)) }
+        } catch (e: java.io.IOException) {
+            FinaiLog.w(TAG, "Falha ao limpar a marca de cota de ${provider.name}", e)
+        }
+    }
+
     override suspend fun isExhaustedToday(provider: ProviderId): Boolean = try {
         dataStore.data.first()[exhaustedDateKey(provider)] == LocalDate.now().toString()
     } catch (e: IOException) {

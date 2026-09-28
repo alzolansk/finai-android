@@ -113,7 +113,7 @@ class AiRouter(
         AiFailureKind.AUTH_ERROR -> 0
         AiFailureKind.RATE_LIMITED -> 1
         AiFailureKind.MODEL_UNAVAILABLE -> 2
-        AiFailureKind.NETWORK_ERROR, AiFailureKind.TIMEOUT -> 3
+        AiFailureKind.NETWORK_ERROR, AiFailureKind.TIMEOUT, AiFailureKind.BUSY -> 3
         AiFailureKind.EMPTY_RESPONSE, AiFailureKind.UNKNOWN -> 4
         AiFailureKind.NO_KEY -> 5
     }

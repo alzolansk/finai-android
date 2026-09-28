@@ -74,7 +74,8 @@ abstract class OpenAiCompatibleAiProvider(
                     val error = connection.errorStream?.bufferedReader()?.use { it.readText() }
                     FinaiLog.w(TAG, "${providerId.displayName} respondeu HTTP $status")
                     FinaiLog.debugBody(TAG, "Corpo do erro de ${providerId.displayName}", error)
-                    return@withContext AiResponse.Unavailable(unavailableMessageFor(status), failureKindFor(status))
+                    val kind = failureKindFor(status, error)
+                    return@withContext AiResponse.Unavailable(unavailableMessageFor(status, kind), kind)
                 }
 
                 val payload = connection.inputStream.bufferedReader().use { it.readText() }
@@ -99,17 +100,18 @@ abstract class OpenAiCompatibleAiProvider(
         return choice.optJSONObject("message")?.optString("content")
     }
 
-    private fun unavailableMessageFor(status: Int): String = when (status) {
-        401, 403 -> "Chave do ${providerId.displayName} inválida ou sem permissão. Confira a chave nas configurações."
-        404 -> "Modelo configurado para ${providerId.displayName} não encontrado — pode ter sido descontinuado."
-        429 -> "Cota gratuita do ${providerId.displayName} esgotada por hoje."
+    private fun unavailableMessageFor(status: Int, kind: AiFailureKind): String = when {
+        status == 401 || status == 403 -> "Chave do ${providerId.displayName} inválida ou sem permissão. Confira a chave nas configurações."
+        status == 404 -> "Modelo configurado para ${providerId.displayName} não encontrado — pode ter sido descontinuado."
+        kind == AiFailureKind.RATE_LIMITED -> "Cota gratuita do ${providerId.displayName} esgotada por hoje."
+        kind == AiFailureKind.BUSY -> "O ${providerId.displayName} está com muitos pedidos agora (limite por minuto ou fila do modelo gratuito). Tente de novo em alguns minutos; a chave está certa."
         else -> "${providerId.displayName} está indisponível agora (HTTP $status)."
     }
 
-    private fun failureKindFor(status: Int): AiFailureKind = when (status) {
+    private fun failureKindFor(status: Int, body: String?): AiFailureKind = when (status) {
         401, 403 -> AiFailureKind.AUTH_ERROR
         404 -> AiFailureKind.MODEL_UNAVAILABLE
-        429 -> AiFailureKind.RATE_LIMITED
+        429 -> RateLimitClassifier.kindFor429(body)
         else -> AiFailureKind.UNKNOWN
     }
 

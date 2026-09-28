@@ -58,6 +58,13 @@ data class AiRequest(
  * so later requests skip it without spending a network call.
  */
 enum class AiFailureKind {
+    /**
+     * 429 que não é a cota do dia: limite por minuto, ou a fila compartilhada dos modelos
+     * gratuitos cheia ("temporarily rate-limited upstream" no OpenRouter). O roteador passa
+     * para o próximo provedor nesta chamada, mas **não** marca este como esgotado do dia.
+     */
+    BUSY,
+
     /** No API key configured for this provider yet. */
     NO_KEY,
 
@@ -104,4 +111,25 @@ sealed interface AiText {
     data object Loading : AiText
     data class Ready(val text: String) : AiText
     data class Unavailable(val reason: String) : AiText
+}
+
+/**
+ * Diz se um 429 é a cota do **dia** acabando ou só um limite momentâneo. Antes todo 429 virava
+ * "esgotado até a meia-noite": uma conta nova do OpenRouter aparecia como "Sem cota hoje" logo
+ * no teste de conexão, porque a fila dos modelos `:free` estava cheia naquele minuto.
+ * Na dúvida, trata como momentâneo — o custo é uma tentativa a mais, não um dia sem o provedor.
+ */
+object RateLimitClassifier {
+    private val dailyMarkers = listOf(
+        "per-day", "per day", "perday", "daily", "requests per day", "tokens per day",
+        "(rpd)", "(tpd)", "free-models-per-day", "quota exceeded for today", "tokens per month", "monthly",
+    )
+
+    fun isDailyLimit(body: String?): Boolean {
+        val text = body?.lowercase() ?: return false
+        return dailyMarkers.any { it in text }
+    }
+
+    fun kindFor429(body: String?): AiFailureKind =
+        if (isDailyLimit(body)) AiFailureKind.RATE_LIMITED else AiFailureKind.BUSY
 }

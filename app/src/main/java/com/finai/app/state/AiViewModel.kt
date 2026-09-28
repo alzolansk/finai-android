@@ -74,6 +74,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     fun setProviderKey(id: ProviderId, key: String) {
         keyStore.setKey(id, key)
         _connectionTests.update { it - id }
+        // Chave nova começa sem a marca de "sem cota" que a anterior possa ter deixado.
+        viewModelScope.launch { usageStore.clearExhausted(id) }
     }
 
     fun clearProviderKey(id: ProviderId) {
@@ -112,7 +114,10 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     call.cancel()
                     ConnectionTest.Failed("Sem resposta do ${id.displayName} em 20 segundos. Confira a conexão com a internet.")
                 }
-                is AiResponse.Success -> ConnectionTest.Ok
+                is AiResponse.Success -> {
+                    usageStore.clearExhausted(id)
+                    ConnectionTest.Ok
+                }
                 is AiResponse.Unavailable -> {
                     if (response.kind == AiFailureKind.RATE_LIMITED) usageStore.markExhaustedToday(id)
                     ConnectionTest.Failed(response.reason)
