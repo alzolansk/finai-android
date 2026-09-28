@@ -27,7 +27,7 @@ object AiPromptBuilder {
         "em no máximo dois trechos; use lista com \"- \" só para passos. Escreva valores como R$ 1.234 (negativos como -R$ 1.234). " +
         "Cite no máximo dois valores, os que mais pesam na decisão; não repita números só para descrevê-los — interprete e " +
         "diga o que fazer. Nunca invente valores que não estejam no contexto. " +
-        "Prioridades e destino do dinheiro livre já foram decididos pelo app: explique, não decida de novo. " +
+        "Prioridades e a recomendação para o dinheiro livre já foram decididas pelo app: explique, não decida de novo. " +
         "Não recomende produtos financeiros de terceiros nem dê conselho de investimento específico."
 
     /** Rótulos das três linhas da leitura do objetivo, na ordem em que a tela mostra. */
@@ -55,7 +55,7 @@ object AiPromptBuilder {
                 appendLine()
             }
             appendLine()
-            appendLine("O usuário já vê os valores na tela: não os repita. O próximo passo segue o plano: meta sem aporte no plano não recebe dinheiro agora.")
+            appendLine("O usuário já vê os valores na tela: não os repita. O próximo passo segue a recomendação do plano: não sugira aporte agora para meta que o plano não recomenda.")
             appendLine("Para cada meta, responda com a marca [n] numa linha e depois exatamente 3 linhas curtas (uma frase cada):")
             appendLine("Agora: o que a situação significa para esta meta.")
             appendLine("Próximo passo: uma ação concreta coerente com o plano.")
@@ -75,11 +75,11 @@ object AiPromptBuilder {
         val prompt = buildString {
             appendLine("Simulação de compra de $amountLabel.")
             appendLine("Veredito já calculado localmente: \"$verdictLabel\".")
-            appendLine("Livre para gastar, segundo o plano do app: $monthlyCapacityLabel.")
+            appendLine("Livre até o salário, segundo o plano do app: $monthlyCapacityLabel.")
             appendLine("Livre depois dessa compra: $slackAfterLabel.")
             if (topGoalName != null) {
-                val effect = if (topGoalAffected) "a parte destinada a ele no plano fica em risco" else "não é afetado por essa compra"
-                appendLine("Destino da sobra no plano: \"$topGoalName\" — $effect.")
+                val effect = if (topGoalAffected) "sobra menos do que o plano recomenda para ele" else "a recomendação não muda"
+                appendLine("Recomendação do plano para o livre: \"$topGoalName\" — $effect.")
             }
             append("Escreva de 1 a 2 frases explicando esse veredito para o usuário, direto ao ponto.")
         }

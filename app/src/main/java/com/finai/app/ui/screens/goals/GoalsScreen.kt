@@ -98,21 +98,21 @@ fun GoalsScreen(
             ) {
                 // O mesmo plano da Início e de Dívidas: o dinheiro livre tem um destino só.
                 Text(
-                    "DISPONÍVEL PARA DESTINAR " + (plan?.untilLabel?.uppercase() ?: "ESTE MÊS"),
+                    "LIVRE " + (plan?.untilLabel?.uppercase() ?: "ESTE MÊS"),
                     style = MaterialTheme.typography.labelSmall, color = FinaiColors.TextOnDarkMuted,
                 )
                 Text(
-                    formatBrl0((plan?.disponivelCents ?: 0L) / 100.0), fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+                    formatBrl0((plan?.livreCents ?: 0L) / 100.0), fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
                     modifier = Modifier.padding(top = 6.dp),
                 )
                 Text(
-                    plan?.allocationSummary.orEmpty(),
+                    plan?.recommendationSummary.orEmpty(),
                     fontSize = 13.sp, lineHeight = 18.sp, color = Color.White,
                     modifier = Modifier.padding(top = 6.dp),
                 )
                 Text(
-                    "Sobra do mês na Agenda: ${formatBrl0((plan?.capacidadeMensalCents ?: 0L) / 100.0)}. " +
-                        "A situação de cada meta olha a sobra projetada até o prazo; o valor acima é o que dá para destinar agora.",
+                    "A recomendação não desconta do livre: o valor só muda quando você registra o aporte ou o pagamento. " +
+                        "Balanço do mês na Agenda: ${formatBrl0((plan?.saldoDoMesCents ?: 0L) / 100.0)}. A situação de cada meta olha a sobra projetada até o prazo.",
                     fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextOnDarkMuted,
                     modifier = Modifier.padding(top = 8.dp),
                 )

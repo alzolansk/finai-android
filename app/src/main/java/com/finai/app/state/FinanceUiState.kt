@@ -124,11 +124,11 @@ fun FinanceUiState.toAiSummaryText(): String = buildString {
         } else {
             appendLine(
                 "Situação: ${sit.headline}. Livre até o $periodo: ${com.finai.app.util.formatBrl0(sit.mainCents / 100.0)} " +
-                    "(cerca de $safeTodayLabel por dia, ${sit.days} dia(s)), depois do destino da sobra.",
+                    "(cerca de $safeTodayLabel por dia, ${sit.days} dia(s)). Recomendações do plano não descontam desse valor.",
             )
         }
     } ?: appendLine("Livre por dia: $safeTodayLabel. $safeNote")
-    // O plano central traz balanço, comprometido, reservado, disponível e o destino da sobra:
+    // O plano central traz comprometido, reservado, livre e a recomendação para o livre:
     // é a única fonte de "quanto sobra e para onde vai" que a IA recebe.
     if (aiPlanBlock.isNotBlank()) appendLine(aiPlanBlock)
     savingsProjection?.let { p ->

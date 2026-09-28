@@ -8,11 +8,11 @@ import com.finai.app.util.formatBrl0
 import java.time.LocalDate
 import java.time.YearMonth
 
-/** Para onde vai uma parte do dinheiro livre. */
-enum class AllocationTarget { Debt, Goal }
+/** Para onde o plano recomenda levar uma parte do dinheiro livre. */
+enum class RecommendationTarget { Debt, Goal }
 
-data class Allocation(
-    val target: AllocationTarget,
+data class Recommendation(
+    val target: RecommendationTarget,
     /** Id da dívida ou do objetivo no Room. */
     val id: Long,
     val name: String,
@@ -22,26 +22,27 @@ data class Allocation(
 )
 
 /**
- * O plano financeiro do app: **a** resposta para "para onde vai o dinheiro livre", calculada
- * uma vez e lida por todas as telas (Início, Objetivos, Dívidas, simulador, sino/rotina diária)
- * e pela IA. Antes cada tela fazia a própria conta: a mesma sobra de R$ 114 aparecia como
- * aporte possível em três metas e, ao mesmo tempo, a IA sugeria mandá-la para a dívida.
+ * O plano financeiro do app: a única resposta para "quanto está livre" e "para onde vale levar
+ * esse dinheiro", calculada uma vez e lida por todas as telas (Início, Objetivos, Dívidas,
+ * simulador, sino/rotina diária) e pela IA. Antes cada tela fazia a própria conta, e a mesma
+ * sobra aparecia como aporte possível em várias metas e, ao mesmo tempo, na dívida.
  *
- * Quatro conceitos, sempre separados:
- * - [saldoDoMesCents]: o balanço do mês na Agenda ([MonthCashFlow]), informativo.
- * - [comprometidoCents]: o que ainda vai sair até [until] (contas, fatura pelo vencimento,
- *   parcelas, gastos com data), já decidido — não é dinheiro livre.
- * - [reservadoFuturoCents]: a parte da sobra final que precisa ficar parada porque uma
- *   obrigação vence **antes** da entrada que a cobriria. Vem da simulação dia a dia do ciclo
- *   ([PayCycle.floor]): se entra R$ 1.900 no dia 10 e sai R$ 600 no dia 12, a ordem importa.
- * - [disponivelCents]: o que está realmente livre — o menor saldo previsto até [until].
+ * Três camadas, sempre separadas:
+ * - **Comprometido e reservado** ([comprometidoCents], [reservadoFuturoCents]): o que ainda vai
+ *   sair até o salário e a parte da sobra final que precisa ficar parada porque uma saída vence
+ *   antes da entrada que a cobriria. A reserva só existe quando, sem ela, o saldo previsto
+ *   ficaria menor em algum dia (simulação dia a dia do [PayCycle.floor]).
+ * - **Livre** ([livreCents]): o menor saldo de fim de dia previsto de hoje até a véspera do
+ *   salário, contando todas as entradas lançadas nesse intervalo (inclusive extras, como uma
+ *   rescisão) e todas as saídas.
+ * - **Destino recomendado** ([recommendations]): para onde o plano sugere levar o livre, nesta
+ *   ordem: dívida cara (juros ≥ [EXPENSIVE_DEBT_BASIS_POINTS] ao mês), da maior taxa para a
+ *   menor; depois metas por prioridade, cada uma até o aporte mensal que pede. Cada real é
+ *   recomendado para um destino só, então nenhuma tela sugere os mesmos R$ 114 duas vezes.
  *
- * Só o disponível é destinado ([allocations]), e cada real vai para um destino só, nesta
- * ordem: (1) com falta prevista, nada é destinado — a prioridade é cobrir a falta; (2) dívida
- * cara (juros ≥ [EXPENSIVE_DEBT_BASIS_POINTS] ao mês), da maior taxa para a menor, porque
- * nenhuma meta rende isso; (3) metas por prioridade, cada uma até o aporte mensal que pede.
- * O que sobra fica livre para o dia a dia. O teto do que é destinado é a sobra do mês
- * ([capacidadeMensalCents]): uma entrada extra não vira compromisso de aporte recorrente.
+ * **Recomendação não é gasto.** Ela nunca reduz o livre: o valor continua livre até o usuário
+ * registrar o pagamento ou o aporte (que aí vira lançamento e entra na conta como saída).
+ * Com falta prevista não há recomendação — a prioridade é cobrir a falta.
  *
  * Tudo local e determinístico (planning.md §6). A IA recebe este plano pronto e só explica.
  */
@@ -53,71 +54,63 @@ data class FinancialPlan(
     val saldoDoMesCents: Long,
     val comprometidoCents: Long,
     val reservadoFuturoCents: Long,
-    val disponivelCents: Long,
+    val livreCents: Long,
     val capacidadeMensalCents: Long,
     val shortfall: CycleShortfall?,
-    val allocations: List<Allocation>,
-    /** Metas com [GoalPlan.monthlyContributionFundedCents] = o que o plano destinou a cada uma. */
+    val recommendations: List<Recommendation>,
+    /** Metas com [GoalPlan.monthlyContributionFundedCents] = o que o plano recomenda para cada uma. */
     val goals: List<GoalPlan>,
     /** Só dívidas em aberto (quitadas ficam fora de toda conta). */
     val debts: DebtSummary,
     val safe: SafeToSpendResult,
     val projection: SavingsProjection,
 ) {
-    val alocadoCents: Long get() = allocations.sumOf { it.cents }
-    val livreParaGastarCents: Long get() = (disponivelCents - alocadoCents).coerceAtLeast(0)
-    val destino: Allocation? get() = allocations.firstOrNull()
+    val recomendacao: Recommendation? get() = recommendations.firstOrNull()
+    val recomendadoCents: Long get() = recommendations.sumOf { it.cents }
 
-    fun forGoal(id: Long): Long = allocations.filter { it.target == AllocationTarget.Goal && it.id == id }.sumOf { it.cents }
-    fun forDebt(id: Long): Long = allocations.filter { it.target == AllocationTarget.Debt && it.id == id }.sumOf { it.cents }
+    fun forGoal(id: Long): Long = recommendations.filter { it.target == RecommendationTarget.Goal && it.id == id }.sumOf { it.cents }
+    fun forDebt(id: Long): Long = recommendations.filter { it.target == RecommendationTarget.Debt && it.id == id }.sumOf { it.cents }
 
-    /** "até o salário de 30/10" ou "até o fim do mês (31/10)". */
+    /** "até o salário de 28/10" ou "até o fim do mês (31/10)". */
     val untilLabel: String get() =
         if (cycle != null) "até o salário de ${dm(cycle.proximo)}" else "até o fim do mês (${dm(until)})"
 
-    /**
-     * A frase de cada meta sobre o que o plano fez com ela neste período. É o que substitui a
-     * recomendação isolada por meta: se a sobra foi para a dívida, a meta diz isso.
-     */
+    /** A frase de cada meta sobre o que o plano recomenda para ela, coerente com as outras telas. */
     fun goalNote(goal: GoalPlan): String {
         if (goal.missingCents <= 0L) return ""
         val got = forGoal(goal.objetivo.id)
         val falta = shortfall
         return when {
             falta != null ->
-                "Sem aporte $untilLabel: antes, é preciso cobrir a falta de ${brl(falta.cents)} prevista para ${dm(falta.date)}."
+                "Sem recomendação de aporte $untilLabel: antes, é preciso cobrir a falta de ${brl(falta.cents)} prevista para ${dm(falta.date)}."
             got > 0 && got < goal.monthlyContributionNeededCents ->
-                "Plano $untilLabel: ${brl(got)} para esta meta (o ideal seria ${brl(goal.monthlyContributionNeededCents)}/mês)."
-            got > 0 -> "Plano $untilLabel: ${brl(got)} para esta meta."
-            disponivelCents <= 0 ->
-                "Sem valor adicional $untilLabel: não sobra dinheiro livre depois das contas."
-            capacidadeMensalCents <= 0 ->
-                "Sem valor adicional $untilLabel: o balanço do mês não deixa sobra para aporte."
+                "Recomendação $untilLabel: guardar ${brl(got)} nesta meta (o ideal seria ${brl(goal.monthlyContributionNeededCents)}/mês)."
+            got > 0 -> "Recomendação $untilLabel: guardar ${brl(got)} nesta meta."
+            livreCents <= 0 -> "Nada livre $untilLabel depois dos compromissos."
             else -> {
-                val debt = allocations.firstOrNull { it.target == AllocationTarget.Debt }
-                if (debt != null) "Sem valor adicional $untilLabel: a sobra vai para \"${debt.name}\" (${debt.reason})."
-                else "Sem valor adicional $untilLabel: a sobra já foi para metas de maior prioridade."
+                val debt = recommendations.firstOrNull { it.target == RecommendationTarget.Debt }
+                if (debt != null) "O plano recomenda usar o livre $untilLabel primeiro em \"${debt.name}\" (${debt.reason}). Esta meta vem depois."
+                else "O livre $untilLabel já está recomendado para metas de maior prioridade."
             }
         }
     }
 
-    /** Frase da dívida que recebe parte da sobra; nulo para as outras. */
+    /** Frase da dívida que o plano recomenda amortizar; nulo para as outras. */
     fun debtNote(divida: DividaEntity): String? =
-        forDebt(divida.id).takeIf { it > 0 }?.let { "Destino da sobra $untilLabel: ${brl(it)} a mais para amortizar." }
+        forDebt(divida.id).takeIf { it > 0 }?.let { "Recomendação $untilLabel: usar ${brl(it)} do livre para amortizar." }
 
-    /** Resumo do plano para as telas: "R$ 114 livres até 29/10 → Cartão R$ 114". */
-    val allocationSummary: String get() = when {
-        shortfall != null -> "Nada é destinado $untilLabel: primeiro é preciso cobrir a falta de ${brl(shortfall.cents)}."
-        allocations.isEmpty() && disponivelCents <= 0 -> "Não sobra dinheiro livre $untilLabel depois das contas."
-        allocations.isEmpty() -> "${brl(disponivelCents)} disponíveis $untilLabel, sem meta ou dívida cara para receber."
-        else -> "${brl(disponivelCents)} disponíveis $untilLabel: " +
-            allocations.joinToString("; ") { "${brl(it.cents)} para \"${it.name}\"" } +
-            (livreParaGastarCents.takeIf { it > 0 }?.let { "; ${brl(it)} para o dia a dia" } ?: "") + "."
+    /** "Livre até o salário de 28/10: R$ 114. Recomendação: R$ 114 para "X"." */
+    val recommendationSummary: String get() = when {
+        shortfall != null -> "Nada livre $untilLabel: primeiro é preciso cobrir a falta de ${brl(shortfall.cents)}."
+        livreCents <= 0 -> "Nada livre $untilLabel depois dos compromissos."
+        recommendations.isEmpty() -> "${brl(livreCents)} livres $untilLabel, sem dívida cara ou meta para recomendar."
+        else -> "${brl(livreCents)} livres $untilLabel. Recomendação: " +
+            recommendations.joinToString("; ") { "${brl(it.cents)} para \"${it.name}\"" } + "."
     }
 
     /**
-     * "Decisões para você", sem IA: o destino do dinheiro vem do plano, então a ordem e os
-     * valores também. Orçamento estourado e assinatura parada entram depois, até 3 itens.
+     * "Decisões para você", sem IA: a ordem e os valores vêm do plano. Orçamento estourado e
+     * assinatura parada entram depois, até 3 itens.
      */
     fun decisions(budgetsOver: List<String>, unusedSubscriptions: List<String>): List<AiReplyFormat.Decision> = buildList {
         shortfall?.let { f ->
@@ -126,10 +119,16 @@ data class FinancialPlan(
                 (f.causa?.let { "\"$it\" vence" } ?: "Uma saída vence") + " antes da entrada que a cobriria. Nada é livre $untilLabel.",
             ))
         }
-        allocations.forEach { a ->
-            add(when (a.target) {
-                AllocationTarget.Debt -> AiReplyFormat.Decision("Amortizar ${brl(a.cents)} em \"${a.name}\"", "${a.reason.replaceFirstChar { it.uppercase() }}. É o destino da sobra $untilLabel.")
-                AllocationTarget.Goal -> AiReplyFormat.Decision("Guardar ${brl(a.cents)} para \"${a.name}\"", "${a.reason.replaceFirstChar { it.uppercase() }}. Cabe no livre $untilLabel.")
+        recommendations.forEach { r ->
+            add(when (r.target) {
+                RecommendationTarget.Debt -> AiReplyFormat.Decision(
+                    "Amortizar ${brl(r.cents)} em \"${r.name}\"",
+                    "${r.reason.replaceFirstChar { it.uppercase() }}. O valor continua livre até você registrar o pagamento.",
+                )
+                RecommendationTarget.Goal -> AiReplyFormat.Decision(
+                    "Guardar ${brl(r.cents)} para \"${r.name}\"",
+                    "${r.reason.replaceFirstChar { it.uppercase() }}. O valor continua livre até você registrar o aporte.",
+                )
             })
         }
         budgetsOver.forEach { add(AiReplyFormat.Decision("Segurar os gastos em $it", "O limite da categoria já estourou este mês.")) }
@@ -137,24 +136,26 @@ data class FinancialPlan(
     }.take(3)
 
     /**
-     * O plano como a IA recebe: curto, com os quatro conceitos e o destino. É a única fonte de
-     * números de dinheiro livre no prompt; a IA não decide destino nem valor.
+     * O plano como a IA recebe: curto, com as três camadas. É a única fonte de "quanto está
+     * livre" e "para onde levar" no prompt; a IA não decide destino nem valor.
      */
     fun aiBlock(): String = buildString {
-        appendLine("Plano financeiro calculado pelo app, $untilLabel (a IA explica; não muda destino nem valores):")
-        appendLine("- Balanço do mês na Agenda: ${brl(saldoDoMesCents)}.")
+        appendLine("Plano financeiro calculado pelo app, $untilLabel (a IA explica; não muda valores nem a recomendação):")
         appendLine("- Comprometido (ainda vai sair $untilLabel): ${brl(comprometidoCents)}.")
         if (reservadoFuturoCents > 0) {
-            appendLine("- Reservado para obrigações que vencem antes da próxima entrada: ${brl(reservadoFuturoCents)}.")
+            appendLine("- Reservado porque uma saída vence antes da próxima entrada: ${brl(reservadoFuturoCents)}.")
         }
-        appendLine("- Realmente disponível: ${brl(disponivelCents)}.")
         shortfall?.let { appendLine("- Falta prevista: ${brl(it.cents)} a partir de ${dm(it.date)}" + (it.causa?.let { c -> " ($c)" } ?: "") + ".") }
-        if (allocations.isEmpty()) appendLine("- Destino: nenhum.")
-        else allocations.forEach { appendLine("- Destino: ${brl(it.cents)} para \"${it.name}\" (${it.reason}).") }
-        appendLine("- Livre para o dia a dia: ${brl(livreParaGastarCents)}.")
+        appendLine("- Livre $untilLabel (\"folga\", o que o usuário pode usar): ${brl(livreCents.coerceAtLeast(0))}.")
+        if (recommendations.isEmpty()) appendLine("- Recomendação para o livre: nenhuma.")
+        else recommendations.forEach { appendLine("- Recomendação para o livre: ${brl(it.cents)} para \"${it.name}\" (${it.reason}).") }
+        appendLine("- Balanço do mês na Agenda (outra janela de tempo, não é o livre): ${brl(saldoDoMesCents)}.")
         val semAporte = goals.filter { it.missingCents > 0 && forGoal(it.objetivo.id) == 0L }.map { "\"${it.objetivo.nome}\"" }
-        if (semAporte.isNotEmpty()) appendLine("- Metas sem aporte neste período: ${semAporte.joinToString()}.")
-        append("Regra: cada real tem um destino só. Não recomende o mesmo dinheiro para outro destino; se o usuário quiser mudar, diga o que deixa de receber.")
+        if (semAporte.isNotEmpty()) appendLine("- Metas sem recomendação de aporte agora: ${semAporte.joinToString()}.")
+        append(
+            "Regras: recomendação não é gasto nem reserva, o livre só diminui quando o usuário registra o pagamento. " +
+                "Não recomende o mesmo dinheiro para outro destino; se o usuário quiser mudar, diga o que deixa de receber.",
+        )
     }
 
     companion object {
@@ -166,25 +167,25 @@ data class FinancialPlan(
         private fun rate(bp: Int) = "%.1f".format(java.util.Locale("pt", "BR"), bp / 100.0)
 
         /**
-         * Divide [allocatableCents] entre dívidas caras e metas. Cada real sai de [allocatableCents]
-         * uma vez só — é o que impede a mesma sobra de aparecer em dois lugares.
+         * Divide [livreCents] em recomendações para dívidas caras e metas. Cada real aparece em uma
+         * recomendação só — é o que impede a mesma sobra de ser sugerida em dois lugares.
          */
-        fun allocate(allocatableCents: Long, activeDebts: List<DividaEntity>, goals: List<GoalPlan>): List<Allocation> {
-            var left = allocatableCents.coerceAtLeast(0)
-            val out = mutableListOf<Allocation>()
+        fun recommend(livreCents: Long, activeDebts: List<DividaEntity>, goals: List<GoalPlan>): List<Recommendation> {
+            var left = livreCents.coerceAtLeast(0)
+            val out = mutableListOf<Recommendation>()
             activeDebts
                 .filter { it.taxaJurosMensalBasisPoints >= EXPENSIVE_DEBT_BASIS_POINTS && it.valorAbertoCentavos > 0 }
                 .sortedByDescending { it.taxaJurosMensalBasisPoints }
                 .forEach { d ->
                     val amount = minOf(left, d.valorAbertoCentavos)
                     if (amount <= 0) return@forEach
-                    out += Allocation(AllocationTarget.Debt, d.id, d.nome, amount, "juros de ${rate(d.taxaJurosMensalBasisPoints)}% ao mês, mais caro do que qualquer rendimento de meta")
+                    out += Recommendation(RecommendationTarget.Debt, d.id, d.nome, amount, "juros de ${rate(d.taxaJurosMensalBasisPoints)}% ao mês, mais caro do que qualquer rendimento de meta")
                     left -= amount
                 }
             goals.filter { it.missingCents > 0 }.sortedBy { it.objetivo.prioridade }.forEach { g ->
                 val amount = minOf(left, g.monthlyContributionNeededCents)
                 if (amount <= 0) return@forEach
-                out += Allocation(AllocationTarget.Goal, g.objetivo.id, g.objetivo.nome, amount, "prioridade ${g.objetivo.prioridade} entre as metas")
+                out += Recommendation(RecommendationTarget.Goal, g.objetivo.id, g.objetivo.nome, amount, "prioridade ${g.objetivo.prioridade} entre as metas")
                 left -= amount
             }
             return out
@@ -207,49 +208,41 @@ data class FinancialPlan(
 
             val comprometido: Long
             val reservado: Long
-            val disponivel: Long
+            val livre: Long
             val shortfall: CycleShortfall?
             val until: LocalDate
-            var monthBase = 0L
+            val safe: SafeToSpendResult
             if (cycle != null) {
-                // Simulação dia a dia: o disponível é o menor saldo previsto até a véspera do salário.
-                val floor = cycle.floor.cents
-                disponivel = floor.coerceAtLeast(0)
-                reservado = (cycle.livreCents.coerceAtLeast(0) - disponivel).coerceAtLeast(0)
+                // Simulação dia a dia: o livre é o menor saldo de fim de dia até a véspera do salário.
+                livre = cycle.floor.cents.coerceAtLeast(0)
+                reservado = (cycle.livreCents.coerceAtLeast(0) - livre).coerceAtLeast(0)
                 comprometido = cycle.comprometidoCents
                 shortfall = cycle.shortfall
                 until = cycle.proximo.minusDays(1)
+                safe = SafeToSpendCalculator.fromCycle(cycle, 0)
             } else {
                 // Sem renda cadastrada não há como saber quando o dinheiro entra: a conta é do
                 // mês inteiro, e fica com o menor entre a folga do mês e o balanço da Agenda
                 // (que também desconta as parcelas de dívida).
                 val month = SafeToSpendCalculator.calculate(contas, transacoes, 0, today)
                 val base = minOf(month.slackThisMonthCents, flow.saldoCents)
-                monthBase = base
-                disponivel = base.coerceAtLeast(0)
+                livre = base.coerceAtLeast(0)
                 reservado = 0
                 comprometido = month.monthBillsCents + flow.debtsDue.sumOf { it.valorCentavos }
                 shortfall = month.shortfall ?: if (base < 0) CycleShortfall(today, -base) else null
                 until = today.withDayOfMonth(today.lengthOfMonth())
+                safe = month.copy(
+                    slackThisMonthCents = base,
+                    safeTodayCents = (base / month.daysRemaining).coerceAtLeast(0),
+                    shortfall = shortfall,
+                )
             }
 
-            val allocatable = if (shortfall != null) 0L else minOf(disponivel, capacity.coerceAtLeast(0))
-            val allocations = allocate(allocatable, activeDebts, rawGoals.filterNot { Completion.isDone(it.objetivo) })
-            val alocado = allocations.sumOf { it.cents }
+            val recommendations = if (shortfall != null) emptyList()
+            else recommend(livre, activeDebts, rawGoals.filterNot { Completion.isDone(it.objetivo) })
             val goals = rawGoals.map { g ->
-                g.copy(monthlyContributionFundedCents = allocations.filter { it.target == AllocationTarget.Goal && it.id == g.objetivo.id }.sumOf { it.cents })
+                g.copy(monthlyContributionFundedCents = recommendations.filter { it.target == RecommendationTarget.Goal && it.id == g.objetivo.id }.sumOf { it.cents })
             }
-            val safe = cycle?.let { SafeToSpendCalculator.fromCycle(it, alocado) }
-                ?: SafeToSpendCalculator.calculate(contas, transacoes, alocado, today).let { s ->
-                    // Mesma base do disponível: o "pode gastar" nunca passa do que o plano deixou livre.
-                    val slack = monthBase - alocado
-                    s.copy(
-                        slackThisMonthCents = slack,
-                        safeTodayCents = (slack / s.daysRemaining).coerceAtLeast(0),
-                        reservedForPlanCents = alocado,
-                        shortfall = shortfall,
-                    )
-                }
 
             return FinancialPlan(
                 today = today,
@@ -258,10 +251,10 @@ data class FinancialPlan(
                 saldoDoMesCents = flow.saldoCents,
                 comprometidoCents = comprometido,
                 reservadoFuturoCents = reservado,
-                disponivelCents = disponivel,
+                livreCents = livre,
                 capacidadeMensalCents = capacity,
                 shortfall = shortfall,
-                allocations = allocations,
+                recommendations = recommendations,
                 goals = goals,
                 debts = DebtCalculator.summarize(activeDebts, today),
                 safe = safe,

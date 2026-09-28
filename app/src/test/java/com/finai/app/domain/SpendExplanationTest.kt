@@ -32,13 +32,13 @@ class SpendExplanationTest {
                 tx(LocalDate.of(2026, 10, 20), 200_000, TransactionType.Receita, desc = "Freela"),
             ),
             contas = listOf(conta("Fatura", 100_000, LocalDate.of(2026, 10, 12))),
-            metas = 30_000,
         )
         val parts = e.steps.filterNot { it.total }.sumOf { it.cents }
         assertEquals(e.steps.last().cents, parts)
-        assertEquals(150_000L, e.steps.last().cents) // 300k − 20k − 100k no dia 12, menos 30k de metas
-        assertTrue(e.steps.any { it.label == "Ajuste do dia mais apertado" })
+        assertEquals(180_000L, e.steps.last().cents) // 300k − 20k − 100k no dia 12, antes do freela do dia 20
+        assertTrue(e.steps.any { it.label == "Reserva necessária" })
         assertEquals(listOf("Fatura"), e.upcoming.map { it.label })
+        assertEquals(listOf("Freela"), e.incoming.map { it.label })
     }
 
     @Test fun deducedSalaryIsFlaggedAsMissingInfo() {

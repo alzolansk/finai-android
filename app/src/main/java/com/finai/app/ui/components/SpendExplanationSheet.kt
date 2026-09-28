@@ -37,8 +37,9 @@ import com.finai.app.util.formatBrl0
 private const val UPCOMING_PREVIEW = 6
 
 /**
- * "Entenda este valor" (planning.md §9 Fase 7, item 2): a conta do "Pode gastar hoje" passo a
- * passo, os compromissos descontados, o que o app supõe e o que falta cadastrar. Só mostra o
+ * "Entenda este valor" (planning.md §9 Fase 7, item 2): a conta do livre até o salário passo a
+ * passo, as entradas e os compromissos com data, a recomendação do plano (à parte, porque não
+ * desconta do livre), o que o app supõe e o que falta cadastrar. Só mostra o
  * que [SpendExplanation] montou — nenhum cálculo aqui.
  */
 @Composable
@@ -83,29 +84,26 @@ fun SpendExplanationContent(explanation: SpendExplanation, onClose: () -> Unit, 
             )
         }
 
+        if (explanation.incoming.isNotEmpty()) {
+            SectionTitle("O que ainda vai entrar até o salário")
+            DatedItems(explanation.incoming, sign = "+ ")
+        }
         if (explanation.upcoming.isNotEmpty()) {
-            SectionTitle("O que ainda vai sair")
-            var showAll by remember { mutableStateOf(false) }
-            val shown = if (showAll) explanation.upcoming else explanation.upcoming.take(UPCOMING_PREVIEW)
-            shown.forEach { item ->
-                Row(modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "%02d/%02d".format(item.date.dayOfMonth, item.date.monthValue),
-                        fontSize = 13.sp, color = FinaiColors.TextSecondary, modifier = Modifier.width(56.dp),
-                    )
-                    Text(item.label, fontSize = 14.sp, color = FinaiColors.TextPrimary, modifier = Modifier.weight(1f))
-                    Text("− ${formatBrl0(item.cents / 100.0)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
-                }
-            }
-            val hidden = explanation.upcoming.size - UPCOMING_PREVIEW
-            if (!showAll && hidden > 0) {
-                Box(
-                    modifier = Modifier.heightIn(min = 48.dp).clickable { showAll = true },
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    Text("Ver mais $hidden", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark)
-                }
-            }
+            SectionTitle("O que ainda vai sair até o salário")
+            DatedItems(explanation.upcoming, sign = "− ")
+        }
+
+        explanation.recommendation?.let { rec ->
+            SectionTitle("Recomendação do plano")
+            Text(
+                rec + " É só uma recomendação: não desconta do livre.",
+                fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextPrimary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(FinaiColors.SurfaceMuted)
+                    .padding(12.dp),
+            )
         }
 
         if (explanation.missing.isNotEmpty()) {
@@ -115,6 +113,32 @@ fun SpendExplanationContent(explanation: SpendExplanation, onClose: () -> Unit, 
 
         SectionTitle("O que o app considera")
         explanation.assumptions.forEach { Bullet(it) }
+    }
+}
+
+/** Lista com data, descrição e valor; mostra as primeiras e "Ver mais" para o resto. */
+@Composable
+private fun DatedItems(items: List<com.finai.app.domain.ExplainItem>, sign: String) {
+    var showAll by remember { mutableStateOf(false) }
+    val shown = if (showAll) items else items.take(UPCOMING_PREVIEW)
+    shown.forEach { item ->
+        Row(modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "%02d/%02d".format(item.date.dayOfMonth, item.date.monthValue),
+                fontSize = 13.sp, color = FinaiColors.TextSecondary, modifier = Modifier.width(56.dp),
+            )
+            Text(item.label, fontSize = 14.sp, color = FinaiColors.TextPrimary, modifier = Modifier.weight(1f))
+            Text(sign + formatBrl0(item.cents / 100.0), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+        }
+    }
+    val hidden = items.size - UPCOMING_PREVIEW
+    if (!showAll && hidden > 0) {
+        Box(
+            modifier = Modifier.heightIn(min = 48.dp).clickable { showAll = true },
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text("Ver mais $hidden", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.EmeraldDark)
+        }
     }
 }
 

@@ -233,7 +233,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             saldoLabel = formatBrl(saldoCents / 100.0),
             payCycle = payCycle,
             safeNote = safeNoteFor(safe, payCycle, plan),
-            spendExplanation = com.finai.app.domain.SpendExplanation.of(safe, payCycle, today, plan.allocationSummary),
+            spendExplanation = com.finai.app.domain.SpendExplanation.of(safe, payCycle, today, plan.recommendationSummary.takeIf { plan.recommendations.isNotEmpty() }),
             plan = plan,
             situation = com.finai.app.domain.HomeSituation.of(safe, payCycle),
             nextWeekBills = weekBills,
@@ -259,10 +259,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 else -> formatMonthYearShort(debtSummary.debtFreeDate)
             },
             debtStrategyNote = "Ordenado pelo custo do juro, não pelo tamanho da dívida. " + when {
-                plan.allocations.any { it.target == com.finai.app.domain.AllocationTarget.Debt } -> plan.allocationSummary
+                plan.recommendations.any { it.target == com.finai.app.domain.RecommendationTarget.Debt } -> plan.recommendationSummary
                 debtSummary.ordered.any { it.divida.taxaJurosMensalBasisPoints >= FinancialPlan.EXPENSIVE_DEBT_BASIS_POINTS } ->
-                    "Não há sobra livre ${plan.untilLabel}; quando houver, ela vai primeiro para \"${debtSummary.ordered.first().divida.nome}\"."
-                debtSummary.ordered.isNotEmpty() -> "Nenhuma passa de ${FinancialPlan.EXPENSIVE_DEBT_BASIS_POINTS / 100}% ao mês: a sobra vai para as metas, e aqui basta pagar as parcelas."
+                    "Nada livre ${plan.untilLabel}; quando houver, a recomendação é amortizar primeiro \"${debtSummary.ordered.first().divida.nome}\"."
+                debtSummary.ordered.isNotEmpty() -> "Nenhuma passa de ${FinancialPlan.EXPENSIVE_DEBT_BASIS_POINTS / 100}% ao mês: o plano recomenda o livre para as metas, e aqui basta pagar as parcelas."
                 else -> ""
             },
             negotiationTitle = topDebt?.let { "Ligação sobre \"${it.divida.nome}\" — revise antes de fechar" }
@@ -297,17 +297,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             else
                 "O dinheiro já não fecha: faltam $valor$porque $until. Não há valor livre para gastar até lá."
         }
-        val descontado = when {
-            plan.allocations.isEmpty() -> "já descontadas as contas"
-            else -> "já descontadas as contas e o destino da sobra (" +
-                plan.allocations.joinToString { "${formatBrl0(it.cents / 100.0)} para ${it.name}" } + ")"
-        }
+        val descontado = "já descontados os compromissos" + if (plan.reservadoFuturoCents > 0) " e a reserva necessária" else ""
+        val recomendacao = plan.recomendacao?.let { " Recomendação do plano: usar ${formatBrl0(it.cents / 100.0)} em ${it.name} (continua livre até você registrar)." }.orEmpty()
         val floor = safe.floor
         // O dia mais apertado vem antes do fim do ciclo: o valor é o que sobra nele, não no fim.
         return if (cycle != null && floor != null && floor.cents < cycle.livreCents && floor.date.isAfter(cycle.today))
-            "Sobram ${formatBrl0(safe.slackThisMonthCents.coerceAtLeast(0) / 100.0)} $until contando o dia mais apertado (${dayMonth(floor.date)}), $descontado."
+            "Sobram ${formatBrl0(safe.slackThisMonthCents.coerceAtLeast(0) / 100.0)} $until contando o dia mais apertado (${dayMonth(floor.date)}), $descontado.$recomendacao"
         else
-            "Sobram ${formatBrl0(safe.slackThisMonthCents.coerceAtLeast(0) / 100.0)} $until, $descontado."
+            "Sobram ${formatBrl0(safe.slackThisMonthCents.coerceAtLeast(0) / 100.0)} $until, $descontado.$recomendacao"
     }
 
     private fun dayMonth(d: LocalDate): String = "%02d/%02d".format(d.dayOfMonth, d.monthValue)

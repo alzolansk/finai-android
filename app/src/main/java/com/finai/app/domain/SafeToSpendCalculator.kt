@@ -16,7 +16,7 @@ data class SafeToSpendResult(
     val shortfall: CycleShortfall? = null,
     /** Menor saldo previsto até o salário; nulo no cálculo pelo mês (sem ciclo). */
     val floor: CycleFloor? = null,
-    /** Quanto do aporte das metas coube no dinheiro disponível. */
+    /** Valor reservado a pedido de quem chama; o plano central passa 0 (recomendação não desconta do livre). */
     val reservedForPlanCents: Long = 0,
     /** Só no cálculo pelo mês: as parcelas da folga, para explicar o valor. */
     val monthIncomeCents: Long = 0,

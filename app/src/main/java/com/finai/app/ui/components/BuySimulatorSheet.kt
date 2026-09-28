@@ -56,29 +56,29 @@ fun BuySimulatorContent(
     onAsk: (com.finai.app.domain.AssistantTopic) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Tudo do plano central: o livre para gastar é o que sobra depois do destino da sobra,
-    // e o que passar disso sai do destino (dívida ou meta), não de um "segundo" dinheiro.
-    val free = (plan?.livreParaGastarCents ?: 0L) / 100.0
-    val available = (plan?.disponivelCents ?: 0L) / 100.0
+    // Tudo do plano central. O livre é o dinheiro que dá para usar; a recomendação (dívida ou
+    // meta) não desconta dele, mas a compra pode deixar menos para ela.
+    val free = (plan?.livreCents ?: 0L) / 100.0
+    val recommended = (plan?.recomendadoCents ?: 0L) / 100.0
     val monthly = (plan?.capacidadeMensalCents ?: 0L) / 100.0
     val until = plan?.untilLabel ?: "este mês"
     val verdict = when {
         plan?.shortfall != null -> SimVerdict.DoesNotFit
-        amount <= free -> SimVerdict.Fits
-        amount <= available -> SimVerdict.FitsButCosts
+        amount <= free - recommended -> SimVerdict.Fits
+        amount <= free -> SimVerdict.FitsButCosts
         else -> SimVerdict.DoesNotFit
     }
-    val destino = plan?.destino
-    val delayMonths = if (monthly > 0) ceil(((amount - available) / monthly)).toInt().coerceAtLeast(0) else 0
+    val destino = plan?.recomendacao
+    val delayMonths = if (monthly > 0) ceil(((amount - free) / monthly)).toInt().coerceAtLeast(0) else 0
     // Deterministic explanation (planning.md §6) — shown immediately and kept as the fallback
     // while the AI text below is loading or unavailable (planning.md §4's resiliência requirement).
     val fallbackExplain = when (verdict) {
-        SimVerdict.Fits -> "O valor cabe no livre $until. O destino da sobra no plano não muda."
+        SimVerdict.Fits -> "O valor cabe no livre $until" + (destino?.let { " sem mexer na recomendação para \"${it.name}\"." } ?: ".")
         SimVerdict.FitsButCosts -> destino?.let {
-            "Você cobre à vista, mas tira dinheiro do destino da sobra: \"${it.name}\" recebe menos $until."
-        } ?: "Você cobre à vista, mas usa tudo o que está livre $until."
+            "Cabe no livre $until, mas sobra menos do que o plano recomenda para \"${it.name}\"."
+        } ?: "Cabe, mas usa tudo o que está livre $until."
         SimVerdict.DoesNotFit -> plan?.shortfall?.let { "Já falta dinheiro $until: ${formatBrl0(it.cents / 100.0)}. Nenhuma compra cabe agora." }
-            ?: ("O valor passa do disponível de ${formatBrl0(available)} $until" +
+            ?: ("O valor passa do livre de ${formatBrl0(free)} $until" +
                 (if (delayMonths >= 1) " — levaria cerca de $delayMonths mês(es) de sobra para cobrir o resto." else "."))
     }
     val explain = (aiExplain as? AiText.Ready)?.text ?: fallbackExplain
@@ -91,7 +91,7 @@ fun BuySimulatorContent(
         destino?.let { d ->
             add(
                 SimEffect(
-                    d.name, if (destinoAffected) "destino da sobra recebe menos" else "destino da sobra mantido",
+                    d.name, if (destinoAffected) "recomendação do plano fica menor" else "recomendação do plano mantida",
                     if (destinoAffected) "Em risco" else "Mantido",
                     if (destinoAffected) Color(0xFFB45309) else FinaiColors.EmeraldDark,
                 ),

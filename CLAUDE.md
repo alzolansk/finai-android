@@ -881,6 +881,37 @@ Plano financeiro central (28/09/2026, depois da Fase 7):
   testes JVM de `domain/` passaram; ViewModels e telas foram revisados à mão. Rodar
   `./gradlew assembleDebug testDebugUnitTest` antes de gerar APK.
 
+Plano central: recomendação separada do livre + correção do dia do salário (28/09/2026):
+- **Relato do usuário:** "Balanço de setembro +R$ 114", mas folga R$ 0 no chat e "sem folga" em
+  todas as telas. Duas causas:
+  1. **Bug em `PayCycle.floor`:** o saldo "antes de hoje" contava como candidato a menor saldo
+     antes de somar as entradas do próprio dia. No dia do salário o ciclo começa hoje, esse
+     saldo é zero, e o livre saía R$ 0 com o salário caindo no mesmo dia. Agora o floor usa
+     saldo de **fim de dia** a partir de hoje (entrada e saída do mesmo dia se compensam).
+     Teste `onPaydayTheSalaryThatLandsTodayCounts` falhava com o código antigo (conferido).
+  2. **A regra da seção anterior descontava a destinação do livre** (a dívida cara levava os
+     R$ 114 e o "Livre até o salário" ia a zero). **Decisão do usuário:** o plano só
+     **recomenda**; recomendação nunca reduz o livre, que só muda quando o pagamento ou o aporte
+     é registrado. Registrado também em planning.md §11.
+- `FinancialPlan` agora tem três camadas: comprometido/reservado (`comprometidoCents`,
+  `reservadoFuturoCents`, a reserva só existe quando um dia fica mais apertado que o fim do
+  ciclo), livre (`livreCents`, menor saldo de fim de dia até a véspera do salário, com todas
+  as entradas lançadas no intervalo, inclusive extras como rescisão) e recomendação
+  (`recommendations`/`Recommendation`, antes `allocations`). `recommend` segue a mesma ordem
+  (dívida ≥ 3% a.m., depois metas por prioridade), sem teto pela sobra do mês, e cada real é
+  recomendado uma vez só. `safe` é calculado com reserva zero.
+- "Entenda este valor" auditável: saldo atual do ciclo, entradas previstas até o salário
+  (lista com data), compromissos (lista com data), sobra no fim do ciclo, reserva necessária
+  (com o dia apertado) e livre; a recomendação aparece à parte, dizendo que não desconta.
+- Textos: metas dizem "Recomendação…: guardar R$ X" ou "O plano recomenda usar o livre primeiro
+  em "Y""; dívida diz "Recomendação…: usar R$ X do livre para amortizar"; decisões dizem que o
+  valor continua livre até registrar; o simulador compara a compra com o livre e avisa quando
+  sobra menos para a recomendação; o bloco da IA separa livre ("folga"), recomendação e balanço
+  do mês (outra janela de tempo).
+- 134 testes JVM de `domain/` verdes (kotlinc avulso, mesmo motivo da seção anterior: sem acesso
+  a dl.google.com). ViewModels e telas revisados à mão; rodar `./gradlew assembleDebug
+  testDebugUnitTest` antes de gerar APK.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/
