@@ -36,7 +36,7 @@ class SpendExplanationTest {
         val parts = e.steps.filterNot { it.total }.sumOf { it.cents }
         assertEquals(e.steps.last().cents, parts)
         assertEquals(180_000L, e.steps.last().cents) // 300k − 20k − 100k no dia 12, antes do freela do dia 20
-        assertTrue(e.steps.any { it.label == "Reserva necessária" })
+        assertTrue(e.steps.any { it.label == "Reserva para compromissos" && it.cents == -100_000L })
         assertEquals(listOf("Fatura"), e.upcoming.map { it.label })
         assertEquals(listOf("Freela"), e.incoming.map { it.label })
     }

@@ -98,9 +98,11 @@ class FinancialPlanTest {
             today = today,
         )
         assertNull(plan.shortfall)
-        // Sobra final R$ 1.800, mas no dia 8 só há R$ 500: é isso que está livre agora.
+        // Hoje há R$ 3.000; no dia 8 sai R$ 2.500 antes do freela: R$ 2.500 ficam reservados.
+        // A sobra final (R$ 1.800) é maior que o livre porque R$ 1.300 ainda vão entrar.
         assertEquals(50_000L, plan.livreCents)
-        assertEquals(130_000L, plan.reservadoFuturoCents)
+        assertEquals(250_000L, plan.reservadoFuturoCents)
+        assertEquals(130_000L, plan.aindaVaiEntrarCents)
         assertEquals(310_000L, plan.comprometidoCents)
     }
 
@@ -116,7 +118,34 @@ class FinancialPlanTest {
         )
         assertEquals(LocalDate.of(2026, 10, 28), plan.cycle!!.proximo)
         assertEquals(50_000L, plan.livreCents)
+        assertEquals(250_000L, plan.reservadoFuturoCents)
+    }
+
+    @Test fun moneyThatArrivesLaterIsNotAReserve() {
+        // O caso do usuário: R$ 5.000 hoje; depois o ciclo só ganha (salário, rescisão). O dia mais
+        // apertado é hoje, então não há reserva nenhuma; os R$ 631 a mais ainda vão entrar.
+        val day = LocalDate.of(2026, 9, 28)
+        val plan = FinancialPlan.build(
+            contas = listOf(conta("Contas de casa", 243_600, LocalDate.of(2026, 9, 30))),
+            transacoes = listOf(
+                tx(day, 500_000, TransactionType.Receita, desc = "Teste"),
+                tx(LocalDate.of(2026, 9, 30), 255_000, TransactionType.Receita, desc = "Freela"),
+                tx(LocalDate.of(2026, 10, 10), 190_000, TransactionType.Receita, desc = "Rescisão"),
+                tx(LocalDate.of(2026, 10, 15), 190_000 + 11_400 - 63_100, TransactionType.Gasto, desc = "Fatura"),
+                tx(LocalDate.of(2026, 10, 31), 300_000, TransactionType.Receita, recorrente = true, desc = "Salário"),
+            ),
+            dividas = emptyList(),
+            objetivos = emptyList(),
+            today = day,
+        )
+        assertEquals(500_000L, plan.livreCents)
         assertEquals(0L, plan.reservadoFuturoCents)
+        assertEquals(63_100L, plan.aindaVaiEntrarCents)
+        val e = SpendExplanation.of(plan.safe, plan.cycle, day)
+        assertTrue(e.steps.none { it.label.startsWith("Reserva") })
+        assertTrue(e.afterNote!!.contains("ainda não caíram"))
+        assertEquals(plan.cycle!!.livreCents, e.cycleView.last().cents)
+        assertEquals(e.cycleView.last().cents, e.cycleView.filterNot { it.total }.sumOf { it.cents })
     }
 
     @Test fun anExtraIncomeBeforeTheSalaryEntersTheSimulation() {
@@ -134,10 +163,12 @@ class FinancialPlanTest {
             today = payday,
         )
         // 3.000 − 2.500 (dia 5) = 500 → +1.900 (dia 15) = 2.400 → −1.000 (dia 20) = 1.400.
-        // O dia mais apertado é o 5, com R$ 500: só isso está livre agora; R$ 900 ficam reservados.
+        // O dia mais apertado é o 5, com R$ 500: só isso está livre agora. R$ 2.500 do salário de
+        // hoje ficam reservados para o aluguel; R$ 900 a mais só chegam com a rescisão.
         assertEquals(140_000L, plan.cycle!!.livreCents)
         assertEquals(50_000L, plan.livreCents)
-        assertEquals(90_000L, plan.reservadoFuturoCents)
+        assertEquals(250_000L, plan.reservadoFuturoCents)
+        assertEquals(90_000L, plan.aindaVaiEntrarCents)
         val explain = SpendExplanation.of(plan.safe, plan.cycle, payday)
         assertEquals(listOf("Rescisão"), explain.incoming.map { it.label })
         assertEquals(50_000L, explain.steps.last().cents)

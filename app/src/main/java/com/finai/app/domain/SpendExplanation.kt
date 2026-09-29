@@ -33,6 +33,10 @@ data class SpendExplanation(
     val incoming: List<ExplainItem> = emptyList(),
     /** Recomendação do plano central para o livre ([FinancialPlan.recommendationSummary]). */
     val recommendation: String? = null,
+    /** O ciclo inteiro (hoje, o que entra e sai depois, sobra final), fora da conta do livre. */
+    val cycleView: List<ExplainStep> = emptyList(),
+    /** Por que a sobra final é maior que o livre de hoje, quando é. */
+    val afterNote: String? = null,
 ) {
     companion object {
         private const val NOT_BANK = "Não é o saldo do banco: é a soma do que você lançou no app."
@@ -51,26 +55,19 @@ data class SpendExplanation(
                 .sortedBy { it.date }
                 .map { ExplainItem(it.date, it.descricao.ifBlank { "Sem descrição" }, -it.cents) }
             val floor = safe.floor ?: c.floor
+            val hoje = c.saldoHojeCents
+            val depois = c.livreCents - floor.cents
             val steps = buildList {
                 add(ExplainStep(
-                    "Saldo atual do ciclo", entrou - c.jaSaiuCents,
+                    "Saldo de hoje no ciclo", hoje,
                     (c.inicio?.let { "Entrou ${formatBrl0(entrou / 100.0)} desde o salário de ${dm(it)}" } ?: "O primeiro salário ainda não caiu") +
-                        "; saiu ${formatBrl0(c.jaSaiuCents / 100.0)} ($saidas lançamento(s) e conta(s) pagas)",
+                        "; saiu ${formatBrl0(c.jaSaiuCents / 100.0)} ($saidas lançamento(s) e conta(s) pagas). Conta tudo com data até hoje.",
                 ))
-                add(ExplainStep(
-                    "Entradas previstas até o salário", c.aReceberCents,
-                    if (incoming.isEmpty()) "Nenhuma lançada" else "${incoming.size} entrada(s), listadas abaixo com a data",
-                ))
-                add(ExplainStep(
-                    "Compromissos até o salário", -c.comprometidoCents,
-                    if (upcoming.isEmpty()) "Nenhum lançado" else "Contas, parcelas e gastos com data, listados abaixo",
-                ))
-                add(ExplainStep("Sobra no fim do ciclo", c.livreCents, total = true))
-                if (floor.cents < c.livreCents) {
+                if (floor.cents < hoje) {
                     add(ExplainStep(
-                        "Reserva necessária", floor.cents - c.livreCents,
-                        "Em ${dm(floor.date)} o saldo previsto cai para ${formatBrl0(floor.cents / 100.0)}, porque uma saída vem " +
-                            "antes de uma entrada. Essa parte fica guardada até lá.",
+                        "Reserva para compromissos", floor.cents - hoje,
+                        "Até ${dm(floor.date)} vencem saídas antes de a próxima entrada cair, e o saldo previsto desce para " +
+                            "${formatBrl0(floor.cents / 100.0)}. Essa parte do saldo de hoje fica guardada para elas.",
                     ))
                 }
                 if (safe.reservedForPlanCents > 0) add(ExplainStep("Reservado", -safe.reservedForPlanCents))
@@ -80,6 +77,17 @@ data class SpendExplanation(
                     add(ExplainStep("Livre até o salário", safe.slackThisMonthCents, total = true))
                 }
             }
+            // A visão do ciclo inteiro, fora da conta do livre: o que ainda entra e sai, e onde termina.
+            val cycleView = buildList {
+                add(ExplainStep("Saldo de hoje no ciclo", hoje))
+                add(ExplainStep("Entradas previstas depois de hoje", c.entries.filter { it.cents > 0 && it.date.isAfter(c.today) }.sumOf { it.cents }))
+                add(ExplainStep("Saídas previstas depois de hoje", c.entries.filter { it.cents < 0 && it.date.isAfter(c.today) }.sumOf { it.cents }))
+                add(ExplainStep("Sobra no fim do ciclo", c.livreCents, total = true))
+            }
+            val afterNote = if (depois > 0 && safe.shortfall == null) {
+                "O ciclo termina com ${formatBrl0(c.livreCents / 100.0)}: ${formatBrl0(depois / 100.0)} a mais que o livre de hoje. " +
+                    "Isso vem de entradas que ainda não caíram; vira livre quando elas entrarem."
+            } else null
             val assumptions = buildList {
                 add(NOT_BANK)
                 add("O que sobrou do ciclo anterior não entra. Se sobrou dinheiro, ele não aparece aqui.")
@@ -97,7 +105,7 @@ data class SpendExplanation(
             }
             return SpendExplanation(
                 period, steps, upcoming, safe.safeTodayCents, c.diasAteProximo, safe.shortfall, assumptions, missing,
-                incoming = incoming, recommendation = recommendation,
+                incoming = incoming, recommendation = recommendation, cycleView = cycleView, afterNote = afterNote,
             )
         }
 

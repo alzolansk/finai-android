@@ -908,7 +908,19 @@ Plano central: recomendação separada do livre + correção do dia do salário 
   valor continua livre até registrar; o simulador compara a compra com o livre e avisa quando
   sobra menos para a recomendação; o bloco da IA separa livre ("folga"), recomendação e balanço
   do mês (outra janela de tempo).
-- 134 testes JVM de `domain/` verdes (kotlinc avulso, mesmo motivo da seção anterior: sem acesso
+- **Reserva ≠ dinheiro que ainda vai entrar** (29/09, relato com print): com R$ 5.000 hoje e o
+  ciclo só ganhando depois (salário, rescisão), a folha mostrava "Reserva necessária − R$ 631" e
+  "em 28/09 o saldo cai", sem nenhuma saída no dia. A diferença entre sobra final e livre era
+  chamada toda de reserva. Agora: reserva = saldo de hoje − menor saldo previsto
+  (`PayCycle.saldoHojeCents`, `reservadoFuturoCents`), só quando uma saída vence antes da próxima
+  entrada; sobra final − livre é `aindaVaiEntrarCents` ("vira livre quando cair"). A folha tem a
+  conta do livre (saldo de hoje, reserva para compromissos, livre) e, à parte, "O ciclo inteiro"
+  (hoje + entradas − saídas depois de hoje = sobra final) com a nota do que ainda vai entrar.
+- **Pendente, pedido do usuário (29/09):** registrar um aporte em meta deve tirar o valor do
+  livre. Hoje `contribuirParaObjetivo` só soma no guardado, sem lançar saída. Ideia: gravar um
+  gasto com origem própria (como `DebtSchedule.PAYMENT_ORIGIN`), fora do coach, com "Desfazer
+  aporte" na Agenda. Metas sem aporte registrado já não reduzem o livre.
+- 135 testes JVM de `domain/` verdes (kotlinc avulso, mesmo motivo da seção anterior: sem acesso
   a dl.google.com). ViewModels e telas revisados à mão; rodar `./gradlew assembleDebug
   testDebugUnitTest` antes de gerar APK.
 
