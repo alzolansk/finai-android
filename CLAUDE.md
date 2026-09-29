@@ -947,6 +947,44 @@ Tema escuro (29/09/2026, branch `claude/dark-theme-settings-vy84ft`):
   revisado à mão. Rodar `./gradlew assembleDebug testDebugUnitTest` e olhar as telas no escuro
   antes de gerar APK.
 
+Simulação de cenários de compra no chat (29/09/2026, branch `ccr-180beb76-nngee1`):
+- **Motivo:** perguntas como "posso comprar uma cadeira de R$ 1.000 em 4x?" iam para a IA só com o
+  resumo em texto, e ela improvisava contas e recomendações.
+- **`domain/scenario/`** (Kotlin puro): `PurchaseIntentParser` extrai a intenção sem IA (valor,
+  "4x", "4x de R$ 250", "à vista sai 900", "10% de desconto à vista", Pix/débito/cartão/boleto,
+  "dia 10", "10/11", "hoje", "depois do salário"; `answer` completa uma pergunta pendente e
+  `variation` refaz a última compra com "e em 6x?"). `PurchaseIntent.missing()` diz o que falta:
+  parcelado ou cartão sem data da 1ª parcela/fatura → pergunta (`ScenarioQuestions`, sem IA, cita
+  faturas em aberto); sem parcelas nem forma → pergunta; "à vista" sem forma = Pix/débito hoje, dito
+  na resposta. `PurchaseScenario` tem as saídas com data; `asTransactions()` (id negativo, origem
+  `simulacao`) só existe na memória da simulação e `toRecords()` é o que "Registrar compra" grava.
+- **`PeriodProjection`** leva o fluxo central adiante: usa o próprio `PayCycle.of` em cada ciclo
+  futuro com "hoje" no dia do salário, sobre um retrato rolado em memória (conta vencida antes vira
+  paga, parcela de dívida vencida sai via `DebtSchedule.afterPayment`, salário avulso não lançado é
+  copiado como estimativa). Sem renda principal, os períodos são meses (`MonthCashFlow`). Até 13
+  períodos. Sobra não passa de um período para o outro (regra do `PayCycle`), e a resposta diz isso.
+- **`ScenarioSimulator`**: período atual pelo `FinancialPlan.build` (mesmo "Livre até o salário" da
+  Início, e a recomendação antes/depois); futuros pelo piso de cada ciclo. Por período: livre
+  antes → depois, dia da falta, parcelas de dívida já previstas, fatura em aberto que vence até 3
+  dias da parcela. Veredito: cabe / apertado (< 10% das entradas, mínimo R$ 100) / não cabe /
+  já faltava. Opções comparadas quando fazem sentido: à vista hoje e esperar o próximo salário
+  (preço à vista quando informado). `factsBlock()` é o que a IA recebe; `reply()` é a resposta pronta.
+- **Chat** (`AppViewModel.send`): `PurchaseAssistant.handle` roda antes da IA. Pergunta de volta sem
+  IA; simulado → `AiPromptBuilder.purchaseScenario` (`AiTask.PURCHASE_SCENARIO`) e a resposta passa
+  por `ScenarioReplyGuard`: qualquer R$ ou dd/MM fora do `factsBlock` descarta a resposta e vale
+  `reply()`. Sem IA, também `reply()`. O chat normal foi instruído a não calcular compra.
+- **Registrar** é separado: cartão "Compra simulada · nada foi lançado" no chat com Descartar e
+  Registrar compra (diálogo lista cada gasto) → `FinanceViewModel.registrarCompra` →
+  `FinanceRepository.salvarTransacoes` (transação Room, um gasto "X · parcela N de M" por saída,
+  categoria Compras). A compra pendente e a intenção pendente vivem só em memória e somem ao trocar
+  de conversa. `FinaiApp` passa a cópia das listas do Room por `AppViewModel.setFinanceSnapshot`.
+- Testes: `PurchaseIntentParserTest`, `ScenarioSimulatorTest` (21 novos; 193 JVM de `domain/`
+  verdes com kotlinc avulso). **Build Android não rodado** (sem acesso a dl.google.com); ViewModels,
+  `ChatOverlay` e `FinaiApp` revisados à mão. Rodar `./gradlew assembleDebug testDebugUnitTest`.
+- Limitações: parcelas no cartão viram gasto no vencimento informado, sem entrar na fatura; se a
+  fatura for importada depois, o `DuplicateDetector` pode não reconhecer (data diferente). A IA pode
+  ter a resposta descartada por escrever um valor de outro jeito ("R$ 1 mil").
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/
@@ -1022,6 +1060,8 @@ retomar uma sessão" abaixo).
   `BillStatusCalculator` (status de conta derivado da data), `AlertCalculator`
   (eventos financeiros — sino da topbar e notificações, planning.md §3.9) e
   `BehaviorCoach` (padrões de gasto do coach comportamental, planning.md §3.1).
+- Simulação de compra no chat: `domain/scenario/` (intenção, projeção por ciclo, simulador,
+  perguntas, trava contra número inventado), ligada em `state/AppViewModel.kt`.
 - Importação de fatura (Fase 4): `domain/importer/` (parsing, classificação,
   duplicata, recorrência — Kotlin puro, testável na JVM), `data/importer/`
   (Uri/OCR/PDF/planilha), `data/ai/ImportAiAssistant.kt` (o único ponto de IA da

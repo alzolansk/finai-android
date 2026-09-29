@@ -210,6 +210,31 @@ object AiPromptBuilder {
     }
 
     /**
+     * Pergunta de compra que o app já simulou ([com.finai.app.domain.scenario.ScenarioSimulator]).
+     * O prompt leva só o resultado da simulação: nenhum lançamento, nenhum nome de conta. A IA
+     * explica e resume; qualquer valor ou data fora de [facts] faz o app descartar a resposta
+     * ([com.finai.app.domain.scenario.ScenarioReplyGuard]) e mostrar o texto calculado.
+     */
+    fun purchaseScenario(facts: String, question: String): AiRequest {
+        val prompt = buildString {
+            appendLine(facts)
+            appendLine()
+            appendLine("Pergunta do usuário: $question")
+            appendLine()
+            appendLine("Responda usando só os valores, datas e conclusões acima. Não calcule nada: não some, não subtraia, não divida, não arredonde de outro jeito.")
+            appendLine("Comece com um ou dois destaques no formato {{rótulo curto|R$ 1.234}}, copiando valores do bloco.")
+            appendLine("Depois, em até 4 frases: o veredito, se as contas continuam cobertas, o período mais apertado e, se houver comparação, qual opção é melhor e por quê.")
+            append("Se o usuário perguntar algo que o bloco não responde, diga que o app não calculou isso. Termine dizendo que nada foi lançado.")
+        }
+        return AiRequest(
+            AiTask.PURCHASE_SCENARIO,
+            "$SYSTEM_BASE Você explica o resultado de uma simulação de compra feita pelo app. " +
+                "Os números e o veredito são do app; você não faz contas nem muda conclusões.",
+            prompt,
+        )
+    }
+
+    /**
      * [history] é só a conversa atual — cada conversa começa limpa, para a IA
      * não misturar o assunto (nem os números) de conversas de outros dias.
      * [topicContext] vem do botão que abriu a conversa ("Conversar sobre
@@ -244,7 +269,9 @@ object AiPromptBuilder {
                 "Quando a resposta girar em torno de valores, comece com um ou dois destaques, cada um numa linha, no formato " +
                 "{{rótulo curto|R$ 1.234}} (rótulo de até 3 palavras), e depois explique em até 4 frases o que eles significam " +
                 "e qual a próxima ação, sem repetir os valores dos destaques. " +
-                "Os números do resumo são os de agora; se a conversa anterior citar valores diferentes, valem os do resumo.",
+                "Os números do resumo são os de agora; se a conversa anterior citar valores diferentes, valem os do resumo. " +
+                "Se o usuário perguntar se pode comprar ou parcelar algo, não calcule o impacto: peça o valor, a forma de " +
+                "pagamento e a data da primeira parcela, para o app simular.",
             prompt,
         )
     }

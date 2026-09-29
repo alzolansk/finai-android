@@ -26,6 +26,13 @@ import kotlinx.coroutines.flow.flatMapLatest
 import com.finai.app.data.local.entity.ConversaResumo
 import com.finai.app.data.model.ChatMessage
 import com.finai.app.domain.AssistantTopic
+import com.finai.app.domain.scenario.FinanceSnapshot
+import com.finai.app.domain.scenario.PurchaseAssistant
+import com.finai.app.domain.scenario.PurchaseIntent
+import com.finai.app.domain.scenario.PurchaseScenario
+import com.finai.app.domain.scenario.ScenarioReplyGuard
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Holds the state behind the overlays and widgets that float above whatever
@@ -120,6 +127,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Conversa que está esperando resposta da IA — o "pensando" só aparece nela. */
     private var pendingConversationId: Long? = null
 
+    /**
+     * Cópia das listas do Room que o simulador de compra lê ([PurchaseAssistant]). Atualizada pela
+     * tela a cada mudança do [FinanceViewModel]; a simulação soma o cenário a esta cópia e nunca
+     * grava nada.
+     */
+    private var financeSnapshot: FinanceSnapshot? = null
+
+    fun setFinanceSnapshot(snapshot: FinanceSnapshot) {
+        financeSnapshot = snapshot
+    }
+
+    /**
+     * Pergunta de compra à espera de um dado ("em que dia vence a 1ª parcela?"). Só na memória e
+     * só da conversa atual: trocar de conversa ou mudar de assunto descarta.
+     */
+    private var pendingIntent: PurchaseIntent? = null
+
+    /** Última compra simulada na conversa atual, para "e em 6x?" refazer a conta. */
+    private var lastSimulatedIntent: PurchaseIntent? = null
+
     val conversations: StateFlow<List<ConversaResumo>> = chatRepository.conversas
         .catch { t -> FinaiLog.e(TAG, "Falha ao ler a lista de conversas", t); emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -204,9 +231,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun switchConversation(id: Long) {
         if (id == conversationId.value) return
         topicContext = null
+        pendingIntent = null
+        lastSimulatedIntent = null
         conversationId.value = id
         _uiState.update {
-            it.copy(conversationId = id, messages = emptyList(), draft = "", thinking = pendingConversationId == id)
+            it.copy(conversationId = id, messages = emptyList(), draft = "", thinking = pendingConversationId == id, pendingPurchase = null)
         }
     }
     fun closeChat() = _uiState.update { it.copy(chatOpen = false) }
@@ -255,19 +284,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         pendingConversationId = convId
         if (isFirstMessage) topicContext = context
         _uiState.update {
-            it.copy(chatOpen = true, addOpen = false, simOpen = false, thinking = true, draft = "")
+            it.copy(chatOpen = true, addOpen = false, simOpen = false, thinking = true, draft = "", pendingPurchase = null)
         }
         chatReplyJob = viewModelScope.launch {
             try {
                 chatRepository.registrar(convId, ChatRole.Me, trimmed, contexto = context.takeIf { isFirstMessage })
-                val request = AiPromptBuilder.chat(financeSummary, history, trimmed, context)
-                val reply = when (val response = aiProvider.generate(request)) {
-                    is AiResponse.Success -> response.text
-                    is AiResponse.Unavailable -> FinaiFixtures.offlineReply(trimmed, response.reason)
+                val step = purchaseStep(trimmed)
+                var simulated: PurchaseScenario? = null
+                val reply = when (step) {
+                    is PurchaseAssistant.Step.Ask -> {
+                        // Falta um dado que muda a conta: pergunta, sem IA e sem supor.
+                        pendingIntent = step.intent
+                        step.question
+                    }
+                    is PurchaseAssistant.Step.Simulated -> {
+                        pendingIntent = null
+                        lastSimulatedIntent = step.intent
+                        simulated = step.result.asked.scenario
+                        purchaseReply(step, trimmed)
+                    }
+                    PurchaseAssistant.Step.NotPurchase -> {
+                        pendingIntent = null
+                        lastSimulatedIntent = null
+                        val request = AiPromptBuilder.chat(financeSummary, history, trimmed, context)
+                        when (val response = aiProvider.generate(request)) {
+                            is AiResponse.Success -> response.text
+                            is AiResponse.Unavailable -> FinaiFixtures.offlineReply(trimmed, response.reason)
+                        }
+                    }
                 }
                 chatRepository.registrar(convId, ChatRole.Ai, reply)
                 pendingConversationId = null
-                _uiState.update { it.copy(thinking = false) }
+                _uiState.update {
+                    it.copy(thinking = false, pendingPurchase = simulated?.takeIf { convId == conversationId.value })
+                }
             } catch (e: CancellationException) {
                 // Cancelamento aqui só acontece quando o usuário manda outra
                 // mensagem, e essa chamada já ligou o "pensando" de novo. Desligar
@@ -288,6 +338,56 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendDraft(financeSummary: String) = sendMessage(_uiState.value.draft, financeSummary)
+
+    /** Decide, sem IA, se a mensagem é uma pergunta de compra (ou a resposta a uma pergunta do app). */
+    private suspend fun purchaseStep(text: String): PurchaseAssistant.Step {
+        val snapshot = financeSnapshot ?: return PurchaseAssistant.Step.NotPurchase
+        return withContext(Dispatchers.Default) {
+            try {
+                PurchaseAssistant.handle(text, pendingIntent, snapshot, java.time.LocalDate.now(), lastSimulatedIntent)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                // Uma falha no simulador não pode travar o chat: a pergunta segue para o fluxo normal.
+                FinaiLog.e(TAG, "Falha ao simular a compra", t)
+                PurchaseAssistant.Step.NotPurchase
+            }
+        }
+    }
+
+    /**
+     * A IA redige a partir do resultado da simulação e só dele. Se ela citar um valor ou data que
+     * a simulação não produziu, ou estiver indisponível, vale o texto calculado pelo app.
+     */
+    private suspend fun purchaseReply(step: PurchaseAssistant.Step.Simulated, question: String): String {
+        val facts = step.result.factsBlock()
+        val response = aiProvider.generate(AiPromptBuilder.purchaseScenario(facts, question))
+        if (response is AiResponse.Success) {
+            val invented = ScenarioReplyGuard.inventedIn(response.text, facts)
+            if (invented.isEmpty() && response.text.isNotBlank()) return response.text
+            FinaiLog.w(TAG, "Resposta da IA sobre a compra citou valores fora da simulação; usando o texto calculado")
+        }
+        return step.result.reply()
+    }
+
+    /** "Descartar" do cartão da compra simulada: nada foi gravado, só some da tela. */
+    fun discardPendingPurchase() = _uiState.update { it.copy(pendingPurchase = null) }
+
+    /** Chamado depois de o [FinanceViewModel] gravar a compra: confirma na conversa. */
+    fun onPurchaseRegistered(scenario: PurchaseScenario) {
+        _uiState.update { it.copy(pendingPurchase = null) }
+        val convId = conversationId.value
+        viewModelScope.launch {
+            try {
+                val where = if (scenario.count > 1) "${scenario.count} parcelas estão" else "O gasto está"
+                chatRepository.registrar(convId, ChatRole.Ai, "Compra registrada: ${scenario.label}. $where na Agenda, na data de cada saída.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                FinaiLog.e(TAG, "Falha ao confirmar a compra no chat", t)
+            }
+        }
+    }
 
     private companion object {
         const val TAG = "AppViewModel"
