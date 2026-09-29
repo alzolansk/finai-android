@@ -68,7 +68,7 @@ fun ProgressTrack(
     fillColor: Color,
     modifier: Modifier = Modifier,
     height: Dp = 7.dp,
-    trackColor: Color = Color(0xFFF4F4F5),
+    trackColor: Color = FinaiColors.SurfaceMuted,
 ) {
     Box(
         modifier = modifier
@@ -153,7 +153,7 @@ fun ConfirmDeleteDialog(
         confirmButton = {
             Button(
                 onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.RoseDark, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.RoseButton, contentColor = Color.White),
             ) { Text(confirmLabel) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
@@ -230,7 +230,7 @@ fun ActionButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifi
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(12.dp))
             .then(
-                if (primary) Modifier.background(FinaiColors.EmeraldDark)
+                if (primary) Modifier.background(FinaiColors.EmeraldButton)
                 else Modifier.border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(12.dp)),
             )
             .clickable(onClick = onClick)
@@ -248,13 +248,13 @@ fun SelectChip(label: String, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(99.dp))
-            .background(if (selected) FinaiColors.Ink else FinaiColors.Surface)
-            .border(1.dp, if (selected) FinaiColors.Ink else FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
+            .background(if (selected) FinaiColors.InkStrong else FinaiColors.Surface)
+            .border(1.dp, if (selected) FinaiColors.InkStrong else FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (selected) Color.White else FinaiColors.TextSecondary, maxLines = 1)
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (selected) FinaiColors.OnInkStrong else FinaiColors.TextSecondary, maxLines = 1)
     }
 }
 

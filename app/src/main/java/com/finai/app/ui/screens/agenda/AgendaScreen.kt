@@ -66,6 +66,8 @@ import com.finai.app.domain.toLocalDate
 import com.finai.app.ui.components.ConfirmDeleteDialog
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
+import com.finai.app.ui.theme.themedFill
+import com.finai.app.ui.theme.themedText
 import com.finai.app.ui.theme.FinaiMotion
 import com.finai.app.ui.theme.finaiTween
 import com.finai.app.util.formatBrl0
@@ -353,7 +355,7 @@ private fun DayHeader(date: LocalDate?, entries: List<AgendaEntry>, today: Local
                 fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary,
             )
             Text(WEEKDAYS_PT[date.dayOfWeek.value - 1], fontSize = 12.5.sp, color = FinaiColors.TextTertiary)
-            if (date == today) Chip("Hoje", FinaiColors.EmeraldDark, Color(0xFFECFDF5))
+            if (date == today) Chip("Hoje", FinaiColors.EmeraldDark, FinaiColors.EmeraldSoftBg)
         }
         Box(Modifier.weight(1f))
         if (net != 0L) {
@@ -371,7 +373,7 @@ private fun DayHeader(date: LocalDate?, entries: List<AgendaEntry>, today: Local
  * (atrasado), âmbar = atenção. O tipo do item (dívida, recorrente, fatura) é informação e
  * fica neutro — antes cada tipo tinha a sua cor (rosa, índigo, violeta) e nada se destacava.
  */
-private enum class Tag(val label: String, val fg: Color, val bg: Color) {
+private enum class Tag(val label: String, private val lightFg: Color, private val lightBg: Color) {
     Divida("Dívida", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
     Recorrente("Recorrente", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
     Receita("Receita", Color(0xFF047857), Color(0xFFECFDF5)),
@@ -381,6 +383,10 @@ private enum class Tag(val label: String, val fg: Color, val bg: Color) {
     Extra("Extra", Color(0xFF047857), Color(0xFFECFDF5)),
     Importado("Importado", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
     Transferencia("Transferência", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
+    ;
+
+    val fg: Color get() = lightFg.themedText
+    val bg: Color get() = lightBg.themedFill
 }
 
 @Composable
@@ -412,7 +418,10 @@ private fun TapHint(text: String) {
 }
 
 /** Ícone do item: diz o que ele é (casa, dívida, salário…) em vez de iniciais do nome. */
-private class ItemIcon(val glyph: String, val bg: Color, val ink: Color)
+private class ItemIcon(val glyph: String, private val lightBg: Color, private val lightInk: Color) {
+    val bg: Color get() = lightBg.themedFill
+    val ink: Color get() = lightInk.themedText
+}
 
 private val DebtIcon = ItemIcon("installment", Color(0xFFF4F4F5), Color(0xFF3F3F46))
 private val InvoiceIcon = ItemIcon("card", Color(0xFFF4F4F5), Color(0xFF3F3F46))

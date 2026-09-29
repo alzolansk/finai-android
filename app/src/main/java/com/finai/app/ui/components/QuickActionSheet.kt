@@ -57,7 +57,7 @@ fun QuickActionSheet(
                 .fillMaxWidth()
                 .heightIn(min = 64.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(FinaiColors.EmeraldDark)
+                .background(FinaiColors.EmeraldButton)
                 .clickable { onPick(primary) }
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,

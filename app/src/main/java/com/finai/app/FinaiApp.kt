@@ -358,6 +358,7 @@ fun FinaiApp(
                         val aiConnectionTests by aiViewModel.connectionTests.collectAsState()
                         val backupStatus by financeViewModel.backupStatus.collectAsState()
                         val pendingRestore by financeViewModel.pendingRestore.collectAsState()
+                        val themeMode by viewModel.themeMode.collectAsState()
                         SettingsScreen(
                             onExit = { navController.navigateUp() },
                             configuredProviders = configuredAiProviders,
@@ -397,6 +398,8 @@ fun FinaiApp(
                             onCancelRestore = financeViewModel::cancelRestore,
                             backupStatus = backupStatus,
                             onDismissBackupStatus = financeViewModel::dismissBackupStatus,
+                            themeMode = themeMode,
+                            onSetThemeMode = viewModel::setThemeMode,
                         )
                     }
                 }

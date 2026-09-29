@@ -155,7 +155,7 @@ fun ChatOverlay(
                 modifier = Modifier
                     .size(34.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.05f))
+                    .background(FinaiColors.TextPrimary.copy(alpha = 0.06f))
                     .clickable(onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {

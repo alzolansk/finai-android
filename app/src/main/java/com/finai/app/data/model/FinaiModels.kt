@@ -1,6 +1,8 @@
 package com.finai.app.data.model
 
 import androidx.compose.ui.graphics.Color
+import com.finai.app.ui.theme.themedFill
+import com.finai.app.ui.theme.themedText
 
 /**
  * Fixed-shape UI models the Compose screens render. They mirror the plain
@@ -9,13 +11,21 @@ import androidx.compose.ui.graphics.Color
  * instance is now produced from Room data by `domain/UiMappers.kt`, never
  * from a fixture. No business logic lives here: that's `domain/`'s job
  * (planning.md §6).
+ *
+ * As cores dos enums são as do tema claro; o `bg`/`fg` exposto já vem adaptado ao tema ativo
+ * ([themedFill]/[themedText]). Cores de data class (`Bill.tint`, `Budget.barColor`...) são
+ * montadas fora da composição e adaptadas por quem desenha.
  */
 
-enum class GoalBadge(val label: String, val bg: Color, val fg: Color) {
+enum class GoalBadge(val label: String, private val lightBg: Color, private val lightFg: Color) {
     OnTrack("No ritmo", Color(0xFFECFDF5), Color(0xFF047857)),
     Reassess("Reavaliar", Color(0xFFFFFBEB), Color(0xFFB45309)),
     // Neutro, não roxo (Fase 7, item 7): prioridade é informação, não alerta.
     Priority("Prioridade", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
+    ;
+
+    val bg: Color get() = lightBg.themedFill
+    val fg: Color get() = lightFg.themedText
 }
 
 data class Goal(
@@ -42,10 +52,14 @@ data class Goal(
     val progress: Float get() = (saved / target).toFloat().coerceIn(0f, 1f)
 }
 
-enum class TimelineTone(val color: Color, val line: Color) {
+enum class TimelineTone(private val lightColor: Color, private val lightLine: Color) {
     Positive(Color(0xFF047857), Color(0xFF10B981)),
     Neutral(Color(0xFF63636B), Color(0xFFE4E4E7)),
     Negative(Color(0xFFBE123C), Color(0xFFFDA4AF)),
+    ;
+
+    val color: Color get() = lightColor.themedText
+    val line: Color get() = if (lightLine == Color(0xFF10B981)) lightLine else lightLine.themedFill
 }
 
 data class TimelineEntry(
@@ -55,11 +69,14 @@ data class TimelineEntry(
     val tone: TimelineTone,
 )
 
-enum class StatusTone(val color: Color) {
+enum class StatusTone(private val lightColor: Color) {
     Due(Color(0xFFBE123C)),
     Scheduled(Color(0xFF63636B)),
     Pending(Color(0xFFB45309)),
     Positive(Color(0xFF047857)),
+    ;
+
+    val color: Color get() = lightColor.themedText
 }
 
 data class WeekBill(
@@ -72,12 +89,16 @@ data class WeekBill(
     val statusTone: StatusTone,
 )
 
-enum class BillStatus(val label: String, val bg: Color, val fg: Color) {
+enum class BillStatus(val label: String, private val lightBg: Color, private val lightFg: Color) {
     Overdue("Atrasado", Color(0xFFFFF1F2), Color(0xFFBE123C)),
     Pending("Pendente", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
     DueToday("Vence hoje", Color(0xFFFFFBEB), Color(0xFF92400E)),
     Paid("Pago", Color(0xFFECFDF5), Color(0xFF047857)),
     Expected("Previsto", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
+    ;
+
+    val bg: Color get() = lightBg.themedFill
+    val fg: Color get() = lightFg.themedText
 }
 
 data class Bill(

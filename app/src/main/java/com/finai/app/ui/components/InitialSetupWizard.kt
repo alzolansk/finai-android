@@ -232,7 +232,7 @@ private fun StepScaffold(
                 enabled = primaryEnabled,
                 onClick = onPrimary,
                 modifier = Modifier.heightIn(min = 48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.Ink, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong),
             ) { Text(primaryLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
         }
     }
@@ -326,13 +326,13 @@ private fun ChoiceRow(options: List<String>, selected: Int, onSelect: (Int) -> U
                 modifier = Modifier
                     .heightIn(min = 48.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(if (on) FinaiColors.Ink else FinaiColors.Surface)
-                    .border(1.dp, if (on) FinaiColors.Ink else FinaiColors.BorderSubtle, RoundedCornerShape(12.dp))
+                    .background(if (on) FinaiColors.InkStrong else FinaiColors.Surface)
+                    .border(1.dp, if (on) FinaiColors.InkStrong else FinaiColors.BorderSubtle, RoundedCornerShape(12.dp))
                     .clickable { onSelect(index) }
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (on) Color.White else FinaiColors.TextPrimary)
+                Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (on) FinaiColors.OnInkStrong else FinaiColors.TextPrimary)
             }
         }
     }
@@ -378,7 +378,7 @@ private fun ResultStep(situation: HomeSituation?, informedIncome: Boolean, onFin
         Button(
             onClick = onFinish,
             modifier = Modifier.fillMaxWidth().padding(top = 28.dp).heightIn(min = 48.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.Ink, contentColor = Color.White),
+            colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong),
         ) { Text("Começar a usar", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
     }
 }

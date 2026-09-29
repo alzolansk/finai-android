@@ -3,6 +3,7 @@ package com.finai.app.data.prefs
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -32,6 +33,19 @@ class FinaiPreferences(private val context: Context) {
         val INITIAL_SETUP_COMPLETE = booleanPreferencesKey("initial_setup_complete")
         val KNOWN_ACCOUNTS = stringSetPreferencesKey("known_accounts")
         val TIPS_SEEN = stringSetPreferencesKey("tips_seen")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
+    }
+
+    /**
+     * Aparência escolhida em Configurações → Aparência. Sem a chave (instalação nova ou
+     * anterior ao tema escuro) fica [ThemeMode.LIGHT], que era o único tema até então.
+     * Não é apagado por "Apagar todos os dados": é preferência de uso, não dado financeiro.
+     */
+    val themeMode: Flow<ThemeMode> =
+        context.dataStore.data.map { p -> ThemeMode.entries.firstOrNull { it.name == p[Keys.THEME_MODE] } ?: ThemeMode.LIGHT }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.dataStore.edit { it[Keys.THEME_MODE] = mode.name }
     }
 
     /**
@@ -100,4 +114,11 @@ class FinaiPreferences(private val context: Context) {
     suspend fun removeKnownAccount(name: String) {
         context.dataStore.edit { it[Keys.KNOWN_ACCOUNTS] = (it[Keys.KNOWN_ACCOUNTS] ?: emptySet()) - name }
     }
+}
+
+/** Tema do app. [SYSTEM] acompanha o modo escuro do Android. */
+enum class ThemeMode(val label: String) {
+    LIGHT("Claro"),
+    DARK("Escuro"),
+    SYSTEM("Igual ao sistema"),
 }

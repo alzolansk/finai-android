@@ -87,13 +87,13 @@ fun BuySimulatorContent(
         onEnsureExplain(formatBrl0(amount), verdict.label, formatBrl0(free), formatBrl0(free - amount), destino?.name, destinoAffected)
     }
     val effects = buildList {
-        add(SimEffect("Livre $until", "depois da compra", formatBrl0(free - amount), if (free - amount >= 0) FinaiColors.EmeraldDark else Color(0xFFBE123C)))
+        add(SimEffect("Livre $until", "depois da compra", formatBrl0(free - amount), if (free - amount >= 0) FinaiColors.EmeraldDark else FinaiColors.RoseDark))
         destino?.let { d ->
             add(
                 SimEffect(
                     d.name, if (destinoAffected) "recomendação do plano fica menor" else "recomendação do plano mantida",
                     if (destinoAffected) "Em risco" else "Mantido",
-                    if (destinoAffected) Color(0xFFB45309) else FinaiColors.EmeraldDark,
+                    if (destinoAffected) FinaiColors.AmberDark else FinaiColors.EmeraldDark,
                 ),
             )
         }
@@ -139,14 +139,14 @@ fun BuySimulatorContent(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(11.dp))
-                            .background(if (selected) FinaiColors.Ink else FinaiColors.Surface)
-                            .border(1.dp, if (selected) FinaiColors.Ink else FinaiColors.BorderSubtle, RoundedCornerShape(11.dp))
+                            .background(if (selected) FinaiColors.InkStrong else FinaiColors.Surface)
+                            .border(1.dp, if (selected) FinaiColors.InkStrong else FinaiColors.BorderSubtle, RoundedCornerShape(11.dp))
                             .clickable { onPickPreset(preset) }
                             .padding(horizontal = 13.dp, vertical = 8.dp),
                     ) {
                         Text(
                             formatBrl0(preset), fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                            color = if (selected) Color.White else FinaiColors.TextSecondary,
+                            color = if (selected) FinaiColors.OnInkStrong else FinaiColors.TextSecondary,
                         )
                     }
                 }
@@ -201,7 +201,7 @@ fun BuySimulatorContent(
                 onClick = onDecideLater,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(15.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.Ink, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong),
             ) {
                 Text("Decidir depois", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
             }

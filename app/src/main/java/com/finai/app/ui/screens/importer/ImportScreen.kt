@@ -338,7 +338,7 @@ private fun ErrorCard(message: String, onReset: () -> Unit) {
             modifier = Modifier
                 .padding(top = 14.dp)
                 .clip(RoundedCornerShape(13.dp))
-                .background(FinaiColors.RoseDark)
+                .background(FinaiColors.RoseButton)
                 .clickable(onClick = onReset)
                 .padding(horizontal = 18.dp, vertical = 10.dp),
         ) {
@@ -374,7 +374,7 @@ private fun SavedCard(state: ImportUiState, onOpenAgenda: () -> Unit, onReset: (
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(13.dp))
-                    .background(FinaiColors.EmeraldDark)
+                    .background(FinaiColors.EmeraldButton)
                     .clickable(onClick = onOpenAgenda)
                     .padding(horizontal = 18.dp, vertical = 10.dp),
             ) {
@@ -641,7 +641,7 @@ private fun ConfirmBar(preview: ImportPreview, onConfirm: () -> Unit, modifier: 
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .heightIn(min = 48.dp)
-                .background(if (selected.isEmpty()) FinaiColors.InkBorder else FinaiColors.EmeraldDark)
+                .background(if (selected.isEmpty()) FinaiColors.InkBorder else FinaiColors.EmeraldButton)
                 .clickable(enabled = selected.isNotEmpty(), onClick = onConfirm)
                 .padding(vertical = 12.dp),
             contentAlignment = Alignment.Center,

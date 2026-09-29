@@ -924,6 +924,29 @@ Plano central: recomendação separada do livre + correção do dia do salário 
   a dl.google.com). ViewModels e telas revisados à mão; rodar `./gradlew assembleDebug
   testDebugUnitTest` antes de gerar APK.
 
+Tema escuro (29/09/2026, branch `claude/dark-theme-settings-vy84ft`):
+- **Escolha só em Configurações → Aparência → Tema** (Claro / Escuro / Igual ao sistema). O
+  usuário pediu explicitamente **nenhum botão de tema no cabeçalho ou em outro lugar**. Padrão
+  sem escolha gravada = Claro (o visual de antes). Gravado em `FinaiPreferences.themeMode`
+  (`ThemeMode`), fora do "Apagar todos os dados".
+- **`FinaiColors` virou getters**: cada token tem valor claro e escuro, escolhido por
+  `FinaiColors.isDark` (estado do Compose, escrito por `FinaiTheme`). As centenas de
+  `FinaiColors.X` não mudaram; quem lê é redesenhado na troca. Por isso **não guardar token em
+  `val` fora da composição** (top-level, enum, `remember`): fica congelado no tema da hora.
+  Cor fixa do tema claro guardada em enum/modelo (`FinaiModels`, `UiMappers`, ícones da Agenda)
+  é adaptada na hora de desenhar com `Color.themedText`/`Color.themedFill` (`ui/theme/Color.kt`).
+- Tokens novos: `EmeraldButton`/`RoseButton` (fundo de botão com texto branco, iguais nos dois
+  temas: `EmeraldDark`/`RoseDark` viraram cor de *texto* e clareiam no escuro), `InkStrong`/
+  `OnInkStrong` (selecionado e botão principal: preto no claro, quase branco no escuro),
+  `TextStrong`, `TextDisabled`, `EmeraldSoftStroke`, `RoseSoftStroke`.
+- `MainActivity` lê o tema antes do primeiro quadro (sem piscar branco), ajusta ícones das barras
+  do sistema e o fundo da janela. `Theme.kt` tem `darkColorScheme` com os containers do M3
+  preenchidos (diálogo, menu, calendário) para não saírem arroxeados.
+- **Não compilado com o Gradle** (sem acesso a dl.google.com). `ui/theme/` e `FinaiModels.kt`
+  passaram pela análise de tipos do kotlinc 1.9.22 contra Compose Desktop 1.6.0; o resto foi
+  revisado à mão. Rodar `./gradlew assembleDebug testDebugUnitTest` e olhar as telas no escuro
+  antes de gerar APK.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/
