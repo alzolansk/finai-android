@@ -59,6 +59,9 @@ data class PayCycle(
     val comprometidoCents: Long get() = entries.filter { it.cents < 0 && !it.done }.sumOf { -it.cents }
     val livreCents: Long get() = entradasCents - jaSaiuCents - comprometidoCents
 
+    /** Saldo do ciclo no fim de hoje: tudo com data até hoje, inclusive o que cai hoje. É onde [floor] começa. */
+    val saldoHojeCents: Long get() = entries.filter { !it.date.isAfter(today) }.sumOf { it.cents }
+
     /** Dias a partir de hoje em que o dinheiro precisa durar (o dia do salário já é do próximo ciclo). */
     val diasAteProximo: Int get() = ChronoUnit.DAYS.between(today, proximo).toInt().coerceAtLeast(1)
 

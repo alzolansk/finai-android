@@ -29,9 +29,9 @@ data class Recommendation(
  *
  * Três camadas, sempre separadas:
  * - **Comprometido e reservado** ([comprometidoCents], [reservadoFuturoCents]): o que ainda vai
- *   sair até o salário e a parte da sobra final que precisa ficar parada porque uma saída vence
- *   antes da entrada que a cobriria. A reserva só existe quando, sem ela, o saldo previsto
- *   ficaria menor em algum dia (simulação dia a dia do [PayCycle.floor]).
+ *   sair até o salário e a parte do saldo de hoje que precisa ficar parada porque uma saída
+ *   vence antes da entrada que a cobriria (saldo de hoje − menor saldo previsto). Dinheiro que
+ *   só chega depois do dia mais apertado não é reserva ([aindaVaiEntrarCents]).
  * - **Livre** ([livreCents]): o menor saldo de fim de dia previsto de hoje até a véspera do
  *   salário, contando todas as entradas lançadas nesse intervalo (inclusive extras, como uma
  *   rescisão) e todas as saídas.
@@ -55,6 +55,11 @@ data class FinancialPlan(
     val comprometidoCents: Long,
     val reservadoFuturoCents: Long,
     val livreCents: Long,
+    /**
+     * Quanto o ciclo ainda ganha depois do dia mais apertado (sobra final − livre): entradas que
+     * ainda não caíram. Não é reserva e não está livre hoje; vira livre quando entrar.
+     */
+    val aindaVaiEntrarCents: Long = 0,
     val capacidadeMensalCents: Long,
     val shortfall: CycleShortfall?,
     val recommendations: List<Recommendation>,
@@ -143,7 +148,10 @@ data class FinancialPlan(
         appendLine("Plano financeiro calculado pelo app, $untilLabel (a IA explica; não muda valores nem a recomendação):")
         appendLine("- Comprometido (ainda vai sair $untilLabel): ${brl(comprometidoCents)}.")
         if (reservadoFuturoCents > 0) {
-            appendLine("- Reservado porque uma saída vence antes da próxima entrada: ${brl(reservadoFuturoCents)}.")
+            appendLine("- Reservado (já está no ciclo, mas uma saída vence antes da próxima entrada): ${brl(reservadoFuturoCents)}.")
+        }
+        if (aindaVaiEntrarCents > 0) {
+            appendLine("- Ainda vai entrar depois do dia mais apertado (não é livre hoje; vira livre quando cair): ${brl(aindaVaiEntrarCents)}.")
         }
         shortfall?.let { appendLine("- Falta prevista: ${brl(it.cents)} a partir de ${dm(it.date)}" + (it.causa?.let { c -> " ($c)" } ?: "") + ".") }
         appendLine("- Livre $untilLabel (\"folga\", o que o usuário pode usar): ${brl(livreCents.coerceAtLeast(0))}.")
@@ -208,6 +216,7 @@ data class FinancialPlan(
 
             val comprometido: Long
             val reservado: Long
+            var depois = 0L
             val livre: Long
             val shortfall: CycleShortfall?
             val until: LocalDate
@@ -215,7 +224,11 @@ data class FinancialPlan(
             if (cycle != null) {
                 // Simulação dia a dia: o livre é o menor saldo de fim de dia até a véspera do salário.
                 livre = cycle.floor.cents.coerceAtLeast(0)
-                reservado = (cycle.livreCents.coerceAtLeast(0) - livre).coerceAtLeast(0)
+                // Reserva = dinheiro que já está no ciclo hoje mas precisa ficar para uma saída que
+                // vence antes da próxima entrada. O que só chega depois (sobra final − livre)
+                // não é reserva: ainda não entrou ([aindaVaiEntrarCents]).
+                reservado = (cycle.saldoHojeCents - cycle.floor.cents).coerceAtLeast(0)
+                depois = (cycle.livreCents - cycle.floor.cents).coerceAtLeast(0)
                 comprometido = cycle.comprometidoCents
                 shortfall = cycle.shortfall
                 until = cycle.proximo.minusDays(1)
@@ -252,6 +265,7 @@ data class FinancialPlan(
                 comprometidoCents = comprometido,
                 reservadoFuturoCents = reservado,
                 livreCents = livre,
+                aindaVaiEntrarCents = depois,
                 capacidadeMensalCents = capacity,
                 shortfall = shortfall,
                 recommendations = recommendations,

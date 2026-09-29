@@ -84,6 +84,14 @@ fun SpendExplanationContent(explanation: SpendExplanation, onClose: () -> Unit, 
             )
         }
 
+        if (explanation.cycleView.isNotEmpty()) {
+            SectionTitle("O ciclo inteiro, até o salário")
+            explanation.cycleView.forEach { StepRow(it) }
+            explanation.afterNote?.let {
+                Text(it, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+
         if (explanation.incoming.isNotEmpty()) {
             SectionTitle("O que ainda vai entrar até o salário")
             DatedItems(explanation.incoming, sign = "+ ")
