@@ -36,6 +36,13 @@ enum class AiTask {
 
     /** Fase 5: explicação em linguagem natural de um padrão de comportamento já detectado localmente ([com.finai.app.domain.BehaviorPattern]). */
     BEHAVIOR_COACH,
+
+    /**
+     * Explicação de uma simulação de compra já calculada localmente
+     * ([com.finai.app.domain.scenario.ScenarioSimulator]). A IA só redige; a resposta passa por
+     * [com.finai.app.domain.scenario.ScenarioReplyGuard] antes de aparecer.
+     */
+    PURCHASE_SCENARIO,
 }
 
 /**
