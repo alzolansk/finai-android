@@ -345,6 +345,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * "Registrar compra" do chat: a ação separada, depois de o usuário confirmar, que grava o que a
+     * simulação só projetou ([com.finai.app.domain.scenario.PurchaseScenario.toRecords]). Simular
+     * nunca passa por aqui. [onDone] só roda depois de o Room gravar.
+     */
+    fun registrarCompra(scenario: com.finai.app.domain.scenario.PurchaseScenario, onDone: () -> Unit) =
+        launchSafely("registrar a compra") {
+            repository.salvarTransacoes(scenario.toRecords())
+            onDone()
+        }
+
     /** Assistente inicial: grava renda principal e contas da semana; falha sobe para a tela avisar. */
     suspend fun saveInitialSetup(entries: List<TransacaoEntity>) {
         entries.forEach { repository.salvarTransacao(it) }

@@ -40,6 +40,11 @@ class FinanceRepository(private val db: FinaiDatabase) {
     suspend fun salvarTransacao(transacao: TransacaoEntity) = transacaoDao.upsert(transacao)
     suspend fun excluirTransacao(transacao: TransacaoEntity) = transacaoDao.delete(transacao)
 
+    /** Compra confirmada depois de uma simulação: todas as parcelas entram, ou nenhuma. */
+    suspend fun salvarTransacoes(transacoes: List<TransacaoEntity>) = db.withTransaction {
+        transacoes.forEach { transacaoDao.upsert(it) }
+    }
+
     suspend fun salvarConta(conta: ContaEntity) =
         if (conta.id == 0L) contaDao.upsert(conta) else contaDao.update(conta).let { conta.id }
     suspend fun excluirConta(conta: ContaEntity) = contaDao.delete(conta)

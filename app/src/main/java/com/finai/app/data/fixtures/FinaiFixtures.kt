@@ -17,7 +17,7 @@ import com.finai.app.data.model.QuickAction
 object FinaiFixtures {
 
     const val chatPitch = "Pergunte sobre suas finanças — a IA lê seus lançamentos, contas, objetivos e dívidas reais para responder."
-    val chatSuggestions = listOf("Como está minha folga este mês?", "Qual dívida devo priorizar?", "Onde economizar?")
+    val chatSuggestions = listOf("Como está minha folga este mês?", "Posso comprar algo de R$ 500 em 2x?", "Qual dívida devo priorizar?", "Onde economizar?")
 
     val simPresets = listOf(200.0, 500.0, 1200.0, 3000.0)
     const val defaultSimAmount = 500.0

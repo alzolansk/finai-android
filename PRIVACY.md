@@ -45,6 +45,12 @@ arquivo que decide o que a IA recebe. O que entra:
   10 dias"), nome de uma dívida ("Rotativo Nubank"), nome de categoria.
 - **A pergunta que o usuário digitou no chat**, mais até 8 mensagens anteriores
   da mesma conversa.
+- **Pergunta de compra no chat** ("posso comprar X em 4x?"): só o resultado da
+  simulação local (`ScenarioResult.factsBlock`, em `domain/scenario/`): valores e
+  datas das parcelas, livre antes/depois por ciclo, nome da fatura em aberto com
+  que uma parcela coincide ("Fatura Nubank") e o nome da dívida/meta cuja
+  recomendação muda. Nenhum lançamento. Pergunta de volta ("em que dia vence a
+  1ª parcela?") é feita sem IA.
 - **Na importação**: estabelecimento normalizado + valor + dia/mês, no formato
   `3. mercado sao joao — R$ 189,90 em 12/03`.
   `MerchantClassifier.normalizeMerchant` remove prefixo de adquirente, sufixo de

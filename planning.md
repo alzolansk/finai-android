@@ -74,6 +74,13 @@ Requisitos extraídos tela a tela do protótipo, com a lógica de cada `onClick`
 - Respostas devem citar números reais do usuário (extrato, metas, dívidas), não genéricos.
 - Indicador de "pensando" enquanto a resposta é gerada.
 
+- **Perguntas de compra e parcelamento** (29/09/2026): "posso comprar uma cadeira de R$ 1.000
+  em 4x?" não vai direto para a IA. O app extrai a intenção (valor, parcelas, valor da parcela,
+  forma de pagamento, data da 1ª parcela), pergunta o que faltar quando muda a conta (data da
+  1ª parcela/fatura, forma de pagamento), insere a compra só em memória no fluxo central e
+  recalcula por ciclo; a IA só redige a partir desse resultado, e a resposta é descartada se
+  citar valor ou data fora dele. Registrar a compra é uma ação separada, com confirmação.
+
 ### 3.9 Notificações
 - Lista de avisos proativos (fatura vencendo, categoria perto do limite, entrada extra confirmada).
 
@@ -284,6 +291,13 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
   dinheiro gasto nem reservado: o "Livre até o salário" só diminui quando o pagamento ou o
   aporte é registrado. Reserva só existe quando, sem ela, o saldo previsto de algum dia antes
   do salário ficaria menor (simulação por data, com todas as entradas lançadas no intervalo).
+
+- **Simulação de compra no chat, decidida em 29/09/2026:** a simulação é descartável (nada é
+  gravado); o app pergunta a data da 1ª parcela e a forma de pagamento quando elas mudam a conta,
+  em vez de supor. Exceção assumida: "à vista" sem forma dita vale como Pix/débito hoje (a saída
+  mais cedo possível) e a resposta diz que considerou isso. "Apertado" = livre do período abaixo
+  de 10% das entradas dele (mínimo R$ 100). Compra registrada vira um gasto por saída, na data de
+  cada uma; cartão não cria fatura (a parcela aparece no vencimento informado).
 
 - **Fase 7, respondidas em 28/09/2026:**
   - O número principal da Início é o **livre até o salário**; o valor por dia é apoio.

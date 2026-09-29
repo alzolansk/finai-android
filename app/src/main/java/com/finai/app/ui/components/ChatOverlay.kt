@@ -90,14 +90,17 @@ fun ChatOverlay(
     onDeleteConversation: (Long) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    pendingPurchase: com.finai.app.domain.scenario.PurchaseScenario? = null,
+    onRegisterPurchase: (com.finai.app.domain.scenario.PurchaseScenario) -> Unit = {},
+    onDiscardPurchase: () -> Unit = {},
 ) {
     var showHistory by rememberSaveable { mutableStateOf(false) }
     // Registrado depois do BackHandler central de FinaiApp, então tem prioridade:
     // com a lista aberta, voltar fecha só a lista.
     BackHandler(enabled = showHistory) { showHistory = false }
     val listState = rememberLazyListState()
-    LaunchedEffect(currentConversationId, messages.size, thinking) {
-        val last = messages.size + (if (thinking) 1 else 0) - 1
+    LaunchedEffect(currentConversationId, messages.size, thinking, pendingPurchase) {
+        val last = messages.size + (if (thinking) 1 else 0) + (if (!thinking && pendingPurchase != null) 1 else 0) - 1
         if (last >= 0) listState.animateScrollToItem(last)
     }
     Column(
@@ -185,6 +188,9 @@ fun ChatOverlay(
             }
             items(messages) { message -> ChatBubble(message) }
             if (thinking) item { ThinkingBubble() }
+            if (!thinking && pendingPurchase != null) {
+                item { SimulatedPurchaseCard(pendingPurchase, onRegisterPurchase, onDiscardPurchase) }
+            }
         }
 
         Column(
@@ -250,6 +256,54 @@ fun ChatOverlay(
                 }
             }
         }
+    }
+}
+
+/**
+ * A compra que o chat simulou. Simular não gravou nada; registrar é esta ação separada, com
+ * confirmação que lista exatamente o que vai para a Agenda.
+ */
+@Composable
+private fun SimulatedPurchaseCard(
+    scenario: com.finai.app.domain.scenario.PurchaseScenario,
+    onRegister: (com.finai.app.domain.scenario.PurchaseScenario) -> Unit,
+    onDiscard: () -> Unit,
+) {
+    var confirming by remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(FinaiColors.Surface)
+            .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+    ) {
+        Text("COMPRA SIMULADA · NADA FOI LANÇADO", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary)
+        Text(scenario.label, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextPrimary, modifier = Modifier.padding(top = 6.dp))
+        Row(modifier = Modifier.padding(top = 10.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionButton("Descartar", onClick = onDiscard, modifier = Modifier.weight(1f))
+            ActionButton("Registrar compra", onClick = { confirming = true }, modifier = Modifier.weight(1f), primary = true)
+        }
+    }
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text("Registrar esta compra?") },
+            text = {
+                Text(
+                    buildString {
+                        append(if (scenario.count > 1) "Vão para a Agenda ${scenario.count} gastos, um por parcela:\n" else "Vai para a Agenda um gasto:\n")
+                        scenario.toRecords().zip(scenario.payments).take(6).forEach { (r, p) ->
+                            append("\n• ${r.descricao}: ${com.finai.app.util.formatBrl0(p.cents / 100.0)} em ${"%02d/%02d/%d".format(p.date.dayOfMonth, p.date.monthValue, p.date.year)}")
+                        }
+                        if (scenario.count > 6) append("\n• … e mais ${scenario.count - 6}")
+                        append("\n\nDá para excluir qualquer um deles na Agenda depois.")
+                    },
+                )
+            },
+            confirmButton = { TextButton(onClick = { confirming = false; onRegister(scenario) }) { Text("Registrar") } },
+            dismissButton = { TextButton(onClick = { confirming = false }) { Text("Cancelar") } },
+        )
     }
 }
 

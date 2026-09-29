@@ -30,4 +30,9 @@ data class FinaiUiState(
     val messages: List<ChatMessage> = emptyList(),
     /** Conversa mostrada no chat — ver [AppViewModel.openChat]. */
     val conversationId: Long = 0,
+    /**
+     * Compra que o chat acabou de simular e que o usuário pode registrar ("Registrar compra").
+     * Só em memória: some ao trocar de conversa, ao descartar ou ao fazer outra pergunta.
+     */
+    val pendingPurchase: com.finai.app.domain.scenario.PurchaseScenario? = null,
 )

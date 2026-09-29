@@ -145,6 +145,18 @@ fun FinaiApp(
     val initialSetupComplete by viewModel.initialSetupComplete.collectAsState()
     val knownAccounts by viewModel.knownAccounts.collectAsState()
     val financeSummary = remember(financeState) { financeState.toAiSummaryText() }
+    // O simulador de compra do chat lê uma cópia das mesmas listas do Room; nunca grava nela.
+    LaunchedEffect(financeState.rawContas, financeState.rawTransacoes, financeState.rawDividas, financeState.rawObjetivos, financeState.rawFaturasCartao) {
+        viewModel.setFinanceSnapshot(
+            com.finai.app.domain.scenario.FinanceSnapshot(
+                contas = financeState.rawContas,
+                transacoes = financeState.rawTransacoes,
+                dividas = financeState.rawDividas,
+                objetivos = financeState.rawObjetivos,
+                faturas = financeState.rawFaturasCartao,
+            ),
+        )
+    }
     val conversations by viewModel.conversations.collectAsState()
     val askAbout: (AssistantTopic) -> Unit = { topic -> viewModel.askAbout(topic, financeSummary) }
     val navController = rememberNavController()
@@ -598,6 +610,11 @@ fun FinaiApp(
                 onDraftChange = viewModel::onDraftChange,
                 onSend = { viewModel.sendDraft(financeSummary) },
                 onSuggestion = { text -> viewModel.sendMessage(text, financeSummary) },
+                pendingPurchase = uiState.pendingPurchase,
+                onRegisterPurchase = { scenario ->
+                    financeViewModel.registrarCompra(scenario) { viewModel.onPurchaseRegistered(scenario) }
+                },
+                onDiscardPurchase = viewModel::discardPendingPurchase,
                 onClose = viewModel::closeChat,
             )
         }

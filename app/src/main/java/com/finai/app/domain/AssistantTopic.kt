@@ -71,7 +71,9 @@ object AssistantTopics {
         topGoalName: String?,
         topGoalAffected: Boolean,
     ) = AssistantTopic(
-        question = "Posso fazer uma compra de $amountLabel agora?",
+        // "à vista agora" deixa a pergunta completa para o simulador de cenários do chat
+        // (Pix/débito hoje), sem precisar perguntar a forma de pagamento de volta.
+        question = "Posso fazer uma compra de $amountLabel à vista agora?",
         context = buildString {
             appendLine("Simulador \"Posso comprar?\".")
             appendLine("Valor: $amountLabel. Veredito calculado localmente: \"$verdictLabel\".")
