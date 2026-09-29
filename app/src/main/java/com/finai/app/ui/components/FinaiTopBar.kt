@@ -42,11 +42,12 @@ import com.finai.app.R
 import com.finai.app.ui.theme.FinaiColors
 
 // Tons tirados da própria folha da logo (res/drawable-nodpi/finai_mark.png): o verde claro
-// do topo, o médio da dobra e o escuro da sombra interna.
-private val BrandLeafMist = Color(0xFFF1FBF3)
-private val BrandLeafWash = Color(0xFFDDF6E3)
-private val BrandLeafEdge = Color(0xFFBFEBCB)
-private val BrandLeafDeep = Color(0xFF0B6B3A)
+// do topo, o médio da dobra e o escuro da sombra interna. No tema escuro o degradê vira verde
+// bem fechado e o ícone, o verde claro da folha.
+private val BrandLeafMist get() = if (FinaiColors.isDark) Color(0xFF0F2A1C) else Color(0xFFF1FBF3)
+private val BrandLeafWash get() = if (FinaiColors.isDark) Color(0xFF133524) else Color(0xFFDDF6E3)
+private val BrandLeafEdge get() = if (FinaiColors.isDark) Color(0xFF1F5A3A) else Color(0xFFBFEBCB)
+private val BrandLeafDeep get() = if (FinaiColors.isDark) Color(0xFF6EE7A0) else Color(0xFF0B6B3A)
 
 /** Botão quadrado da topbar no verde da marca: fundo em degradê suave, contorno e ícone da folha. */
 @Composable
@@ -143,10 +144,10 @@ fun FinaiTopBar(
                         modifier = Modifier
                             .size(20.dp)
                             .clip(CircleShape)
-                            .background(Color.White)
+                            .background(FinaiColors.Background)
                             .padding(1.5.dp)
                             .clip(CircleShape)
-                            .background(FinaiColors.RoseDark),
+                            .background(FinaiColors.RoseButton),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(

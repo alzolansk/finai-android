@@ -37,13 +37,14 @@ data class AiTextPalette(
     val bullet: Color,
 ) {
     companion object {
-        val Light = AiTextPalette(
+        /** Getter: acompanha o tema claro/escuro a cada leitura. */
+        val Light: AiTextPalette get() = AiTextPalette(
             body = FinaiColors.TextBody,
             strong = FinaiColors.TextPrimary,
             money = FinaiColors.EmeraldDark,
             moneyBg = FinaiColors.Emerald.copy(alpha = 0.10f),
-            negative = Color(0xFFBE123C),
-            negativeBg = Color(0xFFBE123C).copy(alpha = 0.08f),
+            negative = FinaiColors.RoseDark,
+            negativeBg = FinaiColors.Rose.copy(alpha = 0.10f),
             bullet = FinaiColors.EmeraldDark,
         )
         val OnDark = AiTextPalette(

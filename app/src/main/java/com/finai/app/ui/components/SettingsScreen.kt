@@ -24,12 +24,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
@@ -72,6 +76,7 @@ import com.finai.app.data.ai.GroqAiProvider
 import com.finai.app.data.ai.MistralAiProvider
 import com.finai.app.data.ai.OpenRouterAiProvider
 import com.finai.app.data.ai.ProviderId
+import com.finai.app.data.prefs.ThemeMode
 import com.finai.app.state.ConnectionTest
 import com.finai.app.ui.theme.FinaiColors
 
@@ -109,6 +114,8 @@ fun SettingsScreen(
     onCancelRestore: () -> Unit = {},
     backupStatus: String? = null,
     onDismissBackupStatus: () -> Unit = {},
+    themeMode: ThemeMode = ThemeMode.LIGHT,
+    onSetThemeMode: (ThemeMode) -> Unit = {},
 ) {
     var page by rememberSaveable { mutableStateOf(SettingsPage.MAIN) }
     var providerName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -142,6 +149,7 @@ fun SettingsScreen(
                     activeProvider = activeProvider,
                     notificationsEnabled = notificationsEnabled,
                     accountCount = knownAccounts.size,
+                    themeMode = themeMode,
                     onOpen = { page = it },
                     onRestartTour = onRestartTour,
                 )
@@ -169,6 +177,7 @@ fun SettingsScreen(
                         onTest = { onTestProvider(provider) },
                     )
                 }
+                SettingsPage.APPEARANCE -> AppearancePage(themeMode, onSetThemeMode)
                 SettingsPage.NOTIFICATIONS -> NotificationsPage(notificationsEnabled, onRunNotificationCheck)
                 SettingsPage.ACCOUNTS -> AccountsPage(knownAccounts, onAddAccount, onRemoveAccount)
                 SettingsPage.PRIVACY -> PrivacyPage(
@@ -184,6 +193,7 @@ private enum class SettingsPage(val title: String) {
     MAIN("Configurações"),
     AI("IA e assistente"),
     PROVIDER("Provedor"),
+    APPEARANCE("Aparência"),
     NOTIFICATIONS("Notificações"),
     ACCOUNTS("Contas e cartões"),
     PRIVACY("Privacidade e dados"),
@@ -197,6 +207,7 @@ private fun MainPage(
     activeProvider: ProviderId?,
     notificationsEnabled: Boolean,
     accountCount: Int,
+    themeMode: ThemeMode,
     onOpen: (SettingsPage) -> Unit,
     onRestartTour: () -> Unit,
 ) {
@@ -243,6 +254,16 @@ private fun MainPage(
             title = "Privacidade e dados",
             status = StatusLine("Seus dados ficam neste aparelho", StatusTone.Neutral),
             onClick = { onOpen(SettingsPage.PRIVACY) },
+        )
+    }
+
+    GroupLabel("Aparência")
+    SettingsGroup {
+        SettingsRow(
+            icon = themeMode.icon,
+            title = "Tema",
+            status = StatusLine(themeMode.label, StatusTone.Neutral),
+            onClick = { onOpen(SettingsPage.APPEARANCE) },
         )
     }
 
@@ -418,7 +439,7 @@ private fun ProviderPage(
             confirmButton = {
                 Button(
                     onClick = { confirmDisconnect = false; onClear() },
-                    colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.RoseDark, contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.RoseButton, contentColor = Color.White),
                 ) { Text("Desconectar") }
             },
             dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text("Cancelar") } },
@@ -446,7 +467,7 @@ private fun KeyForm(provider: ProviderId, replacing: Boolean, onSave: (String) -
                 Button(
                     enabled = key.isNotBlank(),
                     onClick = { onSave(key.trim()); key = "" },
-                    colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.Ink, contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong),
                 ) { Text(if (replacing) "Salvar e testar" else "Conectar") }
                 if (onCancel != null) TextButton(onClick = onCancel) { Text("Cancelar", color = FinaiColors.TextSecondary) }
             }
@@ -487,6 +508,48 @@ private val ProviderId.keyUrl: String
         ProviderId.MISTRAL -> "console.mistral.ai/api-keys"
         ProviderId.CEREBRAS -> "cloud.cerebras.ai"
     }
+
+// ── aparência ───────────────────────────────────────────────────────────
+
+private val ThemeMode.icon: ImageVector
+    get() = when (this) {
+        ThemeMode.LIGHT -> Icons.Filled.LightMode
+        ThemeMode.DARK -> Icons.Filled.DarkMode
+        ThemeMode.SYSTEM -> Icons.Filled.Contrast
+    }
+
+private val ThemeMode.detail: String
+    get() = when (this) {
+        ThemeMode.LIGHT -> "Fundo claro, o visual original do FinAI"
+        ThemeMode.DARK -> "Fundo escuro, mais confortável à noite e com pouca luz"
+        ThemeMode.SYSTEM -> "Claro ou escuro conforme o modo escuro do Android"
+    }
+
+/** Escolha do tema. Troca na hora, sem reiniciar o app, e fica gravada no aparelho. */
+@Composable
+private fun AppearancePage(current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
+    SettingsGroup {
+        ThemeMode.entries.forEachIndexed { index, mode ->
+            if (index > 0) RowDivider()
+            val selected = mode == current
+            SettingsRow(
+                icon = mode.icon,
+                iconTint = if (selected) FinaiColors.EmeraldDark else FinaiColors.TextSecondary,
+                title = mode.label,
+                status = StatusLine(mode.detail, StatusTone.Neutral),
+                trailing = {
+                    if (selected) Icon(
+                        Icons.Filled.Check, contentDescription = "Selecionado",
+                        tint = FinaiColors.EmeraldDark, modifier = Modifier.size(20.dp),
+                    )
+                },
+                onClick = { onSelect(mode) },
+                showChevron = false,
+            )
+        }
+    }
+    FootNote(null, "A escolha vale para todas as telas e fica gravada neste aparelho.")
+}
 
 // ── notificações ────────────────────────────────────────────────────────
 
@@ -578,7 +641,7 @@ private fun AccountsPage(accounts: Set<String>, onAdd: (String) -> Unit, onRemov
             Button(
                 enabled = input.isNotBlank(),
                 onClick = { onAdd(input.trim()); input = "" },
-                colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.Ink, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong),
             ) { Text("Adicionar") }
         }
     }
@@ -706,7 +769,7 @@ private fun PrivacyPage(
             confirmButton = {
                 Button(
                     onClick = onConfirmRestore,
-                    colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.Ink, contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong),
                 ) { Text("Substituir tudo") }
             },
             dismissButton = { TextButton(onClick = onCancelRestore) { Text("Cancelar") } },
@@ -731,7 +794,7 @@ private fun PrivacyPage(
                         showEraseConfirm = false
                         onEraseAllData()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.RoseDark, contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.RoseButton, contentColor = Color.White),
                 ) { Text("Apagar tudo") }
             },
             dismissButton = {

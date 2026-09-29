@@ -60,6 +60,8 @@ import androidx.compose.ui.unit.sp
 import com.finai.app.domain.Celebration
 import com.finai.app.domain.CelebrationStyle
 import com.finai.app.ui.theme.FinaiColors
+import com.finai.app.ui.theme.themedText
+import com.finai.app.ui.theme.themedFill
 import kotlin.math.PI
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -162,8 +164,8 @@ fun CelebrationOverlay(celebration: Celebration, onDismiss: () -> Unit, modifier
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val (icon, tint, bg) = when (celebration.style) {
-                CelebrationStyle.Travel -> Triple(Icons.Filled.FlightTakeoff, Color(0xFF0284C7), Color(0xFFE0F2FE))
-                CelebrationStyle.Confetti -> Triple(Icons.Filled.EmojiEvents, Color(0xFFD97706), Color(0xFFFEF3C7))
+                CelebrationStyle.Travel -> Triple(Icons.Filled.FlightTakeoff, Color(0xFF0284C7).themedText, Color(0xFFE0F2FE).themedFill)
+                CelebrationStyle.Confetti -> Triple(Icons.Filled.EmojiEvents, Color(0xFFD97706).themedText, Color(0xFFFEF3C7).themedFill)
                 CelebrationStyle.DebtFree -> Triple(Icons.Filled.TaskAlt, FinaiColors.EmeraldDark, FinaiColors.EmeraldSoftBg)
             }
             Box(
@@ -202,12 +204,12 @@ fun CelebrationOverlay(celebration: Celebration, onDismiss: () -> Unit, modifier
                     .padding(top = 20.dp)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(FinaiColors.Ink)
+                    .background(FinaiColors.InkStrong)
                     .clickable(onClick = onDismiss)
                     .padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Continuar", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Continuar", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.OnInkStrong)
             }
         }
     }

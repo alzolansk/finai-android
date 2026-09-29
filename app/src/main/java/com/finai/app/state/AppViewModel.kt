@@ -96,6 +96,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val knownAccounts: StateFlow<Set<String>> =
         prefs.knownAccounts.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
+    /** Configurações → Aparência. O tema em si é aplicado por `MainActivity`, que lê o mesmo DataStore. */
+    val themeMode: StateFlow<com.finai.app.data.prefs.ThemeMode> =
+        prefs.themeMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.finai.app.data.prefs.ThemeMode.LIGHT)
+
+    fun setThemeMode(mode: com.finai.app.data.prefs.ThemeMode) = viewModelScope.launch { prefs.setThemeMode(mode) }
+
     fun addKnownAccounts(names: Set<String>) = viewModelScope.launch { prefs.addKnownAccounts(names) }
     fun removeKnownAccount(name: String) = viewModelScope.launch { prefs.removeKnownAccount(name) }
 

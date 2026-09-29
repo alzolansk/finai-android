@@ -175,7 +175,7 @@ private fun HeroCard(conta: ContaEntity, fatura: FaturaCartaoEntity?, status: Bi
     val paga = conta.status == "pago"
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF18181B), Color(0xFF27272A))))
+            .background(Brush.linearGradient(listOf(FinaiColors.Ink, FinaiColors.InkBorder)))
             .padding(20.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

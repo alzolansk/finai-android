@@ -50,6 +50,7 @@ import com.finai.app.domain.DebtEntry
 import com.finai.app.domain.MONTH_NAMES_PT
 import com.finai.app.domain.TransactionEntry
 import com.finai.app.domain.toLocalDate
+import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.ui.theme.FinaiMotion
 import com.finai.app.ui.theme.finaiTween
 import java.text.NumberFormat
@@ -61,7 +62,7 @@ private fun debtAmountText(cents: String): String = NumberFormat.getNumberInstan
     minimumFractionDigits = 2; maximumFractionDigits = 2
 }.format((cents.toLongOrNull() ?: 0) / 100.0)
 
-private val Emerald = Color(0xFF047857)
+private val Emerald get() = FinaiColors.EmeraldDark
 
 /**
  * Cadastro/edição de dívida em tela cheia, no mesmo visual do lançamento manual
@@ -134,11 +135,11 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
         .windowInsetsPadding(WindowInsets.safeDrawing.exclude(WindowInsets.ime))) {
         val form: @Composable () -> Unit = {
             Column(Modifier.fillMaxSize()) {
-                Box(Modifier.fillMaxWidth().height(62.dp).background(Color.White)) {
+                Box(Modifier.fillMaxWidth().height(62.dp).background(FinaiColors.Surface)) {
                     IconButton(onClick = { close() }, modifier = Modifier.align(Alignment.CenterStart)) { EntryGlyph("back", EntryInk, "Voltar") }
                     Text(if (initial != null) "Editar dívida" else "Nova dívida", color = EntryInk, fontSize = 16.sp,
                         fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
-                    Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Color(0xFFF1F1F2)))
+                    Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(FinaiColors.BorderFaint))
                 }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     SegmentedTabs(
@@ -157,7 +158,7 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
                     Column(Modifier.fillMaxWidth().padding(vertical = 10.dp).clickable { focus.clearFocus(); keypadTarget = "main" },
                         horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(if (parcelada) "VALOR DA PARCELA" else "QUANTO VOCÊ DEVE HOJE", color = EntryMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        val color = if (mainCents.isEmpty()) Color(0xFFD4D4D8) else EntryInk
+                        val color = if (mainCents.isEmpty()) FinaiColors.TextDisabled else EntryInk
                         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 4.dp)
                             .semantics { contentDescription = "Valor: R$ ${debtAmountText(mainCents)}" }) {
                             Text("R$ ", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = if (mainCents.isEmpty()) EntryMuted else color, modifier = Modifier.padding(bottom = 6.dp))
@@ -171,10 +172,10 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         DebtEntry.suggestions.forEach { s ->
                             val selected = nome.trim().equals(s, ignoreCase = true)
-                            Box(Modifier.clip(CircleShape).background(if (selected) Color(0xFFECFDF5) else Color.White)
-                                .border(1.dp, if (selected) Color(0xFFA7F3D0) else EntryLine, CircleShape)
+                            Box(Modifier.clip(CircleShape).background(if (selected) FinaiColors.EmeraldSoftBg else FinaiColors.Surface)
+                                .border(1.dp, if (selected) FinaiColors.EmeraldSoftStroke else EntryLine, CircleShape)
                                 .clickable { nome = s; focus.clearFocus() }.padding(horizontal = 12.dp, vertical = 7.dp)) {
-                                Text(s, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = if (selected) Color(0xFF047857) else Color(0xFF3F3F46))
+                                Text(s, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = if (selected) FinaiColors.EmeraldDark else FinaiColors.TextStrong)
                             }
                         }
                     }
@@ -186,7 +187,7 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
                                 max = (totalN - 1).coerceAtLeast(0))
                         }
                         if (totalN > 0 && pagasN >= totalN) {
-                            Text("Já pagas precisa ser menor que o total — senão a dívida está quitada.", color = Color(0xFFBE123C), fontSize = 12.sp)
+                            Text("Já pagas precisa ser menor que o total — senão a dívida está quitada.", color = FinaiColors.RoseDark, fontSize = 12.sp)
                         }
                         EntryField("calendar", "Próxima parcela vence em",
                             date?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))?.let { "$it · ${debtDayLabel(date)}" } ?: "Escolher data",
@@ -200,7 +201,7 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
                     if (parcelada) {
                         val estimado = DebtEntry.saldoEstimadoCents(parcelaCents.toLongOrNull() ?: 0, totalN, pagasN)
                         val saldoActive = keypadTarget == "saldo"
-                        Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(EntryShape).background(Color.White)
+                        Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(EntryShape).background(FinaiColors.Surface)
                             .border(if (saldoActive) 1.5.dp else 1.dp, if (saldoActive) EntryInk else EntryLine.copy(alpha = .65f), EntryShape)
                             .clickable { focus.clearFocus(); keypadTarget = "saldo" }
                             .padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -224,12 +225,12 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
                     if (parcelada && valid) {
                         val restantes = DebtEntry.restantes(totalN, pagasN)
                         val ultima = date!!.plusMonths((restantes - 1).toLong())
-                        Column(Modifier.fillMaxWidth().padding(top = 4.dp).clip(EntryShape).background(Color(0xFFECFDF5))
-                            .border(1.dp, Color(0xFFA7F3D0), EntryShape).padding(14.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(top = 4.dp).clip(EntryShape).background(FinaiColors.EmeraldSoftBg)
+                            .border(1.dp, FinaiColors.EmeraldSoftStroke, EntryShape).padding(14.dp)) {
                             Text("Faltam $restantes parcela${if (restantes > 1) "s" else ""} de R$ ${debtAmountText(parcelaCents)}",
-                                color = Color(0xFF065F46), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                color = FinaiColors.EmeraldDeep, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             Text("Aparece na Agenda ${debtDayLabel(date)} até ${MONTH_NAMES_PT[ultima.monthValue - 1].lowercase()} de ${ultima.year}.",
-                                color = Color(0xFF047857), fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
+                                color = FinaiColors.EmeraldDark, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
                         }
                     }
 
@@ -237,7 +238,7 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
                         focus.clearFocus()
                         onSave(DebtEntry.build(initial, nome, parcelada, mainCents.toLong(), totalN, pagasN, date, rate, saldoCents.toLongOrNull()))
                     }, enabled = valid, shape = EntryShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = EntryInk, contentColor = Color.White, disabledContainerColor = EntryLine, disabledContentColor = EntryMuted),
+                        colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong, disabledContainerColor = EntryLine, disabledContentColor = EntryMuted),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, disabledElevation = 0.dp),
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp).height(52.dp)) {
                         Text(if (initial != null) "Salvar alterações" else "Salvar dívida", fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -265,7 +266,7 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
             Column(Modifier.fillMaxSize().imePadding()) {
                 Box(Modifier.weight(1f)) { form() }
                 if (showKeypad) {
-                    Row(Modifier.fillMaxWidth().background(Color.White).padding(start = 16.dp, end = 8.dp, top = 6.dp),
+                    Row(Modifier.fillMaxWidth().background(FinaiColors.Surface).padding(start = 16.dp, end = 8.dp, top = 6.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Text(if (keypadTarget == "saldo") "Saldo devedor" else if (parcelada) "Valor da parcela" else "Valor em aberto",
                             color = EntryMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -283,11 +284,11 @@ private fun DebtEntryContent(initial: DividaEntity?, onDismiss: () -> Unit, onSa
 
 @Composable
 private fun SegmentedTabs(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth().height(42.dp).clip(CircleShape).background(Color(0xFFF4F4F5)).padding(3.dp)) {
+    Row(Modifier.fillMaxWidth().height(42.dp).clip(CircleShape).background(FinaiColors.SurfaceMuted).padding(3.dp)) {
         options.forEachIndexed { index, label ->
             val isSelected = index == selected
-            val bg by animateColorAsState(if (isSelected) EntryInk else Color.Transparent, finaiTween(FinaiMotion.Quick), label = "debtTabBg")
-            val fg by animateColorAsState(if (isSelected) Color.White else Color(0xFF63636B), finaiTween(FinaiMotion.Quick), label = "debtTabFg")
+            val bg by animateColorAsState(if (isSelected) FinaiColors.InkStrong else Color.Transparent, finaiTween(FinaiMotion.Quick), label = "debtTabBg")
+            val fg by animateColorAsState(if (isSelected) FinaiColors.OnInkStrong else FinaiColors.TextTertiary, finaiTween(FinaiMotion.Quick), label = "debtTabFg")
             Box(Modifier.weight(1f).fillMaxHeight()
                 .then(if (isSelected) Modifier.shadow(3.dp, CircleShape) else Modifier)
                 .clip(CircleShape).background(bg)
@@ -305,8 +306,8 @@ private fun TextRow(
     onFocus: (Boolean) -> Unit, suffix: String? = null, keyboardType: KeyboardType = KeyboardType.Text, isError: Boolean = false,
 ) {
     val focus = LocalFocusManager.current
-    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(EntryShape).background(Color.White)
-        .border(1.dp, if (isError) Color(0xFFFDA4AF) else EntryLine.copy(alpha = .65f), EntryShape)
+    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(EntryShape).background(FinaiColors.Surface)
+        .border(1.dp, if (isError) FinaiColors.RoseSoftStroke else EntryLine.copy(alpha = .65f), EntryShape)
         .padding(start = 16.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         EntryGlyph(icon, EntryMuted)
         Spacer(Modifier.width(14.dp))
@@ -316,7 +317,7 @@ private fun TextRow(
             keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
             modifier = Modifier.weight(1f).padding(vertical = 15.dp).onFocusChanged { onFocus(it.isFocused) }
                 .semantics { contentDescription = placeholder },
-            decorationBox = { field -> Box { if (value.isEmpty()) Text(placeholder, color = Color(0xFF808080), fontSize = 14.sp); field() } })
+            decorationBox = { field -> Box { if (value.isEmpty()) Text(placeholder, color = FinaiColors.TextMuted, fontSize = 14.sp); field() } })
         if (suffix != null) Text(suffix, color = EntryMuted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
@@ -328,7 +329,7 @@ private fun Stepper(
 ) {
     val focus = LocalFocusManager.current
     val n = value.toIntOrNull() ?: 0
-    Column(modifier.clip(EntryShape).background(Color.White).border(1.dp, EntryLine.copy(alpha = .65f), EntryShape).padding(horizontal = 6.dp, vertical = 10.dp),
+    Column(modifier.clip(EntryShape).background(FinaiColors.Surface).border(1.dp, EntryLine.copy(alpha = .65f), EntryShape).padding(horizontal = 6.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, color = EntryMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
@@ -339,7 +340,7 @@ private fun Stepper(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
                 modifier = Modifier.width(56.dp).onFocusChanged { onFocus(it.isFocused) }.semantics { contentDescription = label },
-                decorationBox = { field -> Box(contentAlignment = Alignment.Center) { if (value.isEmpty()) Text("–", color = Color(0xFFD4D4D8), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold); field() } })
+                decorationBox = { field -> Box(contentAlignment = Alignment.Center) { if (value.isEmpty()) Text("–", color = FinaiColors.TextDisabled, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold); field() } })
             StepButton("plus", "Aumentar $label", enabled = n < max) { focus.clearFocus(); onChange((n + 1).coerceAtMost(max).coerceAtLeast(min).toString()) }
         }
     }
@@ -348,8 +349,8 @@ private fun Stepper(
 @Composable
 private fun StepButton(glyph: String, description: String, enabled: Boolean, onClick: () -> Unit) {
     Box(Modifier.size(40.dp).clip(CircleShape).clickable(enabled = enabled, role = Role.Button, onClick = onClick), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(30.dp).background(if (enabled) Color(0xFFF4F4F5) else Color(0xFFFAFAFA), CircleShape), contentAlignment = Alignment.Center) {
-            EntryGlyph(glyph, if (enabled) EntryInk else Color(0xFFD4D4D8), description, 16)
+        Box(Modifier.size(30.dp).background(if (enabled) FinaiColors.SurfaceMuted else FinaiColors.SurfaceSunken, CircleShape), contentAlignment = Alignment.Center) {
+            EntryGlyph(glyph, if (enabled) EntryInk else FinaiColors.TextDisabled, description, 16)
         }
     }
 }

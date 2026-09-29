@@ -51,6 +51,8 @@ import com.finai.app.ui.components.PillTag
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
+import com.finai.app.ui.theme.themedText
+import com.finai.app.ui.theme.themedFill
 import com.finai.app.ui.theme.FinaiMotion
 import com.finai.app.ui.theme.finaiTween
 import com.finai.app.util.formatBrl0
@@ -227,13 +229,13 @@ private fun CompletedGoalCard(
             modifier = Modifier
                 .size(42.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(if (travel) Color(0xFFE0F2FE) else Color(0xFFFEF3C7)),
+                .background((if (travel) Color(0xFFE0F2FE) else Color(0xFFFEF3C7)).themedFill),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 if (travel) Icons.Filled.FlightTakeoff else Icons.Filled.EmojiEvents,
                 contentDescription = null,
-                tint = if (travel) Color(0xFF0284C7) else Color(0xFFD97706),
+                tint = (if (travel) Color(0xFF0284C7) else Color(0xFFD97706)).themedText,
                 modifier = Modifier.size(22.dp),
             )
         }

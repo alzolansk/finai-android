@@ -46,6 +46,7 @@ import com.finai.app.ui.components.FadeInAppear
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
+import com.finai.app.ui.theme.themedText
 import com.finai.app.ui.theme.FinaiMotion
 import com.finai.app.ui.theme.finaiTween
 import com.finai.app.util.formatBrl0
@@ -211,7 +212,7 @@ private fun BudgetRow(budget: Budget, onEditLimit: (String) -> Unit) {
             Text(budget.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, modifier = Modifier.weight(1f))
             Text(
                 "${formatBrl0(budget.spent)} / ${formatBrl0(budget.limit)}", fontSize = 13.sp,
-                fontWeight = FontWeight.Bold, color = budget.valueColor,
+                fontWeight = FontWeight.Bold, color = budget.valueColor.themedText,
             )
         }
         ProgressTrack(progress = budget.progressPct, fillColor = budget.barColor, modifier = Modifier.padding(top = 7.dp))

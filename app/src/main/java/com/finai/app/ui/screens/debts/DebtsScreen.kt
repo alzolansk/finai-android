@@ -49,6 +49,7 @@ import com.finai.app.ui.components.FadeInAppear
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
 import com.finai.app.ui.theme.FinaiColors
+import com.finai.app.ui.theme.themedText
 import com.finai.app.ui.theme.FinaiMotion
 import com.finai.app.ui.theme.finaiTween
 
@@ -311,7 +312,7 @@ private fun DebtRow(debt: Debt, onEdit: () -> Unit, onDelete: () -> Unit, onPay:
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(debt.amount, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-                Text(debt.rate, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = debt.rateColor, modifier = Modifier.padding(top = 2.dp))
+                Text(debt.rate, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = debt.rateColor.themedText, modifier = Modifier.padding(top = 2.dp))
             }
             OverflowMenu(
                 listOf(OverflowAction("Editar", onClick = onEdit), OverflowAction("Excluir", destructive = true, onClick = onDelete)),

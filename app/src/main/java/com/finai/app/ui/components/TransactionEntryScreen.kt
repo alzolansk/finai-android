@@ -58,6 +58,7 @@ import com.finai.app.domain.MONTH_NAMES_PT
 import com.finai.app.domain.TransactionEntry
 import com.finai.app.domain.TransactionType
 import com.finai.app.domain.toEpochMillis
+import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.ui.theme.FinaiMotion
 import com.finai.app.ui.theme.finaiTween
 import kotlinx.coroutines.CancellationException
@@ -68,10 +69,11 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-internal val EntryInk = Color(0xFF18181B)
-internal val EntryMuted = Color(0xFF6B6B73)
-internal val EntryPaper = Color(0xFFFAFAFA)
-internal val EntryLine = Color(0xFFE4E4E7)
+// Getters, não valores: acompanham o tema claro/escuro (ver FinaiColors).
+internal val EntryInk get() = FinaiColors.TextPrimary
+internal val EntryMuted get() = FinaiColors.TextMuted
+internal val EntryPaper get() = FinaiColors.Background
+internal val EntryLine get() = FinaiColors.BorderSubtle
 internal val EntryShape = RoundedCornerShape(16.dp)
 internal val EntryFont = com.finai.app.ui.theme.FinaiFontFamily
 
@@ -186,19 +188,19 @@ private fun TransactionEntryContent(
             .windowInsetsPadding(WindowInsets.safeDrawing.exclude(WindowInsets.ime))) {
             val form: @Composable () -> Unit = {
             Column(Modifier.fillMaxSize().then(if (sheet != null) Modifier.blur(4.dp) else Modifier)) {
-                Box(Modifier.fillMaxWidth().height(62.dp).background(Color.White)) {
+                Box(Modifier.fillMaxWidth().height(62.dp).background(FinaiColors.Surface)) {
                     IconButton(onClick = { close() }, enabled = !saving, modifier = Modifier.align(Alignment.CenterStart)) {
                         EntryGlyph("back", EntryInk, "Voltar")
                     }
                     Text("Novo lançamento", color = EntryInk, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
-                    Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(Color(0xFFF1F1F2)))
+                    Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(FinaiColors.BorderFaint))
                 }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Row(Modifier.fillMaxWidth().height(48.dp).clip(CircleShape).background(Color(0xFFF4F4F5)).padding(3.dp)) {
+                    Row(Modifier.fillMaxWidth().height(48.dp).clip(CircleShape).background(FinaiColors.SurfaceMuted).padding(3.dp)) {
                         TransactionType.values().forEach { item ->
                             val selected = type == item
-                            val tabBg by animateColorAsState(if (selected) EntryInk else Color.Transparent, finaiTween(FinaiMotion.Quick), label = "typeTabBg")
-                            val tabFg by animateColorAsState(if (selected) Color.White else Color(0xFF63636B), finaiTween(FinaiMotion.Quick), label = "typeTabFg")
+                            val tabBg by animateColorAsState(if (selected) FinaiColors.InkStrong else Color.Transparent, finaiTween(FinaiMotion.Quick), label = "typeTabBg")
+                            val tabFg by animateColorAsState(if (selected) FinaiColors.OnInkStrong else FinaiColors.TextTertiary, finaiTween(FinaiMotion.Quick), label = "typeTabFg")
                             Box(Modifier.weight(1f).fillMaxHeight()
                                 .then(if (selected) Modifier.shadow(3.dp, CircleShape) else Modifier)
                                 .clip(CircleShape).background(tabBg)
@@ -212,10 +214,10 @@ private fun TransactionEntryContent(
                     // focada (mesmo depois de fechar o teclado do sistema com "voltar") e
                     // showKeypad ficava falso, então tocar no valor não fazia nada.
                     Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp).clickable(enabled = !saving) { focus.clearFocus(); amountEditing = true }, horizontalAlignment = Alignment.CenterHorizontally) {
-                        val amountColor = if (cents.isEmpty()) Color(0xFFD4D4D8) else when (type) {
+                        val amountColor = if (cents.isEmpty()) FinaiColors.TextDisabled else when (type) {
                             TransactionType.Gasto -> EntryInk
-                            TransactionType.Receita -> Color(0xFF047857)
-                            TransactionType.Transferencia -> Color(0xFF4F46E5)
+                            TransactionType.Receita -> FinaiColors.EmeraldDark
+                            TransactionType.Transferencia -> FinaiColors.Indigo
                         }
                         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.semantics { contentDescription = "Valor: R$ ${amountText(cents)}" }) {
                             Text("R$ ", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = if (cents.isEmpty()) EntryMuted else amountColor, modifier = Modifier.padding(bottom = 7.dp))
@@ -226,7 +228,7 @@ private fun TransactionEntryContent(
                         }
                         Text("Digite o valor no teclado abaixo", color = EntryMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                     }
-                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(EntryShape).background(Color.White).border(1.dp, EntryLine.copy(alpha = .65f), EntryShape).padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(EntryShape).background(FinaiColors.Surface).border(1.dp, EntryLine.copy(alpha = .65f), EntryShape).padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         EntryGlyph("description", EntryMuted)
                         Spacer(Modifier.width(14.dp))
                         BasicTextField(description, { description = it }, enabled = !saving, singleLine = true,
@@ -236,7 +238,7 @@ private fun TransactionEntryContent(
                             modifier = Modifier.weight(1f).padding(vertical = 14.dp)
                                 .onFocusChanged { descriptionFocused = it.isFocused; if (it.isFocused) amountEditing = false }
                                 .semantics { contentDescription = "Descrição" },
-                            decorationBox = { field -> Box { if (description.isEmpty()) Text("Descrição", color = Color(0xFF6B6B73), fontSize = 14.sp); field() } })
+                            decorationBox = { field -> Box { if (description.isEmpty()) Text("Descrição", color = FinaiColors.TextMuted, fontSize = 14.sp); field() } })
                         if (description.isNotEmpty()) IconButton(onClick = { description = "" }, enabled = !saving) { EntryGlyph("close", EntryMuted, "Limpar descrição") }
                     }
                     EntryField("card", if (isReceita) "De onde veio" else "Conta/cartão de origem",
@@ -260,7 +262,7 @@ private fun TransactionEntryContent(
                     EntrySwitchRow("repeat", if (recurring) "Recorrente · todo mês" else "Recorrente", recurring, !saving, "Recorrente") {
                         amountEditing = false; recurring = !recurring; if (recurring) extra = false
                     }
-                    if (error != null) Text(error!!, color = Color(0xFFBE123C), fontSize = 13.sp)
+                    if (error != null) Text(error!!, color = FinaiColors.RoseDark, fontSize = 13.sp)
                     Button(onClick = {
                         focus.clearFocus()
                         saving = true; error = null
@@ -275,7 +277,7 @@ private fun TransactionEntryContent(
                             finally { saving = false }
                         }
                     }, enabled = valid, shape = EntryShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = EntryInk, contentColor = Color.White, disabledContainerColor = EntryLine, disabledContentColor = EntryMuted),
+                        colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong, disabledContainerColor = EntryLine, disabledContentColor = EntryMuted),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, disabledElevation = 0.dp),
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp).height(52.dp)) {
                         Text(if (saving) "Salvando…" else "Salvar lançamento", fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -309,9 +311,9 @@ private fun TransactionEntryContent(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         row.forEach { item ->
                             val selected = item == category
-                            val color by animateColorAsState(if (selected) Color(0xFF047857) else Color(0xFF3F3F46), finaiTween(FinaiMotion.Quick), label = "categoryFg")
-                            val bg by animateColorAsState(if (selected) Color(0xFFECFDF5) else EntryPaper, finaiTween(FinaiMotion.Quick), label = "categoryBg")
-                            val border by animateColorAsState(if (selected) Color(0xFFA7F3D0) else Color(0xFFF1F1F2), finaiTween(FinaiMotion.Quick), label = "categoryBorder")
+                            val color by animateColorAsState(if (selected) FinaiColors.EmeraldDark else FinaiColors.TextStrong, finaiTween(FinaiMotion.Quick), label = "categoryFg")
+                            val bg by animateColorAsState(if (selected) FinaiColors.EmeraldSoftBg else EntryPaper, finaiTween(FinaiMotion.Quick), label = "categoryBg")
+                            val border by animateColorAsState(if (selected) FinaiColors.EmeraldSoftStroke else FinaiColors.BorderFaint, finaiTween(FinaiMotion.Quick), label = "categoryBorder")
                             val borderWidth by animateFloatAsState(if (selected) 1.5f else 1f, finaiTween(FinaiMotion.Quick), label = "categoryBorderWidth")
                             val scale by animateFloatAsState(if (selected) 1.03f else 1f, finaiTween(FinaiMotion.Quick), label = "categoryScale")
                             Column(Modifier.weight(1f).heightIn(min = 70.dp).scale(scale).clip(EntryShape)
@@ -336,7 +338,7 @@ private fun TransactionEntryContent(
                     Row(Modifier.fillMaxWidth().selectable(item == selectedAccount, role = Role.RadioButton, onClick = { account = item; sheet = null }).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                         EntryGlyph("card", EntryMuted)
                         Text(item, color = EntryInk, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                        if (item == selectedAccount) EntryGlyph("check", Color(0xFF047857))
+                        if (item == selectedAccount) EntryGlyph("check", FinaiColors.EmeraldDark)
                     }
                 }
                 OutlinedTextField(custom, { custom = it }, label = { Text(if (isReceita) "De onde veio (empresa, cliente...)" else "Outra conta/cartão") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -348,23 +350,23 @@ private fun TransactionEntryContent(
         EntryCalendarSheet(selected = date, onSelect = { picked -> dateString = picked.toString(); sheet = null }, onDismiss = { sheet = null })
     }
     if (visible && success) Dialog(onDismissRequest = {}) {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color.White).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(FinaiColors.Surface).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.size(48.dp).background(Color(0xFF10B981), CircleShape), contentAlignment = Alignment.Center) { EntryGlyph("check", Color.White) }
             Text(type.confirmation, color = EntryInk, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 18.dp))
-            Text("R$ ${amountText(cents)} em $category" + (if (recurring) " · recorrente" else "") + (if (isReceita && extra) " · entrada extra" else "") + (if (isReceita && mainIncome) " · renda principal" else ""), color = Color(0xFF63636B), fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
+            Text("R$ ${amountText(cents)} em $category" + (if (recurring) " · recorrente" else "") + (if (isReceita && extra) " · entrada extra" else "") + (if (isReceita && mainIncome) " · renda principal" else ""), color = FinaiColors.TextTertiary, fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
             Button(onClick = {
                 val savedDate = date
                 cents = ""; category = ""; description = ""; recurring = false; extra = false; mainIncome = false; typeName = TransactionType.Gasto.name
                 dateString = LocalDate.now().toString(); account = ""; success = false; amountEditing = true
                 onViewEntry(savedDate)
-            }, colors = ButtonDefaults.buttonColors(containerColor = EntryInk), shape = EntryShape, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Ver lançamento") }
+            }, colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong), shape = EntryShape, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Ver lançamento") }
         }
     }
 }
 
 @Composable
 internal fun EntryField(icon: String, label: String, value: String, placeholder: Boolean = false, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(EntryShape).background(Color.White).border(1.dp, EntryLine.copy(alpha = .65f), EntryShape).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(EntryShape).background(FinaiColors.Surface).border(1.dp, EntryLine.copy(alpha = .65f), EntryShape).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         EntryGlyph(icon, EntryMuted)
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Text(label, color = EntryMuted, fontSize = 12.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold)
@@ -376,7 +378,7 @@ internal fun EntryField(icon: String, label: String, value: String, placeholder:
 
 @Composable
 private fun EntrySwitchRow(icon: String, text: String, checked: Boolean, enabled: Boolean, description: String, onToggle: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(EntryShape).background(Color.White).border(1.dp, EntryLine.copy(alpha = .65f), EntryShape).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(EntryShape).background(FinaiColors.Surface).border(1.dp, EntryLine.copy(alpha = .65f), EntryShape).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         EntryGlyph(icon, EntryMuted)
         Text(text, color = EntryInk, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(start = 14.dp))
         // Compact 46 x 26 track from the reference, with a full 48 dp touch area.
@@ -398,15 +400,15 @@ internal fun EntryKeypad(visible: Boolean, enabled: Boolean, onKey: (String) -> 
         enter = fadeIn(tween(180)) + expandVertically(tween(220)),
         exit = fadeOut(tween(140)) + shrinkVertically(tween(200)),
     ) {
-        Column(Modifier.fillMaxWidth().height(240.dp).background(Brush.linearGradient(listOf(Color.White.copy(alpha = .9f), Color.White.copy(alpha = .78f)))).padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(Modifier.fillMaxWidth().height(240.dp).background(Brush.linearGradient(listOf(FinaiColors.Surface.copy(alpha = .9f), FinaiColors.Surface.copy(alpha = .78f)))).padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("00", "0", "erase")).forEach { row ->
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     row.forEach { key ->
-                        Box(Modifier.weight(1f).fillMaxHeight().clip(EntryShape).background(if (key == "00" || key == "erase") Color(0xFFF7F7F8) else Color.White)
-                            .border(1.dp, Color(0xFFF4F4F5), EntryShape).clickable(enabled = enabled, role = Role.Button, onClick = { onKey(key) }),
+                        Box(Modifier.weight(1f).fillMaxHeight().clip(EntryShape).background(if (key == "00" || key == "erase") FinaiColors.SurfaceSunken else FinaiColors.Surface)
+                            .border(1.dp, FinaiColors.BorderFaint, EntryShape).clickable(enabled = enabled, role = Role.Button, onClick = { onKey(key) }),
                             contentAlignment = Alignment.Center) {
-                            if (key == "erase") EntryGlyph("erase", Color(0xFF52525B), "Apagar")
-                            else Text(key, color = if (key == "00") Color(0xFF52525B) else EntryInk, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                            if (key == "erase") EntryGlyph("erase", FinaiColors.TextSecondary, "Apagar")
+                            else Text(key, color = if (key == "00") FinaiColors.TextSecondary else EntryInk, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -420,14 +422,14 @@ internal fun EntryKeypad(visible: Boolean, enabled: Boolean, onKey: (String) -> 
 internal fun EntrySheet(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     val maxHeight = LocalConfiguration.current.screenHeightDp.dp * .85f
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color.White, tonalElevation = 0.dp, scrimColor = Color.Black.copy(alpha = .36f),
+        containerColor = FinaiColors.Surface, tonalElevation = 0.dp, scrimColor = Color.Black.copy(alpha = .36f),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = { Box(Modifier.padding(top = 14.dp, bottom = 4.dp).size(38.dp, 4.dp).background(EntryLine, CircleShape)) }) {
         Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 22.dp)) {
             Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, color = EntryInk, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
-                    Box(Modifier.size(30.dp).background(Color(0xFFF4F4F5), CircleShape), contentAlignment = Alignment.Center) { EntryGlyph("close", Color(0xFF63636B), "Fechar", 14) }
+                    Box(Modifier.size(30.dp).background(FinaiColors.SurfaceMuted, CircleShape), contentAlignment = Alignment.Center) { EntryGlyph("close", FinaiColors.TextTertiary, "Fechar", 14) }
                 }
             }
             content()
@@ -486,12 +488,12 @@ internal fun EntryCalendarSheet(selected: LocalDate, onSelect: (LocalDate) -> Un
                                 val isToday = date == LocalDate.now()
                                 Box(
                                     Modifier.size(34.dp).clip(CircleShape)
-                                        .background(if (isSelected) EntryInk else Color.Transparent)
+                                        .background(if (isSelected) FinaiColors.InkStrong else Color.Transparent)
                                         .then(if (isToday && !isSelected) Modifier.border(1.dp, EntryInk, CircleShape) else Modifier)
                                         .selectable(isSelected, role = Role.Button, onClick = { onSelect(date) }),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Text(day.toString(), color = if (isSelected) Color.White else EntryInk, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Text(day.toString(), color = if (isSelected) FinaiColors.OnInkStrong else EntryInk, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
                         }

@@ -232,7 +232,7 @@ private fun SituationCard(
                         .weight(1f)
                         .heightIn(min = 48.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (situation.shortfall) FinaiColors.RoseDark else FinaiColors.EmeraldDark)
+                        .background(if (situation.shortfall) FinaiColors.RoseButton else FinaiColors.EmeraldButton)
                         .clickable { onAction(situation.action) },
                     contentAlignment = Alignment.Center,
                 ) {

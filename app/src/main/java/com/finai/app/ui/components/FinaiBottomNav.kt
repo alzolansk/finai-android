@@ -69,7 +69,7 @@ fun FinaiBottomNav(
                 .tipTarget("nav.add")
                 .size(width = 52.dp, height = 48.dp)
                 .clip(RoundedCornerShape(15.dp))
-                .background(FinaiColors.EmeraldDark)
+                .background(FinaiColors.EmeraldButton)
                 .clickable(onClick = onToggleAdd),
             contentAlignment = Alignment.Center,
         ) {
