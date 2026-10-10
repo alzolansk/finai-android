@@ -49,13 +49,15 @@ object AiPromptBuilder {
             appendLine("Metas:")
             goals.forEachIndexed { i, goal ->
                 append("[${i + 1}] \"${goal.name}\" (${goal.kind}): guardado ${formatBrl0(goal.saved)} de ${formatBrl0(goal.target)}, ")
-                append("prazo ${goal.eta}, situação no prazo: ${goal.badge.label}. ${goal.note}")
+                append("prazo ${goal.eta}, situação: ${goal.badge.label}. ${goal.note}")
                 if (goal.planNote.isNotBlank()) append(" ${goal.planNote}")
                 if (goal.description.isNotBlank()) append(" Descrição do usuário: ${goal.description.trim()}")
                 appendLine()
             }
             appendLine()
             appendLine("O usuário já vê os valores na tela: não os repita. O próximo passo segue a recomendação do plano: não sugira aporte agora para meta que o plano não recomenda.")
+            appendLine("Seja específico e acionável. Cada linha tem no máximo 15 palavras, sem justificativa técnica e sem repetir a mesma recomendação em várias metas.")
+            appendLine("Se a situação for \"Não iniciado\", não diga que a meta está no ritmo. Não invente dados que não estão acima.")
             appendLine("Para cada meta, responda com a marca [n] numa linha e depois exatamente 3 linhas curtas (uma frase cada):")
             appendLine("Agora: o que a situação significa para esta meta.")
             appendLine("Próximo passo: uma ação concreta coerente com o plano.")

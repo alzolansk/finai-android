@@ -17,11 +17,14 @@ import com.finai.app.ui.theme.themedText
  * montadas fora da composição e adaptadas por quem desenha.
  */
 
+/** Um selo por [com.finai.app.domain.GoalPace]: o que o card e a Início mostram. */
 enum class GoalBadge(val label: String, private val lightBg: Color, private val lightFg: Color) {
+    // Neutro: não é problema nem acerto, só ainda não começou.
+    NotStarted("Não iniciado", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
     OnTrack("No ritmo", Color(0xFFECFDF5), Color(0xFF047857)),
-    Reassess("Reavaliar", Color(0xFFFFFBEB), Color(0xFFB45309)),
-    // Neutro, não roxo (Fase 7, item 7): prioridade é informação, não alerta.
-    Priority("Prioridade", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
+    Attention("Atenção", Color(0xFFFFFBEB), Color(0xFFB45309)),
+    Late("Atrasado", Color(0xFFFFF1F2), Color(0xFFBE123C)),
+    Done("Concluído", Color(0xFFECFDF5), Color(0xFF047857)),
     ;
 
     val bg: Color get() = lightBg.themedFill
@@ -48,6 +51,16 @@ data class Goal(
     val completedLabel: String? = null,
     /** Quanto passou do alvo (aportes depois de concluída). */
     val exceeded: Double = 0.0,
+    /** Quanto guardar por mês até o prazo para alcançar o alvo. */
+    val monthlyNeeded: Double = 0.0,
+    /** Quanto falta guardar. */
+    val missing: Double = 0.0,
+    /** Sobra projetada até o prazo, depois das metas de maior prioridade; nulo sem projeção. */
+    val projectedAvailable: Double? = null,
+    /** O que o plano central recomenda guardar nesta meta até o próximo salário (0 = nada agora). */
+    val recommended: Double = 0.0,
+    /** Uma linha curta sobre a situação, só quando ela diz algo que os números não dizem. */
+    val headline: String = "",
 ) {
     val progress: Float get() = (saved / target).toFloat().coerceIn(0f, 1f)
 }

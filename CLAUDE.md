@@ -985,6 +985,31 @@ Simulação de cenários de compra no chat (29/09/2026, branch `ccr-180beb76-nng
   fatura for importada depois, o `DuplicateDetector` pode não reconhecer (data diferente). A IA pode
   ter a resposta descartada por escrever um valor de outro jeito ("R$ 1 mil").
 
+Tela Objetivos mais enxuta + status real das metas (10/10/2026, branch `claude/loving-brahmagupta-u3sz58`):
+- **Status novo na tela** (`GoalPace` em `domain/GoalCalculator.kt`): Não iniciado, No ritmo, Atenção,
+  Atrasado, Concluído. `GoalStatus` (capacidade: a sobra projetada cobre o que falta?) continua igual e
+  segue alimentando alertas e IA. **Inconsistência corrigida:** o card mostrava `GoalStatus` direto, então
+  meta com R$ 0 guardados aparecia "No ritmo" só porque a sobra cobriria; e meta com prazo vencido podia
+  dizer "R$ X/mês mantém a data" (`monthsUntil` trava em 1). Regra: alvo atingido = Concluído; prazo
+  vencido = Atrasado; sem sobra prevista até o prazo = Atrasado; sobra parcial = Atenção; sobra cobre e
+  nada guardado = Não iniciado (Atenção se o prazo é este mês ou o próximo); sobra cobre e já há valor =
+  No ritmo. Sem data de criação nem histórico de aportes no Room, não há como medir "ritmo esperado até
+  hoje", por isso nada guardado nunca vira No ritmo. `GoalBadge` acompanhou (selos novos, Atrasado em rosa).
+- **Card da meta**: nome, selo, guardado/alvo, %, barra (cor pelo selo), "R$ X/mês até <prazo>", uma linha
+  curta só quando acrescenta algo (`Goal.headline`) e "Sugestão do plano: guardar R$ X" só na meta que o
+  plano recomenda (`Goal.recommended`). "Adicionar valor" e "Detalhes"; os detalhes (falta, sobra prevista,
+  por que o plano não sugere aporte, descrição, "Simular cenários", "Ver análise da IA") abrem no próprio card.
+- **"Leitura da IA" saiu do card fixo** e virou "Ver análise da IA", sob demanda: `FinaiApp` não chama mais
+  `ensureGoalInsights` ao abrir a tela, só quando a primeira análise é aberta (continua uma chamada para até
+  4 metas). Prompt pede linhas de até 15 palavras e proíbe "no ritmo" para meta não iniciada; "Risco: nenhum
+  relevante" some da tela.
+- **Card do topo**: "Livre até o salário · dd/MM", valor, `FinancialPlan.shortRecommendation` (só falta
+  prevista ou dívida prioritária; aporte em meta aparece no card da meta, para não repetir) e "Entenda este
+  valor", que abre a mesma folha da Início.
+- Testes: `GoalPaceTest` (novo) e asserções em `FinancialPlanTest`; 164 testes JVM de `domain/` verdes com
+  kotlinc avulso (sem os de importação). **Tela não compilada aqui** (sem acesso ao AGP); o usuário vai
+  testar no Android Studio.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

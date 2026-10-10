@@ -298,9 +298,8 @@ fun FinaiApp(
                         )
                     }
                     composable(FinaiDestination.Goals.route) {
-                        LaunchedEffect(financeState.goals, financeState.aiPlanBlock) {
-                            aiViewModel.ensureGoalInsights(financeState.goals, financeState.aiPlanBlock)
-                        }
+                        // A análise da IA das metas é sob demanda: a tela pede quando o usuário abre
+                        // "Ver análise da IA" (antes, toda visita a Objetivos gastava uma chamada).
                         GoalsScreen(
                             goals = financeState.goals,
                             completedGoals = financeState.completedGoals,
@@ -311,6 +310,8 @@ fun FinaiApp(
                             onEdit = { goal -> editingObjetivoId = goal.id.toLong() },
                             onDelete = { goal -> financeViewModel.deleteObjetivoById(goal.id.toLong()) },
                             onSimulate = { goal -> askAbout(AssistantTopics.goal(goal)) },
+                            onExplain = viewModel::openSpendExplanation,
+                            onRequestInsights = { aiViewModel.ensureGoalInsights(financeState.goals, financeState.aiPlanBlock) },
                         )
                     }
                     composable(FinaiDestination.Debts.route) {

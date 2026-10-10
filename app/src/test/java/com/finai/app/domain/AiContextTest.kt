@@ -53,7 +53,7 @@ class AiContextTest {
     @Test fun goalInsightsGoInOneRequestWithThePlan() {
         fun goal(id: String, name: String) = com.finai.app.data.model.Goal(
             id = id, kind = "Viagem", name = name, saved = 5_500.0, target = 15_000.0, eta = "abril de 2027",
-            badge = com.finai.app.data.model.GoalBadge.Reassess, note = "", action = "Registrar aporte",
+            badge = com.finai.app.data.model.GoalBadge.Attention, note = "", action = "Adicionar valor",
             planNote = "Sem valor adicional até o salário de 30/10: a sobra vai para \"Rotativo\".",
         )
         val request = AiPromptBuilder.goalInsights(listOf(goal("1", "Portugal"), goal("2", "Carro")), "Plano financeiro calculado pelo app")

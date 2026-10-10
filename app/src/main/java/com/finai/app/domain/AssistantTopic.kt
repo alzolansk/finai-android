@@ -31,7 +31,7 @@ object AssistantTopics {
     fun goal(goal: Goal) = AssistantTopic(
         question = "Quero simular caminhos para chegar em \"${goal.name}\".",
         context = buildString {
-            appendLine("Objetivo \"${goal.name}\" (${goal.kind}), aberto pelo botão \"Simular\" da tela Objetivos.")
+            appendLine("Objetivo \"${goal.name}\" (${goal.kind}), aberto pelo botão \"Simular cenários\" da tela Objetivos.")
             if (goal.description.isNotBlank()) appendLine("Descrição do usuário: ${goal.description.trim()}")
             appendLine("Guardado: ${formatBrl0(goal.saved)} de ${formatBrl0(goal.target)}. Previsão atual: ${goal.eta}.")
             appendLine("Situação calculada: ${goal.badge.label}. ${goal.note}")

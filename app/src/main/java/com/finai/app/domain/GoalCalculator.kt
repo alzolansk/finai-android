@@ -3,8 +3,49 @@ package com.finai.app.domain
 import com.finai.app.data.local.entity.ObjetivoEntity
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.temporal.ChronoUnit
 
+/**
+ * Se a sobra projetada até o prazo cobre o que falta ([GoalCalculator]). É uma leitura de
+ * capacidade, não de andamento: diz se o dinheiro existe, não se a meta está sendo alimentada.
+ * Alertas e IA usam este; a tela usa [GoalPace].
+ */
 enum class GoalStatus { OnTrack, Reassess, Priority }
+
+/**
+ * Situação da meta como o usuário a vê no card. Junta a capacidade ([GoalStatus]) com o que
+ * a capacidade sozinha não mostra: quanto já foi guardado e quanto tempo resta. Antes o card
+ * mostrava [GoalStatus] direto, e uma meta com R$ 0 guardados aparecia "No ritmo" só porque a
+ * sobra projetada cobriria o valor.
+ *
+ * Não há data de criação da meta nem histórico de aportes no Room, então não dá para comparar
+ * o guardado com o "esperado até hoje". Por isso a regra não chuta ritmo: com nada guardado, a
+ * meta é [NotStarted] (ou [Attention] se o prazo está perto), nunca [OnTrack].
+ */
+enum class GoalPace {
+    NotStarted, OnTrack, Attention, Late, Done;
+
+    companion object {
+        /** Com nada guardado e prazo a até este número de meses, a meta pede atenção. */
+        const val NEAR_DEADLINE_MONTHS = 2L
+
+        fun of(plan: GoalPlan, today: LocalDate): GoalPace {
+            if (plan.missingCents <= 0L) return Done
+            val prazo = plan.objetivo.prazo.toLocalDate()
+            if (prazo.isBefore(today)) return Late
+            return when (plan.status) {
+                // Sem sobra prevista até o prazo: do jeito que está, não chega a tempo.
+                GoalStatus.Priority -> Late
+                GoalStatus.Reassess -> Attention
+                GoalStatus.OnTrack -> when {
+                    plan.objetivo.valorGuardadoCentavos > 0 -> OnTrack
+                    ChronoUnit.MONTHS.between(YearMonth.from(today), YearMonth.from(prazo)) < NEAR_DEADLINE_MONTHS -> Attention
+                    else -> NotStarted
+                }
+            }
+        }
+    }
+}
 
 data class GoalPlan(
     val objetivo: ObjetivoEntity,

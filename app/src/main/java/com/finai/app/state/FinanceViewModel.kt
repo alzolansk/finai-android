@@ -222,10 +222,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             rawOrcamentos = orcamentos,
             rawTransacoesDoMes = transacoesDoMes,
             rawTransacoes = s.transacoes,
-            goals = goalPlans.filterNot { Completion.isDone(it.objetivo) }.map { it.toUiGoal(plan.goalNote(it)) },
+            goals = goalPlans.filterNot { Completion.isDone(it.objetivo) }.map { it.toUiGoal(plan.goalNote(it), plan.forGoal(it.objetivo.id), plan.today) },
             completedGoals = goalPlans.filter { Completion.isDone(it.objetivo) }
                 .sortedByDescending { it.objetivo.concluidoEm ?: 0L }
-                .map { it.toUiGoal() },
+                .map { it.toUiGoal(today = plan.today) },
             paidDebts = paidDividas.sortedByDescending { it.quitadaEm ?: 0L }.map { it.toPaidDebt() },
             safeToday = safe,
             safeTodayLabel = formatBrl(safe.safeTodayCents / 100.0),

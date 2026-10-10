@@ -37,25 +37,49 @@ private fun toneColors(over: Boolean, warn: Boolean): Pair<Color, Color> = when 
     else -> Green to GreenFill
 }
 
-fun GoalPlan.toUiGoal(planNote: String = ""): Goal {
-    val badge = when (status) {
-        GoalStatus.OnTrack -> GoalBadge.OnTrack
-        GoalStatus.Reassess -> GoalBadge.Reassess
-        GoalStatus.Priority -> GoalBadge.Priority
+fun GoalPlan.toUiGoal(
+    planNote: String = "",
+    recommendedCents: Long = 0,
+    today: LocalDate = LocalDate.now(),
+): Goal {
+    val pace = GoalPace.of(this, today)
+    val badge = when (pace) {
+        GoalPace.NotStarted -> GoalBadge.NotStarted
+        GoalPace.OnTrack -> GoalBadge.OnTrack
+        GoalPace.Attention -> GoalBadge.Attention
+        GoalPace.Late -> GoalBadge.Late
+        GoalPace.Done -> GoalBadge.Done
     }
     val available = projectedAvailableCents
+    val missingLabel = formatBrl0(centsToReais(missingCents))
+    // Frase longa: vai para os detalhes do card, para a IA e para o chat.
     val note = when {
+        missingCents <= 0L -> "Alvo alcançado."
+        objetivo.prazo.toLocalDate().isBefore(today) -> "O prazo de $etaLabel já passou e faltam $missingLabel."
         status == GoalStatus.OnTrack -> "${formatBrl0(centsToReais(monthlyContributionNeededCents))}/mês mantém a data."
         available != null && status == GoalStatus.Reassess ->
-            "Até $etaLabel, a sobra projetada cobre ${formatBrl0(centsToReais(available))} dos ${formatBrl0(centsToReais(missingCents))} que faltam."
+            "Até $etaLabel, a sobra projetada cobre ${formatBrl0(centsToReais(available))} dos $missingLabel que faltam."
         available != null ->
             "Até $etaLabel, a sobra projetada não alcança esta meta depois das de maior prioridade."
         status == GoalStatus.Reassess -> "Concorre com outros objetivos pela mesma capacidade de poupança."
         else -> "Sem capacidade de poupança disponível este mês para este objetivo."
     }
+    // Frase curta do card: só quando acrescenta algo ao selo e aos números.
+    val headline = when (pace) {
+        GoalPace.Done, GoalPace.OnTrack -> ""
+        GoalPace.NotStarted -> "Nada guardado ainda."
+        GoalPace.Attention -> when {
+            objetivo.valorGuardadoCentavos <= 0L && status == GoalStatus.OnTrack -> "Prazo próximo e nada guardado ainda."
+            available != null -> "A sobra prevista cobre ${formatBrl0(centsToReais(available.coerceAtLeast(0)))} de $missingLabel."
+            else -> "Disputa a sobra com outras metas."
+        }
+        GoalPace.Late ->
+            if (objetivo.prazo.toLocalDate().isBefore(today)) "Prazo vencido. Ajuste a data ou o alvo."
+            else "Sem sobra prevista até o prazo."
+    }
     val projectionNote = available?.let {
         "Sobra projetada do mês atual até $etaLabel, somando o balanço de cada mês e já descontadas as metas de " +
-            "maior prioridade: ${formatBrl0(centsToReais(it))}. Faltam ${formatBrl0(centsToReais(missingCents))} para esta meta " +
+            "maior prioridade: ${formatBrl0(centsToReais(it))}. Faltam $missingLabel para esta meta " +
             "(${formatBrl0(centsToReais(monthlyContributionNeededCents))}/mês até o prazo)."
     }.orEmpty()
     return Goal(
@@ -67,7 +91,7 @@ fun GoalPlan.toUiGoal(planNote: String = ""): Goal {
         eta = etaLabel,
         badge = badge,
         note = note,
-        action = "Registrar aporte",
+        action = "Adicionar valor",
         description = objetivo.descricao,
         projectionNote = projectionNote,
         planNote = planNote,
@@ -75,6 +99,11 @@ fun GoalPlan.toUiGoal(planNote: String = ""): Goal {
             objetivo.concluidoEm?.let { "Concluída em ${monthShort(it)}" } ?: "Concluída"
         } else null,
         exceeded = centsToReais((objetivo.valorGuardadoCentavos - objetivo.valorAlvoCentavos).coerceAtLeast(0)),
+        monthlyNeeded = centsToReais(monthlyContributionNeededCents),
+        missing = centsToReais(missingCents),
+        projectedAvailable = available?.let(::centsToReais),
+        recommended = centsToReais(recommendedCents),
+        headline = headline,
     )
 }
 
