@@ -36,7 +36,7 @@ fun List<TransacaoEntity>.transactionsInMonth(date: LocalDate): List<TransacaoEn
         val start = entry.data.toLocalDate()
         when {
             YearMonth.from(start) == month -> entry
-            entry.recorrente && YearMonth.from(start) < month -> entry.copy(
+            entry.recorrente && entry.faturaId == null && YearMonth.from(start) < month -> entry.copy(
                 data = monthlyOccurrence(start, month).toEpochMillis())
             else -> null
         }

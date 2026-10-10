@@ -46,12 +46,16 @@ object DuplicateDetector {
 
         var possible: Verdict? = null
         for (transacao in existing) {
+            if (transacao.parcelaNumero != null && entry.installment != null &&
+                transacao.parcelaNumero != entry.installment.current) continue
             if (abs(transacao.valorCentavos) != abs(entry.amountCents)) continue
             val existingDate = transacao.data.toLocalDate()
             val days = abs(existingDate.toEpochDay() - date.toEpochDay())
-            val sim = similarity(merchant, MerchantClassifier.normalizeMerchant(transacao.descricao))
+            val existingMerchant = MerchantClassifier.normalizeMerchant(
+                if (transacao.compraId != null) transacao.descricao.substringBeforeLast(" · parcela ") else transacao.descricao)
+            val sim = similarity(merchant, existingMerchant)
 
-            if (days == 0L && sameMerchant(merchant, MerchantClassifier.normalizeMerchant(transacao.descricao))) {
+            if (days == 0L && sameMerchant(merchant, existingMerchant)) {
                 return Verdict(
                     DuplicateVerdict.LIKELY,
                     "Já existe \"${transacao.descricao}\" em ${formatShort(existingDate)} com o mesmo valor.",

@@ -101,6 +101,7 @@ fun AgendaScreen(
     onNewEntry: () -> Unit = {},
     onImport: () -> Unit = {},
     today: LocalDate = LocalDate.now(),
+    installmentsOverview: @Composable () -> Unit = {},
 ) {
     var pendingDeleteTransaction by remember { mutableStateOf<TransacaoEntity?>(null) }
     var pendingDeleteBill by remember { mutableStateOf<Bill?>(null) }
@@ -132,6 +133,8 @@ fun AgendaScreen(
                 )
             }
         }
+
+        item { installmentsOverview() }
 
         item {
             Row(

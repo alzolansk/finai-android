@@ -10,6 +10,10 @@ import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
 import kotlinx.coroutines.flow.Flow
+import com.finai.app.domain.CardPayment
+import com.finai.app.domain.CardPurchase
+import com.finai.app.domain.toEpochMillis
+import com.finai.app.domain.toLocalDate
 
 /**
  * Thin facade over the Room DAOs — one place the ViewModels talk to instead
@@ -38,7 +42,26 @@ class FinanceRepository(private val db: FinaiDatabase) {
         orcamentoDao.observeForMonth(mesReferencia)
 
     suspend fun salvarTransacao(transacao: TransacaoEntity) = transacaoDao.upsert(transacao)
-    suspend fun excluirTransacao(transacao: TransacaoEntity) = transacaoDao.delete(transacao)
+    suspend fun excluirTransacao(transacao: TransacaoEntity) = db.withTransaction {
+        val stored = transacaoDao.getAll().firstOrNull { it.id == transacao.id } ?: return@withTransaction
+        transacaoDao.delete(stored)
+        stored.faturaId?.let { id ->
+            val invoice = faturaCartaoDao.getAll().firstOrNull { it.id == id } ?: return@let
+            val account = contaDao.getAll().firstOrNull { it.id == invoice.contaId } ?: return@let
+            contaDao.update(account.copy(valorCentavos = transacaoDao.getAll().filter { it.faturaId == id }.sumOf { it.valorCentavos }))
+        }
+    }
+
+    suspend fun salvarCompraCartao(entry: TransacaoEntity, payment: CardPayment) = db.withTransaction {
+        CardPurchase.schedule(entry, payment).forEach { (due, item) ->
+            salvarFatura(
+                ContaEntity(nome = "Fatura ${payment.card.trim()}", valorCentavos = item.valorCentavos,
+                    vencimento = due.toEpochMillis(), status = "pendente", tipo = "a_pagar", recorrente = false),
+                FaturaCartaoEntity(contaId = 0, referencia = payment.card.trim(), fechamento = null, vencimento = due.toEpochMillis()),
+                listOf(item),
+            )
+        }
+    }
 
     /** Compra confirmada depois de uma simulação: todas as parcelas entram, ou nenhuma. */
     suspend fun salvarTransacoes(transacoes: List<TransacaoEntity>) = db.withTransaction {
@@ -47,11 +70,28 @@ class FinanceRepository(private val db: FinaiDatabase) {
 
     suspend fun salvarConta(conta: ContaEntity) =
         if (conta.id == 0L) contaDao.upsert(conta) else contaDao.update(conta).let { conta.id }
-    suspend fun excluirConta(conta: ContaEntity) = contaDao.delete(conta)
+    suspend fun excluirConta(conta: ContaEntity) = db.withTransaction {
+        faturaCartaoDao.getAll().filter { it.contaId == conta.id }.forEach { invoice ->
+            transacaoDao.getAll().filter { it.faturaId == invoice.id }.forEach { transacaoDao.delete(it) }
+            faturaCartaoDao.delete(invoice)
+        }
+        contaDao.delete(conta)
+    }
 
     /** Persiste a conta da Agenda, a fatura e seus itens numa transação SQLite atômica. */
     suspend fun salvarFatura(conta: ContaEntity, fatura: FaturaCartaoEntity, itens: List<TransacaoEntity>) {
         db.withTransaction {
+            val existing = faturaCartaoDao.getAll().firstOrNull {
+                it.referencia.trim().equals(fatura.referencia.trim(), ignoreCase = true) &&
+                    it.vencimento.toLocalDate() == fatura.vencimento.toLocalDate()
+            }
+            if (existing != null) {
+                val account = requireNotNull(contaDao.getAll().firstOrNull { it.id == existing.contaId })
+                require(account.status != "pago") { "Esta fatura já foi paga. Escolha uma fatura em aberto." }
+                itens.forEach { transacaoDao.upsert(it.copy(faturaId = existing.id)) }
+                contaDao.update(account.copy(valorCentavos = transacaoDao.getAll().filter { it.faturaId == existing.id }.sumOf { it.valorCentavos }))
+                return@withTransaction
+            }
             val contaId = contaDao.upsert(conta)
             val faturaId = faturaCartaoDao.insert(fatura.copy(contaId = contaId))
             itens.forEach { transacaoDao.upsert(it.copy(faturaId = faturaId)) }
