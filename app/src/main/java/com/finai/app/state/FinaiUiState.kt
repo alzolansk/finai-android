@@ -23,6 +23,8 @@ data class FinaiUiState(
     val showCoach: Boolean = true,
     val monthIndex: Int = LocalDate.now().monthValue - 1,
     val agendaYear: Int = LocalDate.now().year,
+    /** Agenda em linha do tempo entre salários (sequencial) em vez de mês a mês. */
+    val agendaSequential: Boolean = false,
     val simAmount: Double = FinaiFixtures.defaultSimAmount,
     val draft: String = "",
     val thinking: Boolean = false,

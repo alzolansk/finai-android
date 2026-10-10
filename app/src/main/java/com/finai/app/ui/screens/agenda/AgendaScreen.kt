@@ -45,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,9 +103,17 @@ fun AgendaScreen(
     onImport: () -> Unit = {},
     today: LocalDate = LocalDate.now(),
     installmentsOverview: @Composable () -> Unit = {},
+    /** Visão sequencial (linha do tempo entre salários) em vez da mensal. */
+    sequential: Boolean = false,
+    onSequentialChange: (Boolean) -> Unit = {},
+    cashFlow: com.finai.app.domain.CashFlowTimeline? = null,
+    onAddMainIncome: () -> Unit = {},
 ) {
     var pendingDeleteTransaction by remember { mutableStateOf<TransacaoEntity?>(null) }
     var pendingDeleteBill by remember { mutableStateOf<Bill?>(null) }
+    var pendingPayInstallment by remember { mutableStateOf<com.finai.app.domain.TimelineMovement?>(null) }
+    var showPreviousCycle by rememberSaveable { mutableStateOf(false) }
+    var futureCyclesShown by rememberSaveable { mutableStateOf(1) }
 
     // Tracks whether the month moved forward or back so the label/totals slide in from the
     // matching side — a plain crossfade reads ambiguous when the user is clearly paging.
@@ -128,125 +137,163 @@ fun AgendaScreen(
             Column {
                 Text("Agenda", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
                 Text(
-                    "Pagamentos e recebimentos do mês", fontSize = 13.sp, color = FinaiColors.TextTertiary,
+                    if (sequential) "O dinheiro em ordem, de salário a salário" else "Pagamentos e recebimentos do mês",
+                    fontSize = 13.sp, color = FinaiColors.TextTertiary,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }
 
-        item { installmentsOverview() }
+        item(key = "agenda-modo") { AgendaModeTabs(sequential, onSequentialChange) }
 
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .tipTarget("agenda.month")
-                    .clip(RoundedCornerShape(99.dp))
-                    .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
-                    .background(FinaiColors.Surface),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onPrevMonth) {
-                    Icon(Icons.Filled.ChevronLeft, contentDescription = "Mês anterior", tint = FinaiColors.TextSecondary)
+        if (sequential) {
+            sequentialAgendaItems(
+                timeline = cashFlow,
+                today = today,
+                showPrevious = showPreviousCycle,
+                onShowPrevious = { showPreviousCycle = true },
+                futureShown = futureCyclesShown,
+                onShowMoreFuture = { futureCyclesShown++ },
+                onToggleContaPaga = onToggleContaPaga,
+                onRequestPayInstallment = { pendingPayInstallment = it },
+                onAddMainIncome = onAddMainIncome,
+            )
+        } else {
+            item { installmentsOverview() }
+
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .tipTarget("agenda.month")
+                        .clip(RoundedCornerShape(99.dp))
+                        .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
+                        .background(FinaiColors.Surface),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = onPrevMonth) {
+                        Icon(Icons.Filled.ChevronLeft, contentDescription = "Mês anterior", tint = FinaiColors.TextSecondary)
+                    }
+                    AnimatedContent(
+                        targetState = monthIndex to year,
+                        transitionSpec = {
+                            val distance = if (monthForward) { w: Int -> w / 4 } else { w: Int -> -w / 4 }
+                            (slideInHorizontally(tween(quickMillis), distance) + fadeIn(tween(quickMillis)))
+                                .togetherWith(slideOutHorizontally(tween(quickMillis)) { -distance(it) } + fadeOut(tween(quickMillis)))
+                        },
+                        label = "agendaMonth",
+                    ) { (m, y) ->
+                        Text(
+                            "${MONTH_NAMES_PT[m]} de $y", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            color = FinaiColors.TextPrimary,
+                        )
+                    }
+                    IconButton(onClick = onNextMonth) {
+                        Icon(Icons.Filled.ChevronRight, contentDescription = "Próximo mês", tint = FinaiColors.TextSecondary)
+                    }
                 }
+            }
+
+            item {
                 AnimatedContent(
                     targetState = monthIndex to year,
                     transitionSpec = {
-                        val distance = if (monthForward) { w: Int -> w / 4 } else { w: Int -> -w / 4 }
-                        (slideInHorizontally(tween(quickMillis), distance) + fadeIn(tween(quickMillis)))
-                            .togetherWith(slideOutHorizontally(tween(quickMillis)) { -distance(it) } + fadeOut(tween(quickMillis)))
+                        fadeIn(tween(standardMillis)) togetherWith fadeOut(tween(quickMillis))
                     },
-                    label = "agendaMonth",
-                ) { (m, y) ->
-                    Text(
-                        "${MONTH_NAMES_PT[m]} de $y", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                        color = FinaiColors.TextPrimary,
-                    )
-                }
-                IconButton(onClick = onNextMonth) {
-                    Icon(Icons.Filled.ChevronRight, contentDescription = "Próximo mês", tint = FinaiColors.TextSecondary)
-                }
-            }
-        }
-
-        item {
-            AnimatedContent(
-                targetState = monthIndex to year,
-                transitionSpec = {
-                    fadeIn(tween(standardMillis)) togetherWith fadeOut(tween(quickMillis))
-                },
-                label = "agendaTotals",
-            ) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SummaryTile(
-                        label = "Contas a pagar", value = formatBrl0(toPayCents / 100.0),
-                        note = if (toPayCount == 1) "1 conta" else "$toPayCount contas", valueColor = FinaiColors.TextPrimary, modifier = Modifier.weight(1f),
-                    )
-                    SummaryTile(
-                        label = "Recebimentos", value = "+ " + formatBrl0(toGetCents / 100.0),
-                        note = if (toGetCount == 1) "1 entrada" else "$toGetCount entradas", valueColor = FinaiColors.EmeraldDark, modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        }
-
-        // Timeline do mês: tudo que entra ou sai, por dia, na ordem em que acontece. O tipo
-        // (dívida, recorrente, fatura…) vira chip do item, não seção da página. Cada dia é uma
-        // lista simples com divisor (Fase 7, item 7): cartão fica para resumo e decisão.
-        val timeline = agendaTimeline(bills, recurringTransactions, transactions, debtsDue)
-        if (timeline.isEmpty()) {
-            item {
-                com.finai.app.ui.components.FadeInAppear {
-                    EmptyStateCard(
-                        "Nada lançado para ${MONTH_NAMES_PT[monthIndex].lowercase()}. Lance contas, gastos e receitas com data, " +
-                            "ou importe a fatura do cartão, para ver o mês dia a dia.",
-                        "Lançar conta", onNewEntry,
-                        secondaryLabel = "Importar fatura", onSecondary = onImport,
-                    )
-                }
-            }
-        }
-        val firstBillKey = timeline.flatMap { it.second }.firstOrNull { it is AgendaEntry.Conta }?.key
-        val firstLancamentoKey = timeline.flatMap { it.second }.firstOrNull { it is AgendaEntry.Lancamento }?.key
-        timeline.forEach { (date, entries) ->
-            item(key = "dia-" + (date?.toString() ?: "sem-dia")) {
-                DayHeader(date, entries, today, Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard)))
-            }
-            item(key = "lista-" + (date?.toString() ?: "sem-dia")) {
-                Column(
-                    modifier = Modifier
-                        .animateItemPlacement(finaiTween(FinaiMotion.Standard))
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(FinaiColors.Surface),
+                    label = "agendaTotals",
                 ) {
-                    entries.forEachIndexed { index, entry ->
-                        if (index > 0) HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp, modifier = Modifier.padding(start = 62.dp))
-                        val mod = when (entry.key) {
-                            firstBillKey -> Modifier.tipTarget("agenda.bill")
-                            firstLancamentoKey -> Modifier.tipTarget("agenda.transactions")
-                            else -> Modifier
-                        }
-                        when (entry) {
-                            is AgendaEntry.Conta -> BillRow(
-                                entry.bill, onToggleContaPaga,
-                                onRequestEdit = { onEditConta(entry.bill) }, onRequestDelete = { pendingDeleteBill = entry.bill },
-                                onOpenItems = invoiceItemsByAccountId[entry.bill.id]?.let { { onOpenInvoice(entry.bill.id) } },
-                                modifier = mod,
-                            )
-                            is AgendaEntry.Parcela -> DebtInstallmentRow(
-                                entry.parcela, onPay = { onPayInstallment(entry.parcela.divida.id) },
-                                onEdit = { onEditDebt(entry.parcela.divida.id) }, modifier = mod,
-                            )
-                            is AgendaEntry.Lancamento -> TransacaoRow(
-                                entry.transacao, today, mod, onToggleExtra, onToggleMainIncome,
-                            ) { pendingDeleteTransaction = entry.transacao }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SummaryTile(
+                            label = "Contas a pagar", value = formatBrl0(toPayCents / 100.0),
+                            note = if (toPayCount == 1) "1 conta" else "$toPayCount contas", valueColor = FinaiColors.TextPrimary, modifier = Modifier.weight(1f),
+                        )
+                        SummaryTile(
+                            label = "Recebimentos", value = "+ " + formatBrl0(toGetCents / 100.0),
+                            note = if (toGetCount == 1) "1 entrada" else "$toGetCount entradas", valueColor = FinaiColors.EmeraldDark, modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+
+            // Timeline do mês: tudo que entra ou sai, por dia, na ordem em que acontece. O tipo
+            // (dívida, recorrente, fatura…) vira chip do item, não seção da página. Cada dia é uma
+            // lista simples com divisor (Fase 7, item 7): cartão fica para resumo e decisão.
+            val timeline = agendaTimeline(bills, recurringTransactions, transactions, debtsDue)
+            if (timeline.isEmpty()) {
+                item {
+                    com.finai.app.ui.components.FadeInAppear {
+                        EmptyStateCard(
+                            "Nada lançado para ${MONTH_NAMES_PT[monthIndex].lowercase()}. Lance contas, gastos e receitas com data, " +
+                                "ou importe a fatura do cartão, para ver o mês dia a dia.",
+                            "Lançar conta", onNewEntry,
+                            secondaryLabel = "Importar fatura", onSecondary = onImport,
+                        )
+                    }
+                }
+            }
+            val firstBillKey = timeline.flatMap { it.second }.firstOrNull { it is AgendaEntry.Conta }?.key
+            val firstLancamentoKey = timeline.flatMap { it.second }.firstOrNull { it is AgendaEntry.Lancamento }?.key
+            timeline.forEach { (date, entries) ->
+                item(key = "dia-" + (date?.toString() ?: "sem-dia")) {
+                    DayHeader(date, entries, today, Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard)))
+                }
+                item(key = "lista-" + (date?.toString() ?: "sem-dia")) {
+                    Column(
+                        modifier = Modifier
+                            .animateItemPlacement(finaiTween(FinaiMotion.Standard))
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(FinaiColors.Surface),
+                    ) {
+                        entries.forEachIndexed { index, entry ->
+                            if (index > 0) HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp, modifier = Modifier.padding(start = 62.dp))
+                            val mod = when (entry.key) {
+                                firstBillKey -> Modifier.tipTarget("agenda.bill")
+                                firstLancamentoKey -> Modifier.tipTarget("agenda.transactions")
+                                else -> Modifier
+                            }
+                            when (entry) {
+                                is AgendaEntry.Conta -> BillRow(
+                                    entry.bill, onToggleContaPaga,
+                                    onRequestEdit = { onEditConta(entry.bill) }, onRequestDelete = { pendingDeleteBill = entry.bill },
+                                    onOpenItems = invoiceItemsByAccountId[entry.bill.id]?.let { { onOpenInvoice(entry.bill.id) } },
+                                    modifier = mod,
+                                )
+                                is AgendaEntry.Parcela -> DebtInstallmentRow(
+                                    entry.parcela, onPay = { onPayInstallment(entry.parcela.divida.id) },
+                                    onEdit = { onEditDebt(entry.parcela.divida.id) }, modifier = mod,
+                                )
+                                is AgendaEntry.Lancamento -> TransacaoRow(
+                                    entry.transacao, today, mod, onToggleExtra, onToggleMainIncome,
+                                ) { pendingDeleteTransaction = entry.transacao }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    pendingPayInstallment?.let { m ->
+        val parcela = (m.source as? com.finai.app.domain.CycleSource.Parcela)?.parcela
+        AlertDialog(
+            onDismissRequest = { pendingPayInstallment = null },
+            title = { Text("Registrar pagamento?") },
+            text = {
+                Text(
+                    "${m.descricao}" + (parcela?.numero?.let { " · parcela $it de ${parcela.total}" } ?: "") +
+                        " · ${com.finai.app.util.formatBrl(-m.cents / 100.0)}. Para desfazer, exclua o gasto do pagamento na Agenda.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    parcela?.let { onPayInstallment(it.divida.id) }
+                    pendingPayInstallment = null
+                }) { Text("Paguei") }
+            },
+            dismissButton = { TextButton(onClick = { pendingPayInstallment = null }) { Text("Cancelar") } },
+        )
     }
 
     pendingDeleteTransaction?.let { transacao ->

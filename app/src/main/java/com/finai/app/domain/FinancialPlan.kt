@@ -243,7 +243,7 @@ data class FinancialPlan(
             val safe: SafeToSpendResult
             if (cycle != null) {
                 // Simulação dia a dia: o livre é o menor saldo de fim de dia até a véspera do salário.
-                livre = cycle.floor.cents.coerceAtLeast(0)
+                livre = cycle.availableCents
                 // Reserva = dinheiro que já está no ciclo hoje mas precisa ficar para uma saída que
                 // vence antes da próxima entrada. O que só chega depois (sobra final − livre)
                 // não é reserva: ainda não entrou ([aindaVaiEntrarCents]).

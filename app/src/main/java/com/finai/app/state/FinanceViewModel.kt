@@ -176,6 +176,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val (goalInsights, dismissedInsightCount) = com.finai.app.domain.GoalPlanning.visible(
             com.finai.app.domain.GoalPlanning.insights(plan, goalsOverview, s.dividas, hasIncome, today), dismissed,
         )
+        // Agenda sequencial: os mesmos ciclos do plano, em ordem. Falha aqui não pode levar o resto junto.
+        val cashFlow = runCatching {
+            com.finai.app.domain.CashFlowTimeline.build(s.contas, s.transacoes, s.dividas, today, plan.cycle)
+        }.onFailure { FinaiLog.e(TAG, "Falha ao montar a Agenda sequencial", it) }.getOrNull()
         val monthlyCapacityCents = plan.capacidadeMensalCents
         val savingsProjection = plan.projection
         val goalPlans = plan.goals
@@ -295,6 +299,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             aiDebtsBlock = com.finai.app.domain.AiContext.debtsBlock(debtSummary.ordered, today),
             aiGoalsBlock = com.finai.app.domain.AiContext.goalsBlock(goalPlans.filterNot { Completion.isDone(it.objetivo) }),
             aiPlanBlock = plan.aiBlock(),
+            cashFlow = cashFlow,
+            aiCashFlowBlock = cashFlow?.aiBlock().orEmpty(),
             alerts = AlertCalculator.alerts(s.contas, budgetProgress, subscriptionInsights, goalPlans, today, payCycle?.shortfall),
         )
     }

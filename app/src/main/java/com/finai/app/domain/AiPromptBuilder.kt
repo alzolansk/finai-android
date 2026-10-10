@@ -292,6 +292,9 @@ object AiPromptBuilder {
                 "{{rótulo curto|R$ 1.234}} (rótulo de até 3 palavras), e depois explique em até 4 frases o que eles significam " +
                 "e qual a próxima ação, sem repetir os valores dos destaques. " +
                 "Os números do resumo são os de agora; se a conversa anterior citar valores diferentes, valem os do resumo. " +
+                "Para saber se dá para pagar uma conta numa data, ou quanto do salário já está comprometido, use o fluxo " +
+                "cronológico do resumo (saldo do ciclo depois de cada pagamento e o menor saldo até o salário), não o balanço " +
+                "do mês do vencimento. " +
                 "Se o usuário perguntar se pode comprar ou parcelar algo, não calcule o impacto: peça o valor, a forma de " +
                 "pagamento e a data da primeira parcela, para o app simular.",
             prompt,

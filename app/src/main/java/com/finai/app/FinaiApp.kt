@@ -309,6 +309,10 @@ fun FinaiApp(
                             onEditDebt = { id -> editingDividaId = id },
                             onNewEntry = { showAddTransaction = true },
                             onImport = { navigateTo(FinaiDestination.Import) },
+                            sequential = uiState.agendaSequential,
+                            onSequentialChange = viewModel::setAgendaSequential,
+                            cashFlow = financeState.cashFlow,
+                            onAddMainIncome = { transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name; transactionEntryInitialMain = true; showAddTransaction = true },
                         )
                     }
                     composable(FinaiDestination.Goals.route) {

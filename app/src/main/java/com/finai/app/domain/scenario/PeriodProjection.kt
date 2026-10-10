@@ -63,13 +63,31 @@ object PeriodProjection {
     fun nextPayday(s: FinanceSnapshot, today: LocalDate): LocalDate? =
         runCatching { PayCycle.of(s.contas, s.transacoes, s.dividas, today) }.getOrNull()?.proximo
 
-    private fun cycles(s: FinanceSnapshot, extra: List<TransacaoEntity>, today: LocalDate, until: LocalDate): List<PeriodState>? {
-        val first = PayCycle.of(s.contas, s.transacoes + extra, s.dividas, today) ?: return null
-        val out = mutableListOf(first.toState(estimated = false, debts = debtsIn(s.dividas, first.inicio ?: today, first.proximo.minusDays(1), today)))
+    /**
+     * Um ciclo projetado: o [PayCycle] de verdade (com "hoje" no dia do salário que o abre, a partir
+     * do segundo), se o salário dele foi estimado e as dívidas roladas até ele.
+     */
+    data class ProjectedCycle(val cycle: PayCycle, val estimatedIncome: Boolean, val dividas: List<DividaEntity>)
+
+    /**
+     * Os ciclos de hoje em diante: o atual ([first], ou [PayCycle.of] sobre o retrato) e os
+     * seguintes, até o que contém [until] ou [maxPeriods] ciclos. Nulo sem renda principal.
+     * É a mesma sequência para o simulador de compra e para a Agenda sequencial.
+     */
+    fun projectCycles(
+        s: FinanceSnapshot,
+        extra: List<TransacaoEntity>,
+        today: LocalDate,
+        until: LocalDate,
+        maxPeriods: Int = MAX_PERIODS,
+        first: PayCycle? = null,
+    ): List<ProjectedCycle>? {
+        val current = first ?: PayCycle.of(s.contas, s.transacoes + extra, s.dividas, today) ?: return null
+        val out = mutableListOf(ProjectedCycle(current, estimatedIncome = false, dividas = s.dividas))
         val lastAvulso = PayCycle.salariesOf(s.transacoes).filterNot { it.recorrente }.maxByOrNull { it.data }
         val synthetic = mutableListOf<TransacaoEntity>()
-        var prev = first
-        while (!prev.proximo.isAfter(until) && out.size < MAX_PERIODS) {
+        var prev = current
+        while (!prev.proximo.isAfter(until) && out.size < maxPeriods) {
             val start = prev.proximo
             val estimated = prev.proximoEstimado
             if (estimated) {
@@ -78,13 +96,21 @@ object PeriodProjection {
             }
             val contas = rollContas(s.contas, start)
             val dividas = rollDebts(s.dividas, today, start)
-            val c = PayCycle.of(contas, s.transacoes + synthetic + extra, dividas, start) ?: break
+            // asOf = hoje de verdade: conta paga antes do vencimento já saiu no ciclo atual.
+            val c = PayCycle.of(contas, s.transacoes + synthetic + extra, dividas, start, asOf = today) ?: break
             if (!c.proximo.isAfter(start)) break
-            out += c.toState(estimated, debtsIn(dividas, start, c.proximo.minusDays(1), start))
+            out += ProjectedCycle(c, estimated, dividas)
             prev = c
         }
         return out
     }
+
+    private fun cycles(s: FinanceSnapshot, extra: List<TransacaoEntity>, today: LocalDate, until: LocalDate): List<PeriodState>? =
+        projectCycles(s, extra, today, until)?.mapIndexed { i, p ->
+            val c = p.cycle
+            val from = if (i == 0) c.inicio ?: today else c.today
+            c.toState(p.estimatedIncome, debtsIn(p.dividas, from, c.proximo.minusDays(1), c.today))
+        }
 
     private fun PayCycle.toState(estimated: Boolean, debts: Long): PeriodState {
         val f = floor

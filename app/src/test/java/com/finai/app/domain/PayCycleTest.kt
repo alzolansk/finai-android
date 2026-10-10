@@ -169,8 +169,9 @@ class PayCycleTest {
 
         assertNull(c.inicio)
         assertEquals(LocalDate.of(2026, 10, 31), c.proximo)
-        // 427 + 4.700 − 40 − 220 − 60 − 114 = R$ 4.693 hoje.
-        assertEquals(469_300L, c.saldoHojeCents)
+        // 427 + 4.700 − 40 − 220 − 60 − 114 = R$ 4.693, menos as duas faturas já pagas (R$ 1.020):
+        // pagas antes do vencimento, o dinheiro já saiu hoje.
+        assertEquals(367_300L, c.saldoHojeCents)
         // Menos as duas faturas e o Picpay até 30/10; o que vence em 31/10 é do próximo ciclo.
         assertEquals(319_200L, c.floor.cents)
         assertNull(c.shortfall)
