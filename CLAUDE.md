@@ -1043,6 +1043,17 @@ Objetivos como central de planejamento (10/10/2026, mesmo branch):
 - 175 testes JVM de `domain/` verdes (kotlinc avulso; `GoalPlanningTest` novo). **UI e Room não
   compilados aqui**: rodar `./gradlew assembleDebug testDebugUnitTest` no Android Studio.
 
+Ciclo antes do primeiro salário (10/10/2026, mesmo branch):
+- **Relato com print:** "Faltam R$ 1.500" até o salário com R$ 5,2 mil recebidos no mês (rescisão +
+  VT). Causa: sem salário antes de hoje, `PayCycle.of` começava o ciclo **hoje**; tudo que entrou antes
+  ficava fora, o saldo partia de zero e as faturas (já pagas, vencimento futuro) e o Picpay viravam falta.
+- **Correção:** sem salário anterior, o ciclo começa no **dia 1º do mês** (`PayCycle.contaDesde`). O que
+  entrou e saiu desde então forma o saldo de hoje. A regra "sobra do ciclo anterior não entra" continua
+  valendo quando há salário anterior. A folha "Entenda este valor" diz desde quando soma.
+- Teste `beforeFirstSalaryMoneyReceivedThisMonthCounts` com os números do relato (livre R$ 3.192, sem
+  falta); conferido que falha com a regra antiga (saldo 0). 176 testes JVM de `domain/` verdes.
+- Limite conhecido: dinheiro recebido no mês anterior, antes do primeiro salário, continua fora.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/
