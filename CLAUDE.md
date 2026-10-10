@@ -1155,6 +1155,26 @@ Agenda sequencial (10/10/2026, branch `claude/youthful-volta-00b7pa`):
   acesso a dl.google.com): rodar `./gradlew assembleDebug testDebugUnitTest` e olhar a tela nos
   dois temas.
 
+Parcelamentos: cartão compacto na Agenda + tela própria (10/10/2026, referência em `uploads/design-parcelas`):
+- **`domain/InstallmentsSummary.kt`** (Kotlin puro, `InstallmentsSummaryTest`) só agrupa o que
+  `CardPurchase`/`salvarCompraCartao` já gravam (parcela = `TransacaoEntity` com `compraId`, na fatura do
+  mês). Mês da parcela = vencimento da fatura; paga = conta da fatura paga (mesma regra da Agenda).
+  Nada gravado, e as parcelas continuam dentro da fatura na linha do tempo: o cartão só resume.
+  Parcelas de fatura **importada** ("(01/03)", "PARC 3/10", sem `compraId`, lidas por `InvoiceSummary.installmentOf`)
+  também entram: faturas de meses diferentes da mesma compra (nome, cartão, nº de parcelas, mês da 1ª, valor)
+  viram uma compra; parcelas antes da primeira fatura importada contam como pagas e as depois da última são
+  **estimadas** (mesmo valor, mês a mês, avisado na tela). Importar a fatura seguinte troca a estimada pela real.
+- Agenda (mensal): o antigo `InstallmentsOverview` (removido) virou `InstallmentsAgendaCard`, abaixo dos
+  totais: "R$ X neste mês · N compras" do mês navegado + miniatura dos 5 meses seguintes. Some sem parcela
+  no mês e sem compra ativa.
+- `ui/screens/installments/InstallmentsScreen.kt`: camada por cima de tudo (`showInstallments` em `FinaiApp`),
+  entrando da direita, como a fatura. Foi rota do NavHost, mas a topbar do app sumia na troca e a Agenda pulava
+  (glitch relatado). `FinaiSettingsTopBar` ganhou `subtitle`. Conteúdo: total em
+  aberto, parcelas restantes, "livre a partir de", gráfico "Comprometido por mês" (em aberto, tocável; > 6
+  meses rola de lado) e as compras ativas por valor em aberto (traço por parcela; > 24 parcelas vira barra).
+- Build e testes JVM verdes; conferido no emulador Pixel 6 API 34 (tema escuro): cartão, tela, seleção de
+  mês e voltar do sistema. Tema claro e telas estreitas não conferidos.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

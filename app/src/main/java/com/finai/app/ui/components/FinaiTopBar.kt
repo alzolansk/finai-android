@@ -193,6 +193,7 @@ fun FinaiSettingsTopBar(
     title: String,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
 ) {
     Row(
         modifier = modifier
@@ -213,7 +214,14 @@ fun FinaiSettingsTopBar(
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = FinaiColors.TextBody, modifier = Modifier.size(20.dp))
         }
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        if (subtitle == null) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+        } else {
+            Column {
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
+                Text(subtitle, fontSize = 12.sp, color = FinaiColors.TextMuted)
+            }
+        }
     }
 }
 
