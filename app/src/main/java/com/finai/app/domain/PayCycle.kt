@@ -7,8 +7,27 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 
-/** Um movimento dentro do ciclo: positivo entra, negativo sai. */
-data class CycleEntry(val date: LocalDate, val descricao: String, val cents: Long, val done: Boolean)
+/** De onde veio um movimento do ciclo: o registro do Room (ou a parcela projetada) por trás dele. */
+sealed interface CycleSource {
+    /** Lançamento (recorrente já na data da ocorrência). Id negativo = salário estimado em memória. */
+    data class Lancamento(val transacao: TransacaoEntity) : CycleSource
+    data class Conta(val conta: ContaEntity) : CycleSource
+    data class Parcela(val parcela: DebtInstallment) : CycleSource
+}
+
+/**
+ * Um movimento dentro do ciclo: positivo entra, negativo sai. [movedFrom] é a data original
+ * quando o movimento conta em outro dia: conta vencida de um ciclo anterior (devida hoje) ou
+ * conta paga antes do vencimento (o dinheiro já saiu).
+ */
+data class CycleEntry(
+    val date: LocalDate,
+    val descricao: String,
+    val cents: Long,
+    val done: Boolean,
+    val source: CycleSource? = null,
+    val movedFrom: LocalDate? = null,
+)
 
 /**
  * Dia em que o dinheiro do ciclo deixa de fechar, o maior buraco até o próximo salário e o
@@ -67,6 +86,13 @@ data class PayCycle(
     /** Saldo do ciclo no fim de hoje: tudo com data até hoje, inclusive o que cai hoje. É onde [floor] começa. */
     val saldoHojeCents: Long get() = entries.filter { !it.date.isAfter(today) }.sumOf { it.cents }
 
+    /**
+     * "Livre até o salário": o menor saldo previsto ([floor]), nunca negativo. É a única fórmula do
+     * valor — o plano central ([FinancialPlan]) e a Agenda sequencial ([CashFlowTimeline]) leem daqui.
+     * Não confundir com [livreCents], que é a sobra no fim do ciclo.
+     */
+    val availableCents: Long get() = floor.cents.coerceAtLeast(0)
+
     /** Dias a partir de hoje em que o dinheiro precisa durar (o dia do salário já é do próximo ciclo). */
     val diasAteProximo: Int get() = ChronoUnit.DAYS.between(today, proximo).toInt().coerceAtLeast(1)
 
@@ -76,7 +102,11 @@ data class PayCycle(
         return if (total <= 0f) 0f else (ChronoUnit.DAYS.between(start, today) / total).coerceIn(0f, 1f)
     }
 
-    private val ordered: List<CycleEntry> get() =
+    /**
+     * Em ordem de acontecimento: por dia e, no mesmo dia, o que entra antes do que sai. Assim o
+     * saldo depois do último movimento do dia é o saldo de fim de dia que [floor] usa.
+     */
+    val ordered: List<CycleEntry> get() =
         entries.sortedWith(compareBy<CycleEntry> { it.date }.thenByDescending { it.cents })
 
     /**
@@ -170,11 +200,17 @@ data class PayCycle(
                 .map { monthlyOccurrence(first, it) } + first
         }
 
+        /**
+         * [asOf] é o hoje de verdade. Só difere de [today] quando o ciclo é projetado
+         * ([com.finai.app.domain.scenario.PeriodProjection]): uma conta paga antes do vencimento
+         * já saiu em [asOf], então não pode reaparecer num ciclo futuro.
+         */
         fun of(
             contas: List<ContaEntity>,
             transacoes: List<TransacaoEntity>,
             dividas: List<DividaEntity>,
             today: LocalDate,
+            asOf: LocalDate = today,
         ): PayCycle? {
             val paydays = salariesOf(transacoes).flatMap { t -> payDates(t, today).map { it to t } }
             val last = paydays.filter { !it.first.isAfter(today) }.maxByOrNull { it.first }
@@ -199,17 +235,23 @@ data class PayCycle(
                 val d = t.data.toLocalDate()
                 if (!inCycle(d)) return@mapNotNull null
                 val sign = if (t.tipo == TransactionType.Receita.name) 1 else -1
-                CycleEntry(d, t.descricao, sign * t.valorCentavos, done = !d.isAfter(today))
+                CycleEntry(d, t.descricao, sign * t.valorCentavos, done = !d.isAfter(today), CycleSource.Lancamento(t))
             }
 
             val contasEntries = contas.mapNotNull { c ->
                 val d = c.vencimento.toLocalDate()
                 val pago = c.status == "pago"
                 val sign = if (c.tipo == "a_receber") 1 else -1
+                // Paga (ou recebida) antes do vencimento: o dinheiro já se moveu. O app não guarda
+                // o dia do pagamento, mas sabe que foi até hoje — e, para o saldo de hoje em diante,
+                // qualquer dia até hoje dá o mesmo resultado. Antes a saída continuava no vencimento,
+                // e os dias entre hoje e ele pareciam ter um dinheiro que já não existia.
+                val effective = if (pago && d.isAfter(asOf)) asOf else d
+                val source = CycleSource.Conta(c)
                 when {
-                    inCycle(d) -> CycleEntry(d, c.nome, sign * c.valorCentavos, done = pago)
+                    inCycle(effective) -> CycleEntry(effective, c.nome, sign * c.valorCentavos, done = pago, source, d.takeIf { it != effective })
                     // Conta a pagar vencida e não paga: ainda sai deste dinheiro, hoje.
-                    d.isBefore(start) && !pago && c.tipo == "a_pagar" -> CycleEntry(today, c.nome, -c.valorCentavos, done = false)
+                    d.isBefore(start) && !pago && c.tipo == "a_pagar" -> CycleEntry(today, c.nome, -c.valorCentavos, done = false, source, d)
                     else -> null
                 }
             }
@@ -228,7 +270,7 @@ data class PayCycle(
                         inCycle(due) -> due
                         else -> return@mapNotNull null
                     }
-                    CycleEntry(date, p.divida.nome, -p.valorCentavos, done = false)
+                    CycleEntry(date, p.divida.nome, -p.valorCentavos, done = false, CycleSource.Parcela(p), due.takeIf { it != date })
                 }.toList()
 
             return PayCycle(

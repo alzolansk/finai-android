@@ -110,6 +110,13 @@ data class FinanceUiState(
     val plan: com.finai.app.domain.FinancialPlan? = null,
     /** O plano como a IA recebe ([com.finai.app.domain.FinancialPlan.aiBlock]). */
     val aiPlanBlock: String = "",
+    /**
+     * Agenda sequencial ([com.finai.app.domain.CashFlowTimeline]): os ciclos entre salários em ordem,
+     * com o saldo depois de cada movimento. O ciclo atual é o mesmo [plan] (mesmo "Livre até o salário").
+     */
+    val cashFlow: com.finai.app.domain.CashFlowTimeline? = null,
+    /** O fluxo cronológico como a IA recebe ([com.finai.app.domain.CashFlowTimeline.aiBlock]). */
+    val aiCashFlowBlock: String = "",
     /** "Decisões para você", tiradas do plano, sem IA. */
     val decisions: List<com.finai.app.domain.AiReplyFormat.Decision> = emptyList(),
 
@@ -141,6 +148,8 @@ fun FinanceUiState.toAiSummaryText(): String = buildString {
     // O plano central traz comprometido, reservado, livre e a recomendação para o livre:
     // é a única fonte de "quanto sobra e para onde vai" que a IA recebe.
     if (aiPlanBlock.isNotBlank()) appendLine(aiPlanBlock)
+    // A ordem dos pagamentos entre salários: é o que responde "dá para pagar a fatura do dia 12?".
+    if (aiCashFlowBlock.isNotBlank()) appendLine(aiCashFlowBlock)
     savingsProjection?.let { p ->
         val next12 = p.months.take(12)
         appendLine(

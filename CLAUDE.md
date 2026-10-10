@@ -1120,6 +1120,41 @@ Novo design de aporte, novo objetivo e edição (10/10/2026, referências em `up
 - 265 testes JVM verdes. Conferido no emulador Pixel 6 API 34 nos dois temas: as três telas, arraste
   com halo, confirmação, Desfazer, aviso de salvo e a contagem (gravação de tela). Não testado no celular.
 
+Agenda sequencial (10/10/2026, branch `claude/youthful-volta-00b7pa`):
+- **Seletor Mensal | Sequencial** no topo da Agenda (`AgendaModeTabs`, estado em
+  `FinaiUiState.agendaSequential`; "Ver na Agenda" de outras telas volta para a mensal). A mensal
+  não mudou.
+- **`domain/CashFlowTimeline.kt`** monta a sequencial **sem conta própria**: o ciclo atual é o
+  `plan.cycle` do `FinancialPlan`, os seguintes vêm de `PeriodProjection.projectCycles` (extraído
+  do simulador de compra, que passou a usar a mesma função) e o anterior é `PayCycle.of` na véspera
+  do último salário, só com o realizado. Daqui saem ordem (`PayCycle.ordered`, agora público),
+  saldo depois de cada movimento, estado visto de hoje (`MovementStatus`) e a marca do menor saldo.
+  `CycleEntry` ganhou `source` (lançamento, conta ou parcela) e `movedFrom`.
+- **"Livre até o salário" conferido:** é o menor saldo de fim de dia de hoje até a véspera do
+  salário, com todas as entradas e saídas do intervalo. A fórmula virou `PayCycle.availableCents`
+  (o `FinancialPlan` lê dali). O saldo recomeça a cada salário; a sobra do ciclo aparece no rodapé.
+- **Mudança de regra no `PayCycle`:** conta paga (ou recebida) antes do vencimento conta **hoje**
+  (`movedFrom` = vencimento), porque o dinheiro já saiu; a mensal continua pelo vencimento.
+  `PayCycle.of(..., asOf)` evita que ela reapareça num ciclo projetado. Um teste antigo
+  (`beforeFirstSalaryMoneyReceivedThisMonthCounts`) mudou o saldo de hoje esperado; o livre não mudou.
+- UI em `ui/screens/agenda/SequentialAgenda.kt`: resumo do ciclo (livre, saldo hoje, a receber,
+  a pagar, sobra no fim), ciclos com cabeçalho, divisor de mês sem zerar saldo, marca "Hoje",
+  salário destacado, selo "Menor saldo", rodapé com a sobra. Tocar na conta alterna paga; na
+  parcela mais antiga em aberto pede confirmação e paga. Sem renda: aviso + "Informar renda" e a
+  lista sem saldo. Ciclo anterior e ciclos além do próximo ficam atrás de "Ver…".
+- **IA:** `CashFlowTimeline.aiBlock()` vai no resumo do chat (`FinanceUiState.aiCashFlowBlock`):
+  quanto entrou, já saiu e vai sair do ciclo, % comprometido, saldo de hoje, os próximos
+  movimentos com o saldo depois de cada um, menor saldo, livre, sobra e o próximo ciclo. O prompt
+  do chat manda usar isso, não o balanço do mês. "Se eu gastar R$ 500 hoje" agora é simulado
+  (Pix/débito hoje, dito na resposta) pelo `ScenarioSimulator`, em vez de perguntar a forma.
+- Testes: `CashFlowTimelineTest` (13, cenário 30/10 → fatura 12/11 → 30/11 com despesas no meio,
+  fatura paga adiantada, parcela paga, ciclo seguinte, itens de fatura/transferência/meta, ciclo
+  anterior, sem renda, bloco da IA, "gastar hoje"). 245 testes JVM de `domain/` verdes com kotlinc
+  avulso. `AgendaScreen.kt`/`SequentialAgenda.kt` passaram na análise de tipos contra Compose
+  Desktop 1.6.0; ViewModels e `FinaiApp` revisados à mão. **Gradle Android não rodado** (sem
+  acesso a dl.google.com): rodar `./gradlew assembleDebug testDebugUnitTest` e olhar a tela nos
+  dois temas.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

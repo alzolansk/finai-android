@@ -43,6 +43,10 @@ Requisitos extraídos tela a tela do protótipo, com a lógica de cada `onClick`
 - Totais do mês: a pagar vs a receber, com contagem de itens.
 - Dica contextual da IA sobre ordem de pagamento (ex.: evitar rotativo do cartão).
 - Lista de contas com status (pago, pendente, atrasado, vence hoje, previsto).
+- Duas visões (10/10/2026): **Mensal** (o mês-calendário, pelo vencimento) e **Sequencial**
+  (os ciclos entre salários em ordem, com o saldo depois de cada movimento, sem recomeçar no
+  dia 1º). A sequencial é desenhada a partir dos mesmos `PayCycle` do "Livre até o salário"
+  (`domain/CashFlowTimeline.kt`); o menor saldo do ciclo atual é o livre.
 
 ### 3.3 Objetivos (Metas)
 - Capacidade de poupança mensal calculada (renda menos gastos fixos e parcelas).
@@ -309,6 +313,18 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
     o usuário pediu para implementar todos os itens pendentes em 28/09/2026.
   - Backup: resolvido por exportar/restaurar manual (Configurações → Privacidade e dados);
     `allowBackup` continua `false`.
+
+- **Agenda sequencial, decisões tomadas em 10/10/2026 (aguardando confirmação do usuário):**
+  - O saldo da sequencial atravessa a virada do mês, mas **recomeça a cada salário**, como o
+    `PayCycle` (a sobra de um ciclo não é carregada). Cada ciclo mostra a própria sobra no fim.
+    Carregar a sobra deixaria a sequencial diferente do "Livre até o salário", que é o que o
+    pedido proibiu. Se o usuário quiser saldo contínuo entre salários, a mudança é no
+    `PayCycle` (vale para a Início, Objetivos e IA juntos), não só na Agenda.
+  - **Conta paga antes do vencimento sai hoje** no fluxo do ciclo (o app não guarda o dia do
+    pagamento, mas sabe que foi até hoje). A Agenda mensal continua pelo vencimento. Efeito:
+    pagar adiantado pode baixar o livre se um dia apertado vinha antes do vencimento.
+  - "Gastar R$ X hoje" sem forma de pagamento é simulado como Pix/débito hoje (a resposta diz
+    isso); "comprar" sem forma continua perguntando.
 
 - O usuário final é só você (single-user, sem conta/login) ou o app deve prever múltiplos perfis no mesmo aparelho?
 - Existe hoje algum dado real (lançamentos, dívidas, faturas) do site atual que precisa ser migrado para o app, ou o app Android começa do zero?

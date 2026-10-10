@@ -105,8 +105,15 @@ object PurchaseIntentParser {
         if (!looksLikePurchase(n)) return null
         val intent = extract(text, n, today, answerMode = false)
         if (intent.amountCents == null && intent.installments == null) return null
-        return intent
+        // "Se eu gastar R$ 500 hoje": gastar hoje, sem parcela nem forma de pagamento, é dinheiro
+        // saindo hoje. Vale como à vista (a resposta diz que considerou Pix/débito). Compra sem
+        // forma continua perguntando: aí o cartão muda em qual ciclo a conta cai.
+        val spendToday = spendRe.containsMatchIn(n) && !Regex("""\b(comprar|compra|compro|parcel\w*)\b""").containsMatchIn(n) &&
+            intent.firstDate == today && intent.installments == null && intent.installmentCents == null && intent.method == null
+        return if (spendToday) intent.copy(installments = 1) else intent
     }
+
+    private val spendRe = Regex("""\b(gastar|gasto|gaste)\b""")
 
     /**
      * A resposta a uma pergunta do app ("em que dia vence a primeira parcela?"). Nulo quando a

@@ -250,9 +250,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleCoach() = _uiState.update { it.copy(showCoach = !it.showCoach) }
 
     // ── agenda ──────────────────────────────────────────────────
+    /** Abre a Agenda no mês da data — na visão mensal, que é a que tem mês. */
     fun showAgendaDate(date: java.time.LocalDate) = _uiState.update {
-        it.copy(monthIndex = date.monthValue - 1, agendaYear = date.year)
+        it.copy(monthIndex = date.monthValue - 1, agendaYear = date.year, agendaSequential = false)
     }
+
+    fun setAgendaSequential(sequential: Boolean) = _uiState.update { it.copy(agendaSequential = sequential) }
 
     fun prevMonth() = _uiState.update {
         if (it.monthIndex == 0) it.copy(monthIndex = 11, agendaYear = it.agendaYear - 1)
