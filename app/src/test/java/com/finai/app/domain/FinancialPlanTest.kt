@@ -52,6 +52,8 @@ class FinancialPlanTest {
         // Nenhuma meta recebe a recomendação dos mesmos R$ 114.
         plan.goals.forEach { assertEquals(0L, it.monthlyContributionFundedCents) }
         plan.goals.forEach { assertTrue(plan.goalNote(it), plan.goalNote(it).contains("\"Rotativo\"")) }
+        // A versão curta, para os detalhes do card, diz o mesmo em uma linha.
+        plan.goals.forEach { assertEquals("Sem aporte agora: o livre vai primeiro para \"Rotativo\".", plan.goalNoteShort(it)) }
         assertTrue(plan.decisions(emptyList(), emptyList()).first().action.contains("Rotativo"))
         assertTrue(plan.aiBlock().contains("recomendação não é gasto"))
         assertEquals("Livre até o salário · 30/10", plan.untilShortLabel)
@@ -189,6 +191,7 @@ class FinancialPlanTest {
         assertEquals(0L, plan.livreCents)
         assertTrue(plan.decisions(emptyList(), emptyList()).first().action.startsWith("Cobrir a falta"))
         plan.goals.forEach { assertTrue(plan.goalNote(it).contains("falta")) }
+        plan.goals.forEach { assertTrue(plan.goalNoteShort(it), plan.goalNoteShort(it).startsWith("Sem aporte agora: antes, cobrir a falta")) }
     }
 
     @Test fun recommendNeverSuggestsMoreThanIsFree() {

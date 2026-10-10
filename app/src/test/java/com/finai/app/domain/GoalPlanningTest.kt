@@ -178,4 +178,11 @@ class GoalPlanningTest {
         val (_, _, changed) = build(listOf(italia, carro.copy(valorAlvoCentavos = 4_800_000)))
         assertTrue(GoalPlanning.visible(changed, dismissed).first.any { it.id == "conflito" })
     }
+
+    // A recomendação do card do topo sai só destes pontos; o conflito de sobra já tem linha própria.
+    @Test fun onlyFreeMoneyPointsBecomeThePlanTip() {
+        fun insight(id: String) = GoalInsight(id, InsightSeverity.Attention, "t", "d", InsightAction.None, "")
+        assertTrue(listOf("falta", "divida-primeiro", "vencimento").all { GoalPlanning.isPlanTip(insight(it)) })
+        assertTrue(listOf(GoalPlanning.CONFLICT_ID, "sem-renda", "adiar-1", "vencida-1").none { GoalPlanning.isPlanTip(insight(it)) })
+    }
 }

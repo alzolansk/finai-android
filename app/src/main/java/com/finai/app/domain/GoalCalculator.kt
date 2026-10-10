@@ -32,19 +32,30 @@ enum class GoalPace {
         /** Com nada guardado e prazo a até este número de meses, a meta pede atenção. */
         const val NEAR_DEADLINE_MONTHS = 2L
 
-        fun of(plan: GoalPlan, today: LocalDate): GoalPace {
+        /**
+         * [capacityKnown] falso quando não há renda cadastrada: a projeção só tem saídas, e o
+         * [GoalStatus] sairia "sem sobra" por falta de dado, não por falta de dinheiro. Nesse
+         * caso a meta não é julgada pela capacidade: nada guardado continua [NotStarted] e meta
+         * com valor guardado fica em [Attention] (não dá para confirmar o ritmo), nunca [OnTrack]
+         * nem [Late].
+         */
+        fun of(plan: GoalPlan, today: LocalDate, capacityKnown: Boolean = true): GoalPace {
             // Antes, alvo zero dava "falta zero" e a reserva aparecia como concluída.
             if (plan.objetivo.isOpenReserve) return Open
             if (plan.missingCents <= 0L) return Done
             val prazo = plan.objetivo.prazo.toLocalDate()
             if (prazo.isBefore(today)) return Late
+            val nearDeadline = ChronoUnit.MONTHS.between(YearMonth.from(today), YearMonth.from(prazo)) < NEAR_DEADLINE_MONTHS
+            if (!capacityKnown) {
+                return if (plan.objetivo.valorGuardadoCentavos > 0 || nearDeadline) Attention else NotStarted
+            }
             return when (plan.status) {
                 // Sem sobra prevista até o prazo: do jeito que está, não chega a tempo.
                 GoalStatus.Priority -> Late
                 GoalStatus.Reassess -> Attention
                 GoalStatus.OnTrack -> when {
                     plan.objetivo.valorGuardadoCentavos > 0 -> OnTrack
-                    ChronoUnit.MONTHS.between(YearMonth.from(today), YearMonth.from(prazo)) < NEAR_DEADLINE_MONTHS -> Attention
+                    nearDeadline -> Attention
                     else -> NotStarted
                 }
             }

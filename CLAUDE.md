@@ -1065,6 +1065,35 @@ Dispensar pontos de atenção (10/10/2026, mesmo branch):
   (`GoalPlanning.visible`). "Mostrar dispensados (N)" na seção desfaz tudo; "Apagar todos os dados" limpa.
 - 178 testes JVM de `domain/` verdes. UI não compilada aqui.
 
+Objetivos mais limpos (10/10/2026, branch `claude/exciting-meitner-5ptbtq`):
+- **Card escuro do topo reordenado:** primeiro "Livre até o salário · dd/MM" (ou "Falta…") com
+  "Entenda ›"; embaixo, no máximo **uma** recomendação: o ponto mais grave entre falta prevista,
+  dívida antes das metas e pagamento antes da próxima entrada (`GoalPlanning.isPlanTip`), que abre
+  porquê/ação/dispensa ao tocar. Depois uma linha "Metas pedem × Sobra prevista" com barra e
+  "Faltam/Cabe". Nomes por meta, horizonte da média, salário estimado, metas vencidas e "Comparar
+  cenários" ficam em "Ver planejamento". "Analisar com IA" saiu da seção de pontos e foi para o
+  rodapé do card; a análise aparece num bloco próprio, com "Fechar".
+- **Sem repetição:** o ponto que vira recomendação do card e o "conflito" (`GoalPlanning.CONFLICT_ID`,
+  já dito pela linha da sobra) não aparecem em "Pontos de atenção". A seção some quando não sobra
+  nenhum ponto (antes mostrava "Nada pede atenção agora").
+- **Card da meta mais baixo:** nome + selo; "R$ X de R$ Y" e % na mesma linha; barra; "Até <prazo>"
+  e "R$ Z/mês". Os dois botões de 48 dp viraram "+ Adicionar valor" e um chevron; tocar no card
+  também abre os detalhes. Detalhes: porquê do selo (`headline`), números, `Goal.planShort`
+  (`FinancialPlan.goalNoteShort`, uma linha, no lugar do `goalNote` longo, que continua indo para a
+  IA/chat), "Simular aporte" (o antigo "Simular cenários", mesmo destino) e "Analisar com IA" /
+  "Ocultar análise". A análise perdeu o rodapé "Feita só com os números…"; "NADA" vira "Nada novo
+  além do que já está na tela." e "Atualizar" só aparece como "Tentar de novo" quando falhou (a
+  análise é memorizada pelos números, então refazer com os mesmos dados não chamava a IA).
+- **Status sem renda cadastrada corrigido:** a projeção só tinha saídas e a meta saía "Atrasado"
+  por falta de dado. `GoalPace.of(..., capacityKnown)`: sem renda, nada guardado = Não iniciado
+  (Atenção com prazo perto); com valor guardado = Atenção ("Sem renda cadastrada, não dá para
+  confirmar o ritmo"), nunca No ritmo; prazo vencido continua Atrasado. A "sobra prevista até o
+  prazo" não aparece nos detalhes sem renda.
+- 164 testes JVM de `domain/` verdes (kotlinc avulso). `GoalsScreen.kt` passou pela análise de
+  tipos do kotlinc 1.9.22 contra Compose Desktop 1.6.0 (sem o plugin do Compose; os únicos erros
+  foram dos ícones da biblioteca estendida, não baixada, em código que não mudou). **Gradle Android
+  não rodado** (sem acesso a dl.google.com): rodar `./gradlew assembleDebug testDebugUnitTest`.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

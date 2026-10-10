@@ -49,6 +49,8 @@ data class Goal(
     val projectionNote: String = "",
     /** O que o plano central destinou a esta meta até o próximo salário ([com.finai.app.domain.FinancialPlan.goalNote]). */
     val planNote: String = "",
+    /** A mesma ideia de [planNote] em uma linha, para os detalhes do card. */
+    val planShort: String = "",
     /** "Concluída em set/2026"; nulo enquanto a meta está em andamento. */
     val completedLabel: String? = null,
     /** Quanto passou do alvo (aportes depois de concluída). */
