@@ -102,7 +102,9 @@ fun AgendaScreen(
     onNewEntry: () -> Unit = {},
     onImport: () -> Unit = {},
     today: LocalDate = LocalDate.now(),
-    installmentsOverview: @Composable () -> Unit = {},
+    /** Compras parceladas no cartão; o cartão some quando não há parcela no mês nem compra ativa. */
+    installments: com.finai.app.domain.InstallmentsSummary? = null,
+    onOpenInstallments: () -> Unit = {},
     /** Visão sequencial (linha do tempo entre salários) em vez da mensal. */
     sequential: Boolean = false,
     onSequentialChange: (Boolean) -> Unit = {},
@@ -159,8 +161,6 @@ fun AgendaScreen(
                 onAddMainIncome = onAddMainIncome,
             )
         } else {
-            item { installmentsOverview() }
-
             item {
                 Row(
                     modifier = Modifier
@@ -213,6 +213,15 @@ fun AgendaScreen(
                             note = if (toGetCount == 1) "1 entrada" else "$toGetCount entradas", valueColor = FinaiColors.EmeraldDark, modifier = Modifier.weight(1f),
                         )
                     }
+                }
+            }
+
+            // Parcelamentos num cartão só (o detalhe fica na tela própria). As parcelas continuam
+            // dentro da fatura de cada mês, na linha do tempo abaixo: o cartão só resume, não soma de novo.
+            val agendaMonth = java.time.YearMonth.of(year, monthIndex + 1)
+            if (installments != null && (installments.monthCents(agendaMonth) > 0 || installments.active.isNotEmpty())) {
+                item(key = "parcelamentos") {
+                    com.finai.app.ui.screens.installments.InstallmentsAgendaCard(installments, agendaMonth, onOpenInstallments)
                 }
             }
 
