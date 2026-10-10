@@ -54,8 +54,6 @@ class FinancialPlanTest {
         plan.goals.forEach { assertTrue(plan.goalNote(it), plan.goalNote(it).contains("\"Rotativo\"")) }
         assertTrue(plan.decisions(emptyList(), emptyList()).first().action.contains("Rotativo"))
         assertTrue(plan.aiBlock().contains("recomendação não é gasto"))
-        // O card de Objetivos diz a mesma coisa em uma linha.
-        assertEquals("Priorize amortizar R$ 114 em \"Rotativo\" antes de aumentar os aportes.", plan.shortRecommendation)
         assertEquals("Livre até o salário · 30/10", plan.untilShortLabel)
     }
 
@@ -86,8 +84,6 @@ class FinancialPlanTest {
         assertEquals(0L, plan.forDebt(7))
         assertEquals(listOf(100_000L, 0L, 0L), plan.goals.sortedBy { it.objetivo.prioridade }.map { it.monthlyContributionFundedCents })
         assertTrue(plan.recomendadoCents <= plan.livreCents)
-        // Aporte em meta aparece no card da meta, não repetido no topo.
-        assertNull(plan.shortRecommendation)
     }
 
     @Test fun anObligationBeforeTheNextIncomeHoldsMoneyBack() {
@@ -193,7 +189,6 @@ class FinancialPlanTest {
         assertEquals(0L, plan.livreCents)
         assertTrue(plan.decisions(emptyList(), emptyList()).first().action.startsWith("Cobrir a falta"))
         plan.goals.forEach { assertTrue(plan.goalNote(it).contains("falta")) }
-        assertTrue(plan.shortRecommendation!!.startsWith("Vai faltar"))
     }
 
     @Test fun recommendNeverSuggestsMoreThanIsFree() {

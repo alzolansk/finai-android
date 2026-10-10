@@ -41,6 +41,9 @@ object AiContext {
     fun goalLines(plans: List<GoalPlan>): List<String> =
         plans.map { p ->
             val o = p.objetivo
+            if (o.isOpenReserve) return@map "Reserva contínua \"${o.nome}\" (sem valor-alvo): saldo ${brl(o.valorGuardadoCentavos)}" +
+                (if (o.aporteMensalCentavos > 0) ", aporte planejado ${brl(o.aporteMensalCentavos)}/mês" else ", sem aporte planejado") +
+                ". O saldo dela não é dinheiro livre para outras metas."
             buildString {
                 append("Prioridade ${o.prioridade}: \"${o.nome}\" (${o.tipo}), faltam ${brl(p.missingCents)} até ${p.etaLabel}")
                 append("; pede ${brl(p.monthlyContributionNeededCents)}/mês")

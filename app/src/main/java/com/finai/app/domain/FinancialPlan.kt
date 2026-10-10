@@ -108,19 +108,6 @@ data class FinancialPlan(
     val untilShortLabel: String get() =
         if (cycle != null) "Livre até o salário · ${dm(cycle.proximo)}" else "Livre até o fim do mês · ${dm(until)}"
 
-    /**
-     * A recomendação do plano em uma linha, para o card do topo de Objetivos. Só a falta prevista
-     * e a dívida prioritária: sugestão de aporte em meta aparece no card da própria meta, e
-     * repetir aqui mostraria a mesma recomendação duas vezes na tela. Nulo quando não há nada a
-     * dizer (o valor livre basta). As justificativas ficam em "Entenda este valor".
-     */
-    val shortRecommendation: String? get() {
-        shortfall?.let { return "Vai faltar ${brl(it.cents)} em ${dm(it.date)}. Cubra isso antes de guardar." }
-        if (livreCents <= 0) return null
-        val debt = recommendations.firstOrNull()?.takeIf { it.target == RecommendationTarget.Debt } ?: return null
-        return "Priorize amortizar ${brl(debt.cents)} em \"${debt.name}\" antes de aumentar os aportes."
-    }
-
     /** "Livre até o salário de 28/10: R$ 114. Recomendação: R$ 114 para "X"." */
     val recommendationSummary: String get() = when {
         shortfall != null -> "Nada livre $untilLabel: primeiro é preciso cobrir a falta de ${brl(shortfall.cents)}."

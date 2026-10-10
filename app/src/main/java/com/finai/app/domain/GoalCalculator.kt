@@ -23,13 +23,18 @@ enum class GoalStatus { OnTrack, Reassess, Priority }
  * meta é [NotStarted] (ou [Attention] se o prazo está perto), nunca [OnTrack].
  */
 enum class GoalPace {
-    NotStarted, OnTrack, Attention, Late, Done;
+    NotStarted, OnTrack, Attention, Late, Done,
+
+    /** Reserva contínua: sem alvo, não tem progresso nem conclusão. */
+    Open;
 
     companion object {
         /** Com nada guardado e prazo a até este número de meses, a meta pede atenção. */
         const val NEAR_DEADLINE_MONTHS = 2L
 
         fun of(plan: GoalPlan, today: LocalDate): GoalPace {
+            // Antes, alvo zero dava "falta zero" e a reserva aparecia como concluída.
+            if (plan.objetivo.isOpenReserve) return Open
             if (plan.missingCents <= 0L) return Done
             val prazo = plan.objetivo.prazo.toLocalDate()
             if (prazo.isBefore(today)) return Late
@@ -46,6 +51,13 @@ enum class GoalPace {
         }
     }
 }
+
+/**
+ * Reserva sem valor-alvo (cofre contínuo): só tem saldo e, se o usuário quiser, um aporte
+ * mensal planejado. Não tem percentual, prazo que importe nem status "Concluído", e o saldo
+ * dela não é dinheiro livre para outros objetivos.
+ */
+val ObjetivoEntity.isOpenReserve: Boolean get() = valorAlvoCentavos <= 0
 
 data class GoalPlan(
     val objetivo: ObjetivoEntity,

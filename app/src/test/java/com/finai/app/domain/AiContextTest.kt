@@ -50,24 +50,24 @@ class AiContextTest {
         assertTrue(block.contains("não recomende o mesmo dinheiro para outra meta"))
     }
 
-    @Test fun goalInsightsGoInOneRequestWithThePlan() {
-        fun goal(id: String, name: String) = com.finai.app.data.model.Goal(
-            id = id, kind = "Viagem", name = name, saved = 5_500.0, target = 15_000.0, eta = "abril de 2027",
-            badge = com.finai.app.data.model.GoalBadge.Attention, note = "", action = "Adicionar valor",
-            planNote = "Sem valor adicional até o salário de 30/10: a sobra vai para \"Rotativo\".",
-        )
-        val request = AiPromptBuilder.goalInsights(listOf(goal("1", "Portugal"), goal("2", "Carro")), "Plano financeiro calculado pelo app")
-        assertTrue(request.prompt.contains("[1] \"Portugal\""))
-        assertTrue(request.prompt.contains("[2] \"Carro\""))
-        assertTrue(request.prompt.contains("Plano financeiro calculado pelo app"))
-        assertTrue(request.prompt.contains("a sobra vai para \"Rotativo\""))
+    @Test fun goalAnalysisSendsTheFactsAndTheRules() {
+        val facts = "Total necessário por mês: R$ 2.720.\nSobra média por mês nos próximos 12 meses, antes de aportes: R$ 1.900."
+        val plan = AiPromptBuilder.goalsPlanAnalysis(facts)
+        assertEquals(com.finai.app.data.ai.AiTask.GOALS_PLAN, plan.task)
+        assertTrue(plan.prompt.contains("R$ 2.720"))
+        assertTrue(plan.systemInstruction.contains("não descreva o que a tela já mostra"))
+        assertTrue(plan.systemInstruction.contains(AiPromptBuilder.NOTHING_RELEVANT))
+        val one = AiPromptBuilder.goalAnalysis("Itália 2028", facts)
+        assertTrue(one.prompt.contains("Analise só a meta \"Itália 2028\""))
+        assertTrue(AiPromptBuilder.isNothingRelevant("NADA."))
+        assertTrue(!AiPromptBuilder.isNothingRelevant("Nada impede adiar o carro | libera R$ 1.000"))
     }
 
     @Test fun numberedSectionsSplitTheBatchedAnswer() {
         val raw = "Aqui vai:\n**[1]**\nAgora: bem.\nPróximo passo: seguir.\nRisco: nenhum relevante.\n[2] Agora: parado.\nPróximo passo: esperar.\nRisco: prazo."
         val sections = AiReplyFormat.numberedSections(raw)
         assertEquals(setOf(1, 2), sections.keys)
-        assertEquals(3, AiReplyFormat.labeled(sections.getValue(1), AiPromptBuilder.GOAL_INSIGHT_LABELS)!!.size)
+        assertEquals(3, AiReplyFormat.labeled(sections.getValue(1), listOf("Agora", "Próximo passo", "Risco"))!!.size)
         assertEquals("Agora: parado.", sections.getValue(2).lines().first())
     }
 }

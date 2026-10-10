@@ -28,15 +28,37 @@ object AssistantTopics {
         },
     )
 
-    fun goal(goal: Goal) = AssistantTopic(
+    /**
+     * "Comparar cenários" dos pontos de atenção de Objetivos: o planejamento inteiro, com os
+     * fatos de [GoalPlanning.factsBlock] (prazos alternativos já calculados).
+     */
+    fun goalsPlan(facts: String) = AssistantTopic(
+        question = "Quero comparar cenários para as minhas metas caberem no orçamento.",
+        context = buildString {
+            appendLine("Aberto pelo botão \"Comparar cenários\" da tela Objetivos. Fatos calculados pelo app:")
+            appendLine(facts)
+            append(
+                "Compare dois ou três cenários (adiar uma meta, reduzir um alvo, mudar a prioridade) usando só os números " +
+                    "acima, incluindo os aportes com +6 e +12 meses. Diga qual muda mais o quadro e o que o usuário perde em cada um. " +
+                    "Não use dinheiro guardado em uma meta ou reserva para outra.",
+            )
+        },
+    )
+
+    fun goal(goal: Goal, facts: String = "") = AssistantTopic(
         question = "Quero simular caminhos para chegar em \"${goal.name}\".",
         context = buildString {
             appendLine("Objetivo \"${goal.name}\" (${goal.kind}), aberto pelo botão \"Simular cenários\" da tela Objetivos.")
             if (goal.description.isNotBlank()) appendLine("Descrição do usuário: ${goal.description.trim()}")
-            appendLine("Guardado: ${formatBrl0(goal.saved)} de ${formatBrl0(goal.target)}. Previsão atual: ${goal.eta}.")
+            if (goal.openReserve) appendLine("Reserva contínua (sem valor-alvo): saldo ${formatBrl0(goal.saved)}, aporte planejado ${formatBrl0(goal.plannedMonthly)}/mês.")
+            else appendLine("Guardado: ${formatBrl0(goal.saved)} de ${formatBrl0(goal.target)}. Previsão atual: ${goal.eta}.")
             appendLine("Situação calculada: ${goal.badge.label}. ${goal.note}")
             if (goal.planNote.isNotBlank()) appendLine("No plano do app: ${goal.planNote}")
             if (goal.projectionNote.isNotBlank()) appendLine(goal.projectionNote)
+            if (facts.isNotBlank()) {
+                appendLine("Fatos do planejamento inteiro, calculados pelo app:")
+                appendLine(facts)
+            }
             append(
                 "Julgue pela sobra projetada até o prazo. Compare dois ou três cenários (prazo diferente, meta ajustada, " +
                     "mudar a ordem de prioridade) e diga qual faz mais sentido considerando a descrição. Os cenários partem do " +

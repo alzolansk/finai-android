@@ -51,6 +51,13 @@ arquivo que decide o que a IA recebe. O que entra:
   que uma parcela coincide ("Fatura Nubank") e o nome da dívida/meta cuja
   recomendação muda. Nenhum lançamento. Pergunta de volta ("em que dia vence a
   1ª parcela?") é feita sem IA.
+- **"Analisar com IA" em Objetivos** (só quando o usuário toca no botão): os fatos
+  de `GoalPlanning.factsBlock` (`domain/GoalPlanning.kt`): metas com alvo, guardado,
+  prazo, aporte necessário e descrição escrita pelo usuário; reservas contínuas
+  com saldo e aporte planejado; próxima renda principal (nome e valor); nome, data
+  e valor dos pagamentos até essa renda; dívidas (nome, saldo, parcela, juros);
+  sobra projetada por mês. Nenhum lançamento individual fora desses pagamentos
+  agendados. A resposta que cita valor ou data fora desses fatos é descartada.
 - **Na importação**: estabelecimento normalizado + valor + dia/mês, no formato
   `3. mercado sao joao — R$ 189,90 em 12/03`.
   `MerchantClassifier.normalizeMerchant` remove prefixo de adquirente, sufixo de

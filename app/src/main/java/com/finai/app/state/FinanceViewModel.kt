@@ -164,6 +164,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val plan = FinancialPlan.build(s.contas, s.transacoes, s.dividas, s.objetivos, today) {
             FinaiLog.e(TAG, "Falha ao calcular o ciclo do salário", it)
         }
+        // Sem nenhuma entrada lançada não há sobra a projetar: a visão das metas não compara com orçamento.
+        val hasIncome = s.transacoes.any { it.tipo == TransactionType.Receita.name && it.valorCentavos > 0 } ||
+            s.contas.any { it.tipo == "a_receber" }
+        val goalsOverview = com.finai.app.domain.GoalPlanning.overview(plan, hasIncome, today)
+        val goalInsights = com.finai.app.domain.GoalPlanning.insights(plan, goalsOverview, s.dividas, hasIncome, today)
         val monthlyCapacityCents = plan.capacidadeMensalCents
         val savingsProjection = plan.projection
         val goalPlans = plan.goals
@@ -248,6 +253,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             goalsNeededCents = goalPlans.sumOf { it.monthlyContributionNeededCents },
             savingsProjection = savingsProjection,
             goalsFundedCents = goalPlans.sumOf { it.monthlyContributionFundedCents },
+            goalsOverview = goalsOverview,
+            goalInsights = goalInsights,
+            goalFacts = com.finai.app.domain.GoalPlanning.factsBlock(plan, goalsOverview, goalInsights, s.dividas, hasIncome, today),
             allBillsAndIncome = s.contas,
             debts = debtSummary.ordered.map { it.toUiDebt(plan.debtNote(it.divida)) },
             debtTotalLabel = formatBrl0(debtSummary.totalOpenCents / 100.0),

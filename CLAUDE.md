@@ -1010,6 +1010,39 @@ Tela Objetivos mais enxuta + status real das metas (10/10/2026, branch `claude/l
   kotlinc avulso (sem os de importação). **Tela não compilada aqui** (sem acesso ao AGP); o usuário vai
   testar no Android Studio.
 
+Objetivos como central de planejamento (10/10/2026, mesmo branch):
+- **Reserva contínua** (tipo Reserva + "Sem valor-alvo" no diálogo): `valorAlvoCentavos = 0`,
+  `ObjetivoEntity.isOpenReserve`, `GoalPace.Open`, selo "Reserva contínua". Sem barra, percentual,
+  prazo ou "Concluído"; mostra saldo e o aporte mensal planejado opcional (`aporteMensalCentavos`,
+  **Room 10→11**, `MIGRATION_10_11`, teste `Migration10To11Test`; o `11.json` é gerado no primeiro
+  build e precisa ser commitado). **Bug corrigido:** alvo zero dava "falta zero" e a meta virava
+  "Concluído" (era a "Reserva geral concluída com sucesso" da IA). Meta comum agora exige alvo > 0;
+  `Goal.progress` não divide por zero. Saldo de meta/reserva nunca é tratado como dinheiro livre (o
+  plano não lê `valorGuardado`; a IA recebe a regra explícita).
+- **`domain/GoalPlanning.kt`**: `GoalsOverview` (necessário/mês = falta ÷ meses, só metas com alvo, em
+  andamento e prazo à frente; vencidas à parte; reservas pelo aporte planejado; recomendação do plano
+  até o salário; sobra média projetada de 12 meses, nula sem renda) e `insights` (regras
+  determinísticas, cada uma só quando muda uma decisão): falta prevista, sem renda, metas pedem mais
+  que a sobra, dívida cara antes das metas, pagamento antes da próxima entrada com livre menor que os
+  aportes, adiar a meta de menor prioridade 6 meses (valor recalculado), metas com palavra comum no nome
+  (contagem dupla; some se a descrição diz "fora"/"separado"), prazo vencido, parcela de dívida
+  terminando em até 6 meses. Topo mostra até 3; os de uma meta aparecem nos detalhes dela. Cada ponto
+  tem ação real (`InsightAction`: editar prazo, comparar cenários no chat, Dívidas, Agenda, lançar renda).
+- **IA**: a leitura fixa por meta saiu (`goalInsights`/`ensureGoalInsights`/`GOAL_INSIGHT_LABELS`
+  removidos). "Analisar com IA" (planejamento inteiro ou uma meta) manda `GoalPlanning.factsBlock`
+  (confirmado × projeção × dados que o app não tem, cenários +6/+12 meses já calculados, pontos que o
+  usuário já vê) para `AiPromptBuilder.goalsPlanAnalysis`/`goalAnalysis` (`AiTask.GOALS_PLAN`/
+  `GOAL_INSIGHT`). Resposta: até 3 linhas "ação | porquê", "Pergunta:" quando falta dado, ou `NADA`.
+  Passa por `ScenarioReplyGuard`: valor ou data fora dos fatos descarta a resposta. Memoizado pelos fatos
+  (`AiViewModel.analyzeGoals`, chave `PLAN_ANALYSIS_KEY` ou id da meta). Nenhuma chamada sem toque.
+- **Tela**: card escuro com "Aportes mensais necessários", nomes, sobra prevista com barra de
+  cobertura e "Faltam/Cabe", e o livre até o salário com "Entenda ›" (o `shortRecommendation` saiu:
+  a dívida prioritária virou ponto de atenção). Card de meta recolhido: nome + selo, guardado / alvo +
+  %, barra, "Meta: <prazo>" + "R$ X/mês", "Adicionar valor" e "Detalhes". Editar/Excluir foram para os
+  detalhes. "Nada guardado ainda" saiu (o R$ 0 já diz).
+- 175 testes JVM de `domain/` verdes (kotlinc avulso; `GoalPlanningTest` novo). **UI e Room não
+  compilados aqui**: rodar `./gradlew assembleDebug testDebugUnitTest` no Android Studio.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

@@ -14,10 +14,9 @@ import com.finai.app.data.ai.ProviderUsageStore
 import com.finai.app.data.ai.ProviderId
 import com.finai.app.domain.BehaviorPattern
 import com.finai.app.data.model.Debt
-import com.finai.app.data.model.Goal
 import com.finai.app.data.prefs.AiKeyStore
 import com.finai.app.domain.AiPromptBuilder
-import com.finai.app.domain.AiReplyFormat
+import com.finai.app.domain.scenario.ScenarioReplyGuard
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -125,46 +124,36 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ── objetivos: "leitura da IA" por objetivo ─────────────────────────
-    private val _goalInsights = MutableStateFlow<Map<String, AiText>>(emptyMap())
-    val goalInsights: StateFlow<Map<String, AiText>> = _goalInsights
-
-    private var goalInsightsKey: String? = null
-    private var goalInsightsJob: Job? = null
+    // ── objetivos: análise sob demanda (global e por meta) ──────────────
+    private val _goalAnalyses = MutableStateFlow<Map<String, AiText>>(emptyMap())
+    /** Chave [PLAN_ANALYSIS_KEY] = o planejamento todo; id da meta = a análise dela. */
+    val goalAnalyses: StateFlow<Map<String, AiText>> = _goalAnalyses
+    private val goalAnalysisPrompts = mutableMapOf<String, String>()
+    private val goalAnalysisJobs = mutableMapOf<String, Job>()
 
     /**
-     * Uma chamada para todas as metas (até [AiPromptBuilder.GOAL_INSIGHT_MAX_GOALS], por
-     * prioridade), com o plano central no prompt. Antes era uma chamada por meta, cada uma
-     * levando o bloco de todas as metas: N vezes o mesmo contexto, e N leituras que podiam
-     * mandar a mesma sobra para lugares diferentes. Só refaz quando o plano ou as metas mudam.
+     * Só roda quando o usuário pede. Refaz apenas se os fatos mudaram (aporte, meta editada,
+     * novo lançamento) ou se a última tentativa falhou. A resposta que cita valor ou data fora de
+     * [facts] é descartada ([ScenarioReplyGuard]): melhor nenhuma análise do que uma inventada.
      */
-    fun ensureGoalInsights(goals: List<Goal>, planBlock: String) {
-        val batch = goals.take(AiPromptBuilder.GOAL_INSIGHT_MAX_GOALS)
-        val cacheKey = (batch.map { listOf(it.id, it.name, it.kind, it.description, it.saved, it.target, it.eta, it.badge.name, it.note, it.planNote) } + planBlock)
-            .toString()
-        if (goalInsightsKey == cacheKey) return
-        goalInsightsKey = cacheKey
-        goalInsightsJob?.cancel()
-        val skipped = goals.drop(batch.size).associate {
-            it.id to AiText.Unavailable("Leitura da IA só para as ${AiPromptBuilder.GOAL_INSIGHT_MAX_GOALS} metas de maior prioridade, para poupar a cota.")
-        }
-        if (batch.isEmpty()) {
-            _goalInsights.value = emptyMap()
-            return
-        }
-        _goalInsights.value = batch.associate { it.id to AiText.Loading } + skipped
-        goalInsightsJob = viewModelScope.launch {
-            val result = when (val text = requestText(AiPromptBuilder.goalInsights(batch, planBlock))) {
-                is AiText.Ready -> {
-                    val sections = AiReplyFormat.numberedSections(text.text)
-                    batch.mapIndexed { i, goal ->
-                        goal.id to (sections[i + 1]?.let { AiText.Ready(it) }
-                            ?: AiText.Unavailable("A IA não trouxe a leitura desta meta. O plano acima continua valendo."))
-                    }.toMap()
+    fun analyzeGoals(key: String, request: AiRequest, facts: String) {
+        val current = _goalAnalyses.value[key]
+        if (goalAnalysisPrompts[key] == request.prompt && current != null && current !is AiText.Unavailable) return
+        goalAnalysisPrompts[key] = request.prompt
+        goalAnalysisJobs[key]?.cancel()
+        _goalAnalyses.update { it + (key to AiText.Loading) }
+        goalAnalysisJobs[key] = viewModelScope.launch {
+            val result = when (val text = requestText(request)) {
+                is AiText.Ready -> when {
+                    AiPromptBuilder.isNothingRelevant(text.text) -> text
+                    ScenarioReplyGuard.accepts(text.text, facts) -> text
+                    else -> AiText.Unavailable(
+                        "A análise citou valores que não estão nos seus dados e foi descartada. Os pontos calculados pelo app continuam valendo.",
+                    )
                 }
-                else -> batch.associate { it.id to text }
+                else -> text
             }
-            _goalInsights.value = result + skipped
+            _goalAnalyses.update { it + (key to result) }
         }
     }
 
@@ -254,10 +243,10 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
      * de propósito.
      */
     fun resetMemoizedState() {
-        goalInsightsJob?.cancel()
-        goalInsightsJob = null
-        goalInsightsKey = null
-        _goalInsights.value = emptyMap()
+        goalAnalysisJobs.values.forEach { it.cancel() }
+        goalAnalysisJobs.clear()
+        goalAnalysisPrompts.clear()
+        _goalAnalyses.value = emptyMap()
 
         purchaseVerdictJob?.cancel()
         purchaseVerdictJob = null
@@ -273,5 +262,10 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         coachInsightJob = null
         coachInsightKey = null
         _coachInsight.value = null
+    }
+
+    companion object {
+        /** Chave da análise do planejamento inteiro em [goalAnalyses]. */
+        const val PLAN_ANALYSIS_KEY = "plano"
     }
 }

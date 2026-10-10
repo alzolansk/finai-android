@@ -5,7 +5,6 @@ import com.finai.app.data.ai.AiTask
 import com.finai.app.data.model.ChatMessage
 import com.finai.app.data.model.ChatRole
 import com.finai.app.data.model.Debt
-import com.finai.app.data.model.Goal
 import com.finai.app.util.formatBrl0
 
 /**
@@ -30,41 +29,62 @@ object AiPromptBuilder {
         "Prioridades e a recomendação para o dinheiro livre já foram decididas pelo app: explique, não decida de novo. " +
         "Não recomende produtos financeiros de terceiros nem dê conselho de investimento específico."
 
-    /** Rótulos das três linhas da leitura do objetivo, na ordem em que a tela mostra. */
-    val GOAL_INSIGHT_LABELS = listOf("Agora", "Próximo passo", "Risco")
-
-    /** Quantas metas vão numa leitura da IA: a resposta cabe no limite de saída dos provedores. */
-    const val GOAL_INSIGHT_MAX_GOALS = 4
+    /** Resposta da análise das metas quando não há nada que mude uma decisão. */
+    const val NOTHING_RELEVANT = "NADA"
 
     /**
-     * A leitura da IA de todas as metas numa chamada só (antes era uma por meta, cada uma
-     * repetindo o bloco de todas as metas). Recebe o plano central ([FinancialPlan.aiBlock]):
-     * a IA explica o que o app decidiu para cada meta, não decide de novo para onde vai a sobra.
-     * A resposta vem em seções "[n]", lidas por [AiReplyFormat.numberedSections].
+     * Regras da análise das metas. A IA recebe fatos já calculados ([GoalPlanning.factsBlock]) e
+     * só interpreta: cruza metas, prazos, renda, pagamentos e dívidas para achar conflito, risco,
+     * oportunidade ou dado faltando. A resposta passa por
+     * [com.finai.app.domain.scenario.ScenarioReplyGuard]: valor ou data fora dos fatos descarta tudo.
      */
-    fun goalInsights(goals: List<Goal>, planBlock: String): AiRequest {
-        val prompt = buildString {
-            appendLine(planBlock)
+    private const val GOALS_ANALYST = "Você é o analista de planejamento do app FinAI. Responda em português do Brasil. " +
+        "Use só os fatos abaixo, calculados pelo app; não faça contas novas nem cite valor ou data que não esteja neles. " +
+        "Sua tarefa é cruzar as informações (metas, prazos, renda, pagamentos, dívidas, sobra prevista) e apontar o que pode " +
+        "mudar uma decisão: conflito entre metas, risco para um pagamento, metas que parecem o mesmo gasto, alternativa de prazo " +
+        "já calculada, margem que vai abrir, dado que falta. Regras: " +
+        "não descreva o que a tela já mostra (progresso, guardado, status); " +
+        "não dê conselho genérico (\"continue guardando\", \"mantenha a disciplina\"); " +
+        "não sugira aporte que comprometa um pagamento listado nem que use dinheiro guardado em outra meta ou reserva; " +
+        "não invente juros, rendimento, inflação nem projeção; " +
+        "separe o que é confirmado do que é projeção (diga \"pela projeção\" quando for); " +
+        "não repita a mesma recomendação para várias metas; " +
+        "se faltar um dado para concluir, faça uma pergunta. " +
+        "Formato: no máximo 3 linhas, cada uma \"ação curta | porquê em uma frase com os números dos fatos\". " +
+        "Uma pergunta vai como linha começando com \"Pergunta:\". " +
+        "Se não houver nada além do que o usuário já vê, responda apenas $NOTHING_RELEVANT."
+
+    /** Análise do conjunto: o planejamento cabe no orçamento? O que priorizar ou ajustar? */
+    fun goalsPlanAnalysis(facts: String): AiRequest = AiRequest(
+        AiTask.GOALS_PLAN,
+        GOALS_ANALYST,
+        buildString {
+            appendLine(facts)
             appendLine()
-            appendLine("Metas:")
-            goals.forEachIndexed { i, goal ->
-                append("[${i + 1}] \"${goal.name}\" (${goal.kind}): guardado ${formatBrl0(goal.saved)} de ${formatBrl0(goal.target)}, ")
-                append("prazo ${goal.eta}, situação: ${goal.badge.label}. ${goal.note}")
-                if (goal.planNote.isNotBlank()) append(" ${goal.planNote}")
-                if (goal.description.isNotBlank()) append(" Descrição do usuário: ${goal.description.trim()}")
-                appendLine()
-            }
+            append(
+                "Analise o planejamento como um todo, não meta por meta: ele é sustentável com a sobra e os pagamentos? " +
+                    "Qual prioridade ou ajuste faz mais diferença?",
+            )
+        },
+    )
+
+    /** Análise de uma meta: viabilidade, prazo, aporte e conflito com o resto do orçamento. */
+    fun goalAnalysis(goalName: String, facts: String): AiRequest = AiRequest(
+        AiTask.GOAL_INSIGHT,
+        GOALS_ANALYST,
+        buildString {
+            appendLine(facts)
             appendLine()
-            appendLine("O usuário já vê os valores na tela: não os repita. O próximo passo segue a recomendação do plano: não sugira aporte agora para meta que o plano não recomenda.")
-            appendLine("Seja específico e acionável. Cada linha tem no máximo 15 palavras, sem justificativa técnica e sem repetir a mesma recomendação em várias metas.")
-            appendLine("Se a situação for \"Não iniciado\", não diga que a meta está no ritmo. Não invente dados que não estão acima.")
-            appendLine("Para cada meta, responda com a marca [n] numa linha e depois exatamente 3 linhas curtas (uma frase cada):")
-            appendLine("Agora: o que a situação significa para esta meta.")
-            appendLine("Próximo passo: uma ação concreta coerente com o plano.")
-            append("Risco: o que pode atrasar, ou \"nenhum relevante\".")
-        }
-        return AiRequest(AiTask.GOAL_INSIGHT, "$SYSTEM_BASE Você escreve a \"leitura da IA\" dos objetivos financeiros.", prompt)
-    }
+            append(
+                "Analise só a meta \"$goalName\": ela é viável no prazo com a sobra prevista e os pagamentos? " +
+                    "Conflita com outra meta, dívida ou pagamento? Qual ajuste concreto (prazo, alvo, prioridade) mudaria o quadro?",
+            )
+        },
+    )
+
+    /** A IA disse que não há nada a acrescentar. */
+    fun isNothingRelevant(reply: String): Boolean =
+        reply.trim().lineSequence().firstOrNull()?.trim()?.trim('*', '.', '!', ' ')?.uppercase() == NOTHING_RELEVANT
 
     fun purchaseVerdict(
         amountLabel: String,

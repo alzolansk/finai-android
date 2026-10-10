@@ -49,13 +49,18 @@ fun GoalPlan.toUiGoal(
         GoalPace.Attention -> GoalBadge.Attention
         GoalPace.Late -> GoalBadge.Late
         GoalPace.Done -> GoalBadge.Done
+        GoalPace.Open -> GoalBadge.Open
     }
     val available = projectedAvailableCents
     val missingLabel = formatBrl0(centsToReais(missingCents))
+    val overdue = pace != GoalPace.Open && missingCents > 0 && objetivo.prazo.toLocalDate().isBefore(today)
     // Frase longa: vai para os detalhes do card, para a IA e para o chat.
     val note = when {
+        pace == GoalPace.Open -> if (objetivo.aporteMensalCentavos > 0)
+            "Reserva sem valor-alvo, com aporte planejado de ${formatBrl0(centsToReais(objetivo.aporteMensalCentavos))}/mês."
+        else "Reserva sem valor-alvo e sem aporte mensal planejado."
         missingCents <= 0L -> "Alvo alcançado."
-        objetivo.prazo.toLocalDate().isBefore(today) -> "O prazo de $etaLabel já passou e faltam $missingLabel."
+        overdue -> "O prazo de $etaLabel já passou e faltam $missingLabel."
         status == GoalStatus.OnTrack -> "${formatBrl0(centsToReais(monthlyContributionNeededCents))}/mês mantém a data."
         available != null && status == GoalStatus.Reassess ->
             "Até $etaLabel, a sobra projetada cobre ${formatBrl0(centsToReais(available))} dos $missingLabel que faltam."
@@ -64,20 +69,18 @@ fun GoalPlan.toUiGoal(
         status == GoalStatus.Reassess -> "Concorre com outros objetivos pela mesma capacidade de poupança."
         else -> "Sem capacidade de poupança disponível este mês para este objetivo."
     }
-    // Frase curta do card: só quando acrescenta algo ao selo e aos números.
+    // O porquê do selo, só quando ele não se explica sozinho. "Não iniciado" com R$ 0 na tela
+    // dispensa frase; "No ritmo", "Concluído" e reserva também.
     val headline = when (pace) {
-        GoalPace.Done, GoalPace.OnTrack -> ""
-        GoalPace.NotStarted -> "Nada guardado ainda."
         GoalPace.Attention -> when {
             objetivo.valorGuardadoCentavos <= 0L && status == GoalStatus.OnTrack -> "Prazo próximo e nada guardado ainda."
-            available != null -> "A sobra prevista cobre ${formatBrl0(centsToReais(available.coerceAtLeast(0)))} de $missingLabel."
+            available != null -> "A sobra prevista até o prazo cobre ${formatBrl0(centsToReais(available.coerceAtLeast(0)))} de $missingLabel."
             else -> "Disputa a sobra com outras metas."
         }
-        GoalPace.Late ->
-            if (objetivo.prazo.toLocalDate().isBefore(today)) "Prazo vencido. Ajuste a data ou o alvo."
-            else "Sem sobra prevista até o prazo."
+        GoalPace.Late -> if (overdue) "Prazo vencido. Ajuste a data ou o alvo." else "Sem sobra prevista até o prazo."
+        else -> ""
     }
-    val projectionNote = available?.let {
+    val projectionNote = available?.takeIf { pace != GoalPace.Open }?.let {
         "Sobra projetada do mês atual até $etaLabel, somando o balanço de cada mês e já descontadas as metas de " +
             "maior prioridade: ${formatBrl0(centsToReais(it))}. Faltam $missingLabel para esta meta " +
             "(${formatBrl0(centsToReais(monthlyContributionNeededCents))}/mês até o prazo)."
@@ -99,11 +102,15 @@ fun GoalPlan.toUiGoal(
             objetivo.concluidoEm?.let { "Concluída em ${monthShort(it)}" } ?: "Concluída"
         } else null,
         exceeded = centsToReais((objetivo.valorGuardadoCentavos - objetivo.valorAlvoCentavos).coerceAtLeast(0)),
-        monthlyNeeded = centsToReais(monthlyContributionNeededCents),
+        monthlyNeeded = if (overdue) 0.0 else centsToReais(monthlyContributionNeededCents),
         missing = centsToReais(missingCents),
-        projectedAvailable = available?.let(::centsToReais),
+        projectedAvailable = available?.takeIf { pace != GoalPace.Open }?.let(::centsToReais),
         recommended = centsToReais(recommendedCents),
         headline = headline,
+        openReserve = pace == GoalPace.Open,
+        plannedMonthly = centsToReais(objetivo.aporteMensalCentavos),
+        overdue = overdue,
+        priority = objetivo.prioridade,
     )
 }
 

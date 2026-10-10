@@ -112,7 +112,7 @@ object AiReplyFormat {
     }
 
     /**
-     * Resposta em seções "[1] … [2] …" ([AiPromptBuilder.goalInsights]) → texto de cada seção
+     * Resposta em seções "[1] … [2] …" → texto de cada seção
      * pelo número. A marca pode vir em negrito ou com texto na mesma linha; o que vem antes da
      * primeira marca é descartado. Vazio quando nenhuma marca aparece.
      */

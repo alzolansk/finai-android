@@ -32,7 +32,7 @@ object TipScript {
             Tip("agenda.transactions", "Lançamentos do mês", "Tudo que você lançou ou importou aparece aqui, com as ações de cada item."),
         ),
         GOALS to listOf(
-            Tip("goals.card", "Sua meta", "Progresso, quanto guardar por mês e a situação real da meta. Use \"Adicionar valor\" para registrar um aporte."),
+            Tip("goals.card", "Sua meta", "Guardado, prazo e quanto guardar por mês. O selo diz se cabe no que sobra. Use \"Adicionar valor\" para registrar um aporte."),
             Tip("goals.details", "Detalhes e análise", "Veja o que falta, simule cenários ou peça a análise da IA. Ela explica o plano, não muda o destino do dinheiro."),
         ),
         DEBTS to listOf(

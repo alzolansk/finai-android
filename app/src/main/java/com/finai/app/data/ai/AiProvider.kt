@@ -43,6 +43,12 @@ enum class AiTask {
      * [com.finai.app.domain.scenario.ScenarioReplyGuard] antes de aparecer.
      */
     PURCHASE_SCENARIO,
+
+    /**
+     * Análise do conjunto de metas sobre fatos já calculados ([com.finai.app.domain.GoalPlanning]).
+     * A resposta também passa pela trava de números do simulador.
+     */
+    GOALS_PLAN,
 }
 
 /**
