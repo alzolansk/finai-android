@@ -69,7 +69,7 @@ import com.finai.app.ui.theme.FinaiColors
  *
  * Insets tratados explicitamente (corrigido na Fase 6): a Activity roda em
  * edge-to-edge (`enableEdgeToEdge()` em `MainActivity`), e este overlay cobre a
- * tela inteira sem passar por [FinaiTopBar], que é quem aplica
+ * tela inteira sem passar por [FinaiPageHeader], que é quem aplica
  * `statusBarsPadding()` nas telas normais. Sem isto, o cabeçalho ficava por
  * baixo da barra de status — o botão de fechar caía embaixo do relógio do
  * sistema e não respondia ao toque. `imePadding` sobe a barra de digitação com

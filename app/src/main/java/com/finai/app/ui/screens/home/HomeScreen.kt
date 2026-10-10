@@ -55,11 +55,14 @@ import com.finai.app.ui.components.TextAction
 import com.finai.app.ui.components.tipTarget
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
+import com.finai.app.ui.components.PageTitle
+import androidx.compose.foundation.lazy.LazyListState
 import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.util.formatBrl0
 
 @Composable
 fun HomeScreen(
+    listState: LazyListState,
     greeting: String,
     goals: List<Goal>,
     saldoLabel: String,
@@ -88,12 +91,12 @@ fun HomeScreen(
     // Ordem por urgência (Fase 7, item 3): situação → o que vence → planejamento.
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
+        state = listState,
         contentPadding = ScreenContentPadding,
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        item {
-            Text(greeting, style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
-        }
+        // Título grande do cabeçalho 4a; a saudação fica logo abaixo dele.
+        item(key = "title") { PageTitle("Início", listState, subtitle = greeting) }
 
         item {
             SituationCard(

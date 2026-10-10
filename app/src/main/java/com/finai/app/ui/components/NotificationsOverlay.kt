@@ -50,8 +50,8 @@ import com.finai.app.domain.AlertSeverity
 import com.finai.app.domain.FinanceAlert
 import com.finai.app.ui.theme.FinaiColors
 
-/** Altura da [FinaiTopBar] abaixo da barra de status: 12 dp + botão de 36 dp + 12 dp. */
-val TopBarContentHeight = 60.dp
+/** Altura do cabeçalho ([FinaiPageHeader]) abaixo da barra de status. */
+val TopBarContentHeight = PageHeaderSpec.Height
 
 /**
  * Painel de avisos, preso ao sino da topbar. A seta no topo e o crescimento a

@@ -98,7 +98,13 @@ import com.finai.app.ui.components.NavBarBottomScrim
 import com.finai.app.ui.components.glassSource
 import com.finai.app.ui.components.rememberGlassBackdrop
 import com.finai.app.ui.components.rememberNavBarCollapseState
-import com.finai.app.ui.components.FinaiTopBar
+import com.finai.app.ui.components.FinaiPageHeader
+import com.finai.app.ui.components.HeaderActions
+import com.finai.app.ui.components.HeaderLeading
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.DisposableEffect
 import com.finai.app.ui.components.InitialSetupWizard
 import com.finai.app.ui.components.NotificationsPanel
 import com.finai.app.ui.components.TopBarContentHeight
@@ -196,6 +202,24 @@ fun FinaiApp(
     val imeVisible by remember(imeInsets, density) { derivedStateOf { imeInsets.getBottom(density) > 0 } }
     val showNavBar = current != FinaiDestination.AiSettings && !imeVisible
 
+    // Cabeçalho 4a: cada aba guarda a própria lista (e a rolagem dela) aqui em cima, para o
+    // cabeçalho ler a posição da aba aberta no mesmo quadro da troca, sem esperar a tela
+    // nova se registrar. Limites e Importação empilham e começam do topo a cada visita:
+    // a lista delas nasce na própria entrada do NavHost e se registra em secondaryLists.
+    val tabLists = bottomTabs.associateWith { rememberLazyListState() }
+    val secondaryLists = remember { mutableStateMapOf<FinaiDestination, LazyListState>() }
+    val activeList = tabLists[current] ?: secondaryLists[current]
+
+    // Ponto de notificação: avisos que o usuário ainda não viu na central. Abrir a central
+    // marca todos como vistos; um aviso que some e volta conta como novo. Só em memória
+    // (sobrevive a rotação/recriação, não a reinstalar), sem mexer na persistência.
+    var seenAlertIds by rememberSaveable { mutableStateOf(listOf<String>()) }
+    val alertIds = financeState.alerts.map { it.id }
+    LaunchedEffect(alertIds, uiState.notifsOpen) {
+        seenAlertIds = if (uiState.notifsOpen) alertIds else seenAlertIds.filter { it in alertIds }
+    }
+    val unreadAlerts = alertIds.count { it !in seenAlertIds }
+
     fun navigateTo(destination: FinaiDestination) {
         navController.navigate(destination.route) {
             // Abas da barra de baixo trocam entre si (voltar leva à Início).
@@ -249,27 +273,18 @@ fun FinaiApp(
 
     CompositionLocalProvider(LocalTipTargets provides tipRegistry) {
     Box(modifier = Modifier.fillMaxSize().background(FinaiColors.Background).onSizeChanged { rootHeightPx = it.height.toFloat() }) {
-        Column(
+        Box(
             modifier = Modifier.fillMaxSize()
                 .then(if (showAddTransaction || contributionTarget != null) Modifier.clearAndSetSemantics {} else Modifier)
                 // Fundo da folha de aporte desfocado, como na referência (Android 12+; antes disso só o escurecido).
                 .then(if (contributionTarget != null) Modifier.blur(8.dp) else Modifier),
         ) {
-            // Configurações desenha a própria topbar: o título e o "voltar"
-            // acompanham a subpágina aberta dentro dela.
-            if (current != FinaiDestination.AiSettings) {
-                FinaiTopBar(
-                    screenLabel = current.screenLabel,
-                    notifCount = financeState.alerts.size,
-                    onOpenNotifications = viewModel::openNotifications,
-                    onOpenChat = viewModel::openChat,
-                    onOpenAiSettings = { navController.navigate(FinaiDestination.AiSettings.route) { launchSingleTop = true } },
-                    onBellCenterX = { bellCenterX = it },
-                )
-            }
+            // O conteúdo ocupa a tela toda e rola por baixo do cabeçalho; é a mesma fonte do
+            // vidro da barra de baixo e do cabeçalho. O cabeçalho fica fora dela (logo abaixo),
+            // senão ele próprio entraria no desfoque.
             Box(
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxSize()
                     .nestedScroll(navCollapse.nestedScrollConnection)
                     .glassSource(glassBackdrop),
             ) {
@@ -288,6 +303,7 @@ fun FinaiApp(
                             aiViewModel.ensureCoachInsight(financeState.behaviorPattern)
                         }
                         HomeScreen(
+                            listState = tabLists.getValue(FinaiDestination.Home),
                             greeting = financeState.greeting,
                             goals = financeState.goals,
                             saldoLabel = financeState.saldoLabel,
@@ -315,6 +331,7 @@ fun FinaiApp(
                     }
                     composable(FinaiDestination.Agenda.route) {
                         AgendaScreen(
+                            listState = tabLists.getValue(FinaiDestination.Agenda),
                             monthIndex = uiState.monthIndex,
                             year = uiState.agendaYear,
                             onPrevMonth = viewModel::prevMonth,
@@ -354,6 +371,7 @@ fun FinaiApp(
                         // "Analisar com IA" (planejamento inteiro ou uma meta), sobre os fatos calculados.
                         val facts = financeState.goalFacts
                         GoalsScreen(
+                            listState = tabLists.getValue(FinaiDestination.Goals),
                             goals = financeState.goals,
                             completedGoals = financeState.completedGoals,
                             plan = financeState.plan,
@@ -400,6 +418,7 @@ fun FinaiApp(
                             aiViewModel.ensureDebtNegotiation(financeState.debts)
                         }
                         DebtsScreen(
+                            listState = tabLists.getValue(FinaiDestination.Debts),
                             debts = financeState.debts,
                             totalOpenLabel = financeState.debtTotalLabel,
                             monthlyInterestLabel = financeState.debtInterestLabel,
@@ -418,6 +437,7 @@ fun FinaiApp(
                     }
                     composable(FinaiDestination.Budgets.route) {
                         BudgetsScreen(
+                            listState = rememberSecondaryList(FinaiDestination.Budgets, secondaryLists),
                             budgets = financeState.budgets,
                             subscriptions = financeState.subscriptions,
                             recentTransactions = financeState.rawTransacoesDoMes,
@@ -431,6 +451,7 @@ fun FinaiApp(
                     }
                     composable(FinaiDestination.Import.route) {
                         ImportScreen(
+                            listState = rememberSecondaryList(FinaiDestination.Import, secondaryLists),
                             state = importState,
                             onPickDocument = importViewModel::importDocument,
                             onToggleItem = importViewModel::toggleItem,
@@ -498,6 +519,24 @@ fun FinaiApp(
                     }
                 }
                 NavBarBottomScrim(visible = showNavBar, modifier = Modifier.align(Alignment.BottomCenter))
+            }
+            // Configurações desenha a própria barra: o título e o "voltar" acompanham a
+            // subpágina aberta dentro dela.
+            if (current != FinaiDestination.AiSettings) {
+                FinaiPageHeader(
+                    title = current.headerTitle,
+                    leading = if (current in bottomTabs) HeaderLeading.Logo else HeaderLeading.Back { navController.navigateUp() },
+                    actions = HeaderActions(
+                        unreadCount = unreadAlerts,
+                        onOpenNotifications = viewModel::openNotifications,
+                        onOpenSettings = { navController.navigate(FinaiDestination.AiSettings.route) { launchSingleTop = true } },
+                        onOpenAssistant = viewModel::openChat,
+                        onBellCenterX = { bellCenterX = it },
+                    ),
+                    listState = activeList,
+                    backdrop = glassBackdrop,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
             }
         }
 
@@ -963,6 +1002,23 @@ private fun agendaDataFor(
         invoiceItemsByAccountId = invoiceItemsByAccountId,
         debtsDue = flow.debtsDue,
     )
+}
+
+/**
+ * Lista de uma tela secundária (Limites, Importação): nasce com a entrada do NavHost, então
+ * cada visita começa do topo, e fica registrada para o cabeçalho enquanto a tela existe.
+ */
+@Composable
+private fun rememberSecondaryList(
+    destination: FinaiDestination,
+    registry: MutableMap<FinaiDestination, LazyListState>,
+): LazyListState {
+    val list = rememberLazyListState()
+    DisposableEffect(destination, list) {
+        registry[destination] = list
+        onDispose { if (registry[destination] === list) registry.remove(destination) }
+    }
+    return list
 }
 
 private val bottomTabs = setOf(FinaiDestination.Home, FinaiDestination.Agenda, FinaiDestination.Goals, FinaiDestination.Debts)

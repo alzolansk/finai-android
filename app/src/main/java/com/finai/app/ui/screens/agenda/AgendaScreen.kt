@@ -66,6 +66,8 @@ import com.finai.app.ui.components.EntryGlyph
 import com.finai.app.domain.toLocalDate
 import com.finai.app.ui.components.ConfirmDeleteDialog
 import com.finai.app.ui.components.ScreenContentPadding
+import com.finai.app.ui.components.PageTitle
+import androidx.compose.foundation.lazy.LazyListState
 import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.ui.theme.themedFill
 import com.finai.app.ui.theme.themedText
@@ -77,6 +79,7 @@ import java.time.LocalDate
 @OptIn(ExperimentalFoundationApi::class, ExperimentalAnimationApi::class)
 @Composable
 fun AgendaScreen(
+    listState: LazyListState,
     monthIndex: Int,
     year: Int,
     onPrevMonth: () -> Unit,
@@ -132,18 +135,15 @@ fun AgendaScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
+        state = listState,
         contentPadding = ScreenContentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item {
-            Column {
-                Text("Agenda", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
-                Text(
-                    if (sequential) "O dinheiro em ordem, de salário a salário" else "Pagamentos e recebimentos do mês",
-                    fontSize = 13.sp, color = FinaiColors.TextTertiary,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
+        item(key = "title") {
+            PageTitle(
+                "Agenda", listState,
+                subtitle = if (sequential) "O dinheiro em ordem, de salário a salário" else "Pagamentos e recebimentos do mês",
+            )
         }
 
         item(key = "agenda-modo") { AgendaModeTabs(sequential, onSequentialChange) }

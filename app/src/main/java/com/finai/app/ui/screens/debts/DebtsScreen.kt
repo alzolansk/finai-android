@@ -48,6 +48,8 @@ import androidx.compose.material3.MaterialTheme
 import com.finai.app.ui.components.FadeInAppear
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
+import com.finai.app.ui.components.PageTitle
+import androidx.compose.foundation.lazy.LazyListState
 import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.ui.theme.themedText
 import com.finai.app.ui.theme.FinaiMotion
@@ -63,6 +65,7 @@ private val genericNegotiationSteps = listOf(
 
 @Composable
 fun DebtsScreen(
+    listState: LazyListState,
     debts: List<Debt>,
     totalOpenLabel: String,
     monthlyInterestLabel: String,
@@ -85,20 +88,16 @@ fun DebtsScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
+        state = listState,
         contentPadding = ScreenContentPadding,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Dívidas", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
-                    Text(
-                        "Estratégia de quitação e negociação", fontSize = 13.sp, color = FinaiColors.TextTertiary,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
-                ActionButton("+ Nova", onNewDebt, primary = true)
-            }
+        item(key = "title") {
+            PageTitle(
+                "Dívidas", listState,
+                subtitle = "Estratégia de quitação e negociação",
+                trailing = { ActionButton("+ Nova", onNewDebt, primary = true) },
+            )
         }
 
         if (debts.isEmpty()) {

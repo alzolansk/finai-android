@@ -301,3 +301,42 @@ fun DrawScope.drawGlassEdges(surface: GlassSurface, w: Float, h: Float, border: 
  * o desvio. Converter mantém o mesmo visual do protótipo.
  */
 internal fun sigmaToRadius(sigma: Float): Float = ((sigma - 0.5f) / 0.57735f).coerceAtLeast(0f)
+
+/**
+ * Vidro retangular de ponta a ponta, para o cabeçalho (playbook 4a): o conteúdo de trás
+ * desfocado e saturado dentro do retângulo, e a tinta por cima. Sem sombra, borda nem
+ * brilho; a linha inferior é de quem chama. Sem gravação disponível (API < 31 ou antes do
+ * primeiro quadro), só a tinta de fallback, mais opaca.
+ */
+fun DrawScope.drawGlassRect(
+    backdrop: GlassBackdrop,
+    surface: GlassSurface,
+    blurRadius: Dp,
+    saturation: Float,
+    tint: Color,
+    fallbackTint: Color,
+) {
+    val w = size.width
+    val h = size.height
+    if (w <= 0f || h <= 0f) return
+    surface.setGeometry(w, h, blurRadius.toPx(), saturation)
+    val source = backdrop.contentNode
+    val sourcePos = backdrop.sourceInWindow
+    surface.positionInWindow
+    var drew = false
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && backdrop.hasRecording && source != null) {
+        drawIntoCanvas { canvas ->
+            val native = canvas.nativeCanvas
+            if (!native.isHardwareAccelerated) return@drawIntoCanvas
+            val node = surface.recordEffect(source, sourcePos) ?: return@drawIntoCanvas
+            val inflate = surface.inflatePx
+            native.save()
+            native.clipRect(0f, 0f, w, h)
+            native.translate(-inflate, -inflate)
+            native.drawRenderNode(node as RenderNode)
+            native.restore()
+            drew = true
+        }
+    }
+    drawRect(if (drew) tint else fallbackTint)
+}
