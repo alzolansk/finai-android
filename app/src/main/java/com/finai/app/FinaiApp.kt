@@ -89,6 +89,15 @@ import com.finai.app.ui.components.GoalContributionSheet
 import com.finai.app.ui.components.GoalCreateScreen
 import com.finai.app.ui.components.GoalEditScreen
 import com.finai.app.ui.components.FinaiBottomNav
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.finai.app.ui.components.NavBarBottomScrim
+import com.finai.app.ui.components.glassSource
+import com.finai.app.ui.components.rememberGlassBackdrop
+import com.finai.app.ui.components.rememberNavBarCollapseState
 import com.finai.app.ui.components.FinaiTopBar
 import com.finai.app.ui.components.InitialSetupWizard
 import com.finai.app.ui.components.NotificationsPanel
@@ -172,6 +181,19 @@ fun FinaiApp(
     val reducedMotion = rememberReducedMotion()
     val tabFadeMillis = if (reducedMotion) 0 else FinaiMotion.Quick
 
+    // Barra de baixo de vidro (playbook 3a): o conteúdo das telas é a fonte do desfoque,
+    // a rolagem decide se ela recolhe, e trocar de tela a devolve expandida.
+    val glassBackdrop = rememberGlassBackdrop()
+    val navCollapse = rememberNavBarCollapseState()
+    navCollapse.enabled = !reducedMotion
+    LaunchedEffect(current) { navCollapse.reset() }
+    // Teclado aberto esconde a barra. derivedStateOf: o inset do teclado muda a cada
+    // quadro da animação dele, e isso não deve recompor o app inteiro.
+    val imeInsets = WindowInsets.ime
+    val density = LocalDensity.current
+    val imeVisible by remember(imeInsets, density) { derivedStateOf { imeInsets.getBottom(density) > 0 } }
+    val showNavBar = current != FinaiDestination.AiSettings && !imeVisible
+
     fun navigateTo(destination: FinaiDestination) {
         navController.navigate(destination.route) {
             // Abas da barra de baixo trocam entre si (voltar leva à Início).
@@ -236,7 +258,12 @@ fun FinaiApp(
                     onBellCenterX = { bellCenterX = it },
                 )
             }
-            Box(modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .nestedScroll(navCollapse.nestedScrollConnection)
+                    .glassSource(glassBackdrop),
+            ) {
                 NavHost(
                     navController = navController,
                     startDestination = FinaiDestination.Home.route,
@@ -463,6 +490,7 @@ fun FinaiApp(
                         )
                     }
                 }
+                NavBarBottomScrim(visible = showNavBar, modifier = Modifier.align(Alignment.BottomCenter))
             }
         }
 
@@ -475,22 +503,28 @@ fun FinaiApp(
                 onDismiss = financeViewModel::dismissPersistenceError,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 96.dp),
             )
         }
 
-        if (current != FinaiDestination.AiSettings) {
+        AnimatedVisibility(
+            visible = showNavBar,
+            enter = fadeIn(finaiTween(FinaiMotion.Standard)) + slideInVertically(finaiTween(FinaiMotion.Standard)) { it / 2 },
+            exit = fadeOut(finaiTween(FinaiMotion.Quick)) + slideOutVertically(finaiTween(FinaiMotion.Quick)) { it / 2 },
+            modifier = Modifier
+                .then(if (showAddTransaction) Modifier.clearAndSetSemantics {} else Modifier)
+                .align(Alignment.BottomCenter),
+        ) {
             FinaiBottomNav(
                 current = current,
                 addOpen = uiState.addOpen,
+                collapsed = navCollapse.collapsed,
+                backdrop = glassBackdrop,
                 onSelect = ::navigateTo,
+                onReselect = navCollapse::expand,
                 onToggleAdd = viewModel::toggleAddMenu,
-                modifier = Modifier
-                    .then(if (showAddTransaction) Modifier.clearAndSetSemantics {} else Modifier)
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 14.dp),
             )
         }
 
@@ -511,6 +545,7 @@ fun FinaiApp(
             exit = fadeOut(finaiTween(FinaiMotion.Quick)) + slideOutVertically(finaiTween(FinaiMotion.Quick)) { it / 6 },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 104.dp),
         ) {

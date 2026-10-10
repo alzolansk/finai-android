@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -217,5 +220,16 @@ fun FinaiSettingsTopBar(
     }
 }
 
-/** Standard horizontal + bottom padding used by every screen's scrollable content, clearing the floating nav. */
-val ScreenContentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 132.dp)
+/**
+ * Standard horizontal + bottom padding used by every screen's scrollable content. O
+ * conteúdo rola por baixo da barra de vidro; os 140 dp do playbook mais o inset da
+ * navegação do sistema deixam o último item visível acima dela.
+ */
+val ScreenContentPadding: PaddingValues
+    @Composable get() = PaddingValues(
+        start = 16.dp,
+        end = 16.dp,
+        top = 16.dp,
+        bottom = FinaiNavBarSpec.ContentBottomPadding +
+            WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+    )

@@ -123,7 +123,7 @@ fun GoalsScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
-        // O rodapé de 132 dp de ScreenContentPadding deixa o último card acima da barra de baixo.
+        // O rodapé de ScreenContentPadding (140 dp + inset) deixa o último card acima da barra de baixo.
         contentPadding = ScreenContentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {

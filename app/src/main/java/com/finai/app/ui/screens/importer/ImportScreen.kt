@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -120,7 +124,7 @@ fun ImportScreen(
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
             // A barra de confirmação fica fixa por cima; o último item precisa rolar para cima dela.
-            contentPadding = if (showConfirm) PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 250.dp) else ScreenContentPadding,
+            contentPadding = if (showConfirm) PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 250.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()) else ScreenContentPadding,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
@@ -178,6 +182,7 @@ fun ImportScreen(
                 preview, onConfirm,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
                     .padding(horizontal = 12.dp)
                     .padding(bottom = 92.dp),
             )
