@@ -49,7 +49,7 @@ object SafeToSpendCalculator {
             .filter { it.tipo == "a_receber" && it.data() in range }
             .sumOf { it.valorCentavos }
 
-        val gastosDoMes = transacoes.transactionsInMonth(today)
+        val gastosDoMes = transacoes.filter { it.faturaId == null }.transactionsInMonth(today)
             .sumOf { when (it.tipo) {
                 "Receita" -> -it.valorCentavos
                 "Transferencia" -> 0L

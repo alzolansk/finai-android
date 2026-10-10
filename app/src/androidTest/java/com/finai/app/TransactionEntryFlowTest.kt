@@ -75,12 +75,12 @@ class TransactionEntryFlowTest {
             compose.onNodeWithText("Ver lançamento").performClick()
             compose.onNodeWithText("Agenda").assertExists()
             compose.onNode(hasScrollAction()).performScrollToNode(hasText("Alimentação"))
-            compose.onNodeWithText("Alimentação").assertIsDisplayed()
+            compose.onAllNodesWithText("Alimentação").onFirst().assertIsDisplayed()
             compose.runOnIdle {
                 val saved = runBlocking { repository.transacoes.first() }.single()
                 assertEquals(430L, saved.valorCentavos)
                 assertEquals(type.name, saved.tipo)
-                assertEquals("Nubank", saved.contaOrigem)
+                assertEquals(if (type == TransactionType.Receita) "" else "Nubank", saved.contaOrigem)
                 assertTrue(saved.recorrente)
             }
             db.close()
@@ -102,6 +102,7 @@ class TransactionEntryFlowTest {
         compose.onNodeWithText("Selecionar categoria").performScrollTo().performClick()
         compose.onNodeWithText("Saúde").performClick()
         compose.onNodeWithText("Salvar lançamento").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Valor: R$ 0,00").performScrollTo().performClick()
         compose.onNodeWithText("7").performClick()
         compose.onNodeWithContentDescription("Voltar").performClick()
         compose.runOnIdle { visible = true }
@@ -134,17 +135,15 @@ class TransactionEntryFlowTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val name = "entry-migration-test.db"
         context.deleteDatabase(name)
-        val initial = Room.databaseBuilder(context, FinaiDatabase::class.java, name).build()
-        initial.openHelper.writableDatabase
-        initial.close()
-        val legacy = android.database.sqlite.SQLiteDatabase.openDatabase(context.getDatabasePath(name).path, null, 0)
+        val helper = androidx.room.testing.MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), FinaiDatabase::class.java)
+        val legacy = helper.createDatabase(name, 4)
         legacy.execSQL("DROP TABLE transacoes")
         legacy.execSQL("CREATE TABLE transacoes (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, data INTEGER NOT NULL, descricao TEXT NOT NULL, valorCentavos INTEGER NOT NULL, categoria TEXT NOT NULL, contaOrigem TEXT NOT NULL, recorrente INTEGER NOT NULL, origem TEXT NOT NULL)")
         legacy.execSQL("INSERT INTO transacoes VALUES (23, 0, 'Preservar', 4300, 'Saúde', 'Carteira', 0, 'manual')")
         legacy.version = 3
         legacy.close()
         val migrated = Room.databaseBuilder(context, FinaiDatabase::class.java, name)
-            .addMigrations(FinaiDatabase.MIGRATION_3_4, FinaiDatabase.MIGRATION_4_5)
+            .addMigrations(*FinaiDatabase.MIGRATIONS)
             .build()
         try {
             val entry = runBlocking { migrated.transacaoDao().observeAll().first() }.single()

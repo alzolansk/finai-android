@@ -384,6 +384,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         repository.salvarTransacao(entry)
     }
 
+    suspend fun saveCardPurchase(entry: TransacaoEntity, payment: com.finai.app.domain.CardPayment) {
+        require(entry.valorCentavos > 0 && entry.categoria.isNotBlank())
+        repository.salvarCompraCartao(entry, payment)
+    }
+
     /** Marca/desmarca uma receita já lançada como entrada extra (Linha do tempo do ano). */
     fun setTransacaoExtra(transacao: TransacaoEntity, extra: Boolean) = launchSafely("atualizar o lançamento") {
         val original = originalOf(transacao)

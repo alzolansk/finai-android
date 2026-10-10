@@ -48,6 +48,9 @@ interface TransacaoDao {
 
 @Dao
 interface FaturaCartaoDao {
+    @Delete
+    suspend fun delete(fatura: FaturaCartaoEntity)
+
     /** Leitura única de tudo, para exportar o backup (Fase 7, item 12). */
     @Query("SELECT * FROM faturas_cartao")
     suspend fun getAll(): List<FaturaCartaoEntity>

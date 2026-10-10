@@ -56,6 +56,7 @@ import androidx.compose.ui.window.Dialog
 import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.domain.MONTH_NAMES_PT
 import com.finai.app.domain.TransactionEntry
+import com.finai.app.domain.CardPayment
 import com.finai.app.domain.TransactionType
 import com.finai.app.domain.toEpochMillis
 import com.finai.app.ui.theme.FinaiColors
@@ -90,6 +91,8 @@ fun TransactionEntryScreen(
     onDismiss: () -> Unit,
     onSave: suspend (TransacaoEntity) -> Unit,
     onViewEntry: (LocalDate) -> Unit,
+    onSaveCard: (suspend (TransacaoEntity, CardPayment) -> Unit)? = null,
+    cards: List<String> = emptyList(),
 ) {
     val typography = MaterialTheme.typography
     MaterialTheme(typography = typography.copy(
@@ -101,7 +104,7 @@ fun TransactionEntryScreen(
         headlineSmall = typography.headlineSmall.copy(fontFamily = EntryFont),
     )) {
         ProvideTextStyle(TextStyle(fontFamily = EntryFont, fontSize = 14.sp)) {
-            TransactionEntryContent(visible, accounts, incomeSources, initialType, initialExtra, initialMainIncome, onDismiss, onSave, onViewEntry)
+            TransactionEntryContent(visible, accounts, incomeSources, initialType, initialExtra, initialMainIncome, onDismiss, onSave, onViewEntry, onSaveCard, cards)
         }
     }
 }
@@ -123,6 +126,8 @@ private fun TransactionEntryContent(
     onDismiss: () -> Unit,
     onSave: suspend (TransacaoEntity) -> Unit,
     onViewEntry: (LocalDate) -> Unit,
+    onSaveCard: (suspend (TransacaoEntity, CardPayment) -> Unit)?,
+    cards: List<String>,
 ) {
     var cents by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf("") }
@@ -130,6 +135,10 @@ private fun TransactionEntryContent(
     var account by rememberSaveable { mutableStateOf("") }
     var dateString by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
     var recurring by rememberSaveable { mutableStateOf(false) }
+    var credit by rememberSaveable { mutableStateOf(false) }
+    var card by rememberSaveable { mutableStateOf("") }
+    var installments by rememberSaveable { mutableStateOf("1") }
+    var dueString by rememberSaveable { mutableStateOf("") }
     var typeName by rememberSaveable { mutableStateOf(TransactionType.Gasto.name) }
     var extra by rememberSaveable { mutableStateOf(false) }
     var mainIncome by rememberSaveable { mutableStateOf(false) }
@@ -166,7 +175,11 @@ private fun TransactionEntryContent(
     var amountFont by remember(cents, LocalConfiguration.current.screenWidthDp, LocalDensity.current.fontScale) {
         mutableFloatStateOf(46f)
     }
-    val valid = TransactionEntry.canSave(cents, category) && !saving
+    val isCard = type == TransactionType.Gasto && credit
+    val count = installments.toIntOrNull() ?: 0
+    val dueDate = dueString.takeIf { it.isNotBlank() }?.let(LocalDate::parse)
+    val valid = TransactionEntry.canSave(cents, category) && !saving && (!isCard ||
+        (card.isNotBlank() && count in 1..120 && (cents.toLongOrNull() ?: 0) >= count && dueDate != null && !dueDate.isBefore(date)))
     // Description uses the system IME; the custom keypad must yield to it instead of stacking on top.
     var descriptionFocused by remember { mutableStateOf(false) }
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -241,7 +254,35 @@ private fun TransactionEntryContent(
                             decorationBox = { field -> Box { if (description.isEmpty()) Text("Descrição", color = FinaiColors.TextMuted, fontSize = 14.sp); field() } })
                         if (description.isNotEmpty()) IconButton(onClick = { description = "" }, enabled = !saving) { EntryGlyph("close", EntryMuted, "Limpar descrição") }
                     }
-                    EntryField("card", if (isReceita) "De onde veio" else "Conta/cartão de origem",
+                    if (type == TransactionType.Gasto && onSaveCard != null) {
+                        EntrySwitchRow("card", "Cartão de crédito", credit, !saving, "Cartão de crédito") {
+                            credit = !credit; if (credit) recurring = false; amountEditing = false
+                        }
+                    }
+                    if (isCard) {
+                        EntryField("card", "Cartão", card.ifBlank { "Selecionar cartão" }, card.isBlank()) {
+                            if (!saving) { focus.clearFocus(); amountEditing = false; sheet = "card" }
+                        }
+                        OutlinedTextField(installments, { installments = it.filter(Char::isDigit).take(3) },
+                            enabled = !saving, label = { Text("Quantidade de parcelas (1 = à vista)") }, singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) amountEditing = false })
+                        EntryField("calendar", "Vencimento da primeira fatura",
+                            dueDate?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) ?: "Selecionar vencimento", dueDate == null) {
+                            if (!saving) { focus.clearFocus(); amountEditing = false; sheet = "due" }
+                        }
+                        if (count in 1..120 && (cents.toLongOrNull() ?: 0) >= count) {
+                            val total = cents.toLong()
+                            val low = total / count
+                            val remainder = total % count
+                            Text("Valor total da compra: R$ ${amountText(cents)}\n" +
+                                if (remainder == 0L) "$count × R$ ${amountText(low.toString())}"
+                                else "$remainder × R$ ${amountText((low + 1).toString())} e ${count - remainder} × R$ ${amountText(low.toString())}",
+                                color = EntryMuted, fontSize = 13.sp)
+                        }
+                        if (dueDate != null && dueDate.isBefore(date)) Text("O vencimento deve ser igual ou posterior à compra.", color = FinaiColors.RoseDark)
+                        Text("Cada parcela entra na fatura do mês. Informe o total final, incluindo juros, se houver.", color = EntryMuted, fontSize = 12.sp)
+                    } else EntryField("card", if (isReceita) "De onde veio" else "Conta de origem",
                         selectedAccount.ifEmpty { if (isReceita) "Ex.: empresa, cliente" else selectedAccount }, isReceita && selectedAccount.isEmpty()) {
                         if (!saving) { focus.clearFocus(); amountEditing = false; sheet = "account" }
                     }
@@ -259,7 +300,7 @@ private fun TransactionEntryContent(
                             amountEditing = false; extra = !extra; if (extra) { recurring = false; mainIncome = false }
                         }
                     }
-                    EntrySwitchRow("repeat", if (recurring) "Recorrente · todo mês" else "Recorrente", recurring, !saving, "Recorrente") {
+                    if (!isCard) EntrySwitchRow("repeat", if (recurring) "Recorrente · todo mês" else "Recorrente", recurring, !saving, "Recorrente") {
                         amountEditing = false; recurring = !recurring; if (recurring) extra = false
                     }
                     if (error != null) Text(error!!, color = FinaiColors.RoseDark, fontSize = 13.sp)
@@ -268,11 +309,16 @@ private fun TransactionEntryContent(
                         saving = true; error = null
                         val entry = TransacaoEntity(data = date.toEpochMillis(), descricao = description.trim().ifEmpty { category },
                             valorCentavos = cents.toLong(), categoria = category, contaOrigem = selectedAccount,
-                            recorrente = recurring, origem = "manual", tipo = type.name, extra = isReceita && extra,
+                            recorrente = recurring && !isCard, origem = "manual", tipo = type.name, extra = isReceita && extra,
                             rendaPrincipal = isReceita && mainIncome && !extra)
                         scope.launch {
-                            try { onSave(entry); success = true }
+                            try {
+                                if (isCard) requireNotNull(onSaveCard)(entry, CardPayment(card.trim(), requireNotNull(dueDate), count))
+                                else onSave(entry)
+                                success = true
+                            }
                             catch (e: CancellationException) { throw e }
+                            catch (e: IllegalArgumentException) { error = e.message ?: "Confira os dados do lançamento." }
                             catch (e: Exception) { error = "Não foi possível salvar. Tente novamente." }
                             finally { saving = false }
                         }
@@ -349,13 +395,36 @@ private fun TransactionEntryContent(
     if (visible && sheet == "date") {
         EntryCalendarSheet(selected = date, onSelect = { picked -> dateString = picked.toString(); sheet = null }, onDismiss = { sheet = null })
     }
+    if (visible && sheet == "card") {
+        var customCard by rememberSaveable { mutableStateOf(card) }
+        EntrySheet("Cartão de crédito", { sheet = null }) {
+            Column {
+                cards.filter { it.isNotBlank() }.distinct().forEach { name ->
+                    TextButton(onClick = { card = name; sheet = null }) { Text(name) }
+                }
+                OutlinedTextField(customCard, { customCard = it.take(60) }, singleLine = true,
+                    label = { Text("Banco/cartão (ex.: Nubank final 1234)") }, modifier = Modifier.fillMaxWidth())
+                TextButton(enabled = customCard.isNotBlank(), onClick = { card = customCard.trim(); sheet = null }) { Text("Usar cartão") }
+            }
+        }
+    }
+    if (visible && sheet == "due") {
+        val picker = rememberDatePickerState(initialSelectedDateMillis = (dueDate ?: date).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli())
+        DatePickerDialog(onDismissRequest = { sheet = null }, confirmButton = {
+            TextButton(onClick = {
+                picker.selectedDateMillis?.let { dueString = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString() }
+                sheet = null
+            }, enabled = picker.selectedDateMillis != null) { Text("Confirmar") }
+        }, dismissButton = { TextButton(onClick = { sheet = null }) { Text("Cancelar") } }) { DatePicker(state = picker) }
+    }
     if (visible && success) Dialog(onDismissRequest = {}) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(FinaiColors.Surface).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.size(48.dp).background(Color(0xFF10B981), CircleShape), contentAlignment = Alignment.Center) { EntryGlyph("check", Color.White) }
             Text(type.confirmation, color = EntryInk, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 18.dp))
             Text("R$ ${amountText(cents)} em $category" + (if (recurring) " · recorrente" else "") + (if (isReceita && extra) " · entrada extra" else "") + (if (isReceita && mainIncome) " · renda principal" else ""), color = FinaiColors.TextTertiary, fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp))
             Button(onClick = {
-                val savedDate = date
+                val savedDate = if (isCard) requireNotNull(dueDate) else date
+                credit = false; card = ""; installments = "1"; dueString = ""
                 cents = ""; category = ""; description = ""; recurring = false; extra = false; mainIncome = false; typeName = TransactionType.Gasto.name
                 dateString = LocalDate.now().toString(); account = ""; success = false; amountEditing = true
                 onViewEntry(savedDate)

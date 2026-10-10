@@ -283,6 +283,10 @@ fun FinaiApp(
                             recurringTransactions = agenda.recurringTransactions,
                             transactions = agenda.transactions,
                             invoiceItemsByAccountId = agenda.invoiceItemsByAccountId,
+                            installmentsOverview = {
+                                com.finai.app.ui.components.InstallmentsOverview(financeState.rawTransacoes,
+                                    financeState.rawFaturasCartao, financeState.rawContas)
+                            },
                             debtsDue = agenda.debtsDue,
                             onPayInstallment = financeViewModel::pagarParcela,
                             onToggleContaPaga = financeViewModel::marcarContaPaga,
@@ -665,6 +669,8 @@ fun FinaiApp(
             initialMainIncome = transactionEntryInitialMain,
             onDismiss = { showAddTransaction = false; transactionEntryInitialType = com.finai.app.domain.TransactionType.Gasto.name; transactionEntryInitialExtra = false; transactionEntryInitialMain = false },
             onSave = financeViewModel::saveTransactionEntry,
+            onSaveCard = financeViewModel::saveCardPurchase,
+            cards = financeState.rawFaturasCartao.map { it.referencia }.distinct(),
             onViewEntry = { date ->
                 viewModel.showAgendaDate(date)
                 showAddTransaction = false

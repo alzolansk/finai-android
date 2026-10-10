@@ -23,6 +23,9 @@ data class TransacaoEntity(
     val origem: String, // "manual" | "importado"
     /** Fatura que liquidará esta compra. Nulo para lançamentos manuais e importações antigas. */
     val faturaId: Long? = null,
+    val compraId: String? = null,
+    val parcelaNumero: Int? = null,
+    val parcelasTotal: Int? = null,
     /**
      * Receita fora da renda normal (13º, bônus, restituição) — é o que alimenta a "Linha do
      * tempo do ano" da Início. Sem este campo não havia como separar um 13º de um salário
