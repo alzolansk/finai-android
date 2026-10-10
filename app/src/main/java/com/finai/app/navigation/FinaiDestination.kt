@@ -5,15 +5,18 @@ package com.finai.app.navigation
  * sit behind the bottom-nav tabs; Budgets and Import are reached from actions
  * inside other screens (a "Ver todos", the FAB menu, etc.) — mirrors the
  * prototype's `screen` state / `screens` label map in support.js.
+ *
+ * [headerTitle] é o título da tela: grande no conteúdo e compacto no cabeçalho 4a quando
+ * a lista rola. Os dois usam o mesmo texto.
  */
-enum class FinaiDestination(val route: String, val screenLabel: String) {
+enum class FinaiDestination(val route: String, val headerTitle: String) {
     AiSettings("configuracoes-ia", "Configurações"),
-    Home("home", "Controle inteligente"),
-    Agenda("agenda", "Agenda do mês"),
+    Home("home", "Início"),
+    Agenda("agenda", "Agenda"),
     Goals("metas", "Objetivos"),
-    Debts("dividas", "Plano de quitação"),
-    Budgets("orcamentos", "Limites"),
-    Import("importar", "Importação");
+    Debts("dividas", "Dívidas"),
+    Budgets("orcamentos", "Limites do mês"),
+    Import("importar", "Importar fatura");
 
     companion object {
         fun fromRoute(route: String?): FinaiDestination =

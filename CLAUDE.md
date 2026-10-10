@@ -1214,6 +1214,47 @@ Barra de navegação de vidro (10/10/2026, branch `claude/nav-vidro-3a`; playboo
   memória), tema claro, TalkBack, celular. `lintDebug` falha com 5 erros que já existiam no
   `main` (`PathParser` restrito, BOM, `AnimatedContent`), nenhum nos arquivos novos.
 
+Cabeçalho 4a (10/10/2026, branch `claude/youthful-cori-f2x03u`; playbook em
+`uploads/design-header/finai-header-playbook.pdf`):
+- **`ui/components/FinaiPageHeader.kt` (novo)** substitui o `FinaiTopBar` (removido): símbolo
+  oficial (`finai_mark`, 30 dp, raio 10) à esquerda, sino e engrenagem (traço 2 dp, #D4D4D8,
+  desenho do Lucide) e o orbe do Assistente (radial #34D399 → #047857, brilho 18 dp a 35%,
+  escala 0,92 com mola ao pressionar). 56 dp abaixo da status bar, 18/14 dp de lado, 6 dp
+  visíveis entre botões (toque de 48 dp, visual de 40 dp, passo de 46 dp). Medidas em
+  `PageHeaderSpec`; contas da transição em `PageHeaderMotion` (`PageHeaderMotionTest`, JVM).
+- **Fica por cima do conteúdo**: o `FinaiApp` deixou de ser `Column(topbar, conteúdo)`; o
+  conteúdo ocupa a tela e começa em status bar + 56 + 6 dp (`ScreenContentPadding`). O
+  cabeçalho fica **fora** do `glassSource` (senão entraria no próprio desfoque). Rolado
+  (> 8 dp): `drawGlassRect` (novo em `GlassBackdrop.kt`, mesmo `RenderNode` da barra de baixo,
+  blur 20 dp + saturação 160%) sob #09090B 72% e linha branca 5%, ligando em 300 ms. API < 31:
+  #09090B 96%. A superfície só se registra na fonte enquanto o vidro aparece. Toque no vidro
+  não atravessa para o card de baixo.
+- **Títulos**: `PageTitle` (32 sp, 800, −0,04 em, heading) é o primeiro item de cada
+  `LazyColumn`; o compacto (16 sp, 700) mora no cabeçalho. Os dois leem
+  `p = clamp((rolagem − 10)/30)` só em `graphicsLayer` (rolar não recompõe). Rolagem =
+  offset do item 0; passou dele, p = 1. Animações desligadas: só opacidade. Tocar no compacto
+  volta a lista ao topo. Centralizado na largura da tela; quando isso o jogaria sobre os
+  botões (360 dp), desliza para o espaço livre, e só então corta com reticências.
+- **Rolagem por aba**: as listas das quatro abas são criadas no `FinaiApp` (`tabLists`), para o
+  cabeçalho ler a aba aberta no mesmo quadro da troca. Limites e Importação criam a própria a
+  cada visita (`rememberSecondaryList`) e mostram a seta de voltar no lugar do símbolo. A
+  barra de baixo continua com o `NestedScrollConnection` dela, sem mudança.
+- **Ponto de notificação** (8 dp, #F43F5E, anel de 2 dp, sem número): avisos ainda não vistos.
+  Abrir a central marca todos; aviso que some e volta conta como novo. Guardado só em
+  `rememberSaveable` (sem persistência nova), então reabrir o processo mostra o ponto de novo.
+- Títulos: `FinaiDestination.screenLabel` virou `headerTitle` (Início, Agenda, Objetivos,
+  Dívidas, Limites do mês, Importar fatura, Configurações). A saudação da Início virou o
+  subtítulo do título grande. `FinaiSettingsTopBar` (Configurações, Parcelamentos) usa o mesmo
+  cabeçalho, com seta, sem ações e sempre no estado rolado (fundo sólido).
+- Tema claro: o mesmo layout com o fundo do tema a 72%/96%, linha preta 6% e ícones `TextBody`.
+- **Validação**: Gradle Android não roda aqui (dl.google.com bloqueado). `FinaiPageHeader.kt`,
+  `FinaiTopBar.kt` e o teste foram compilados com kotlinc 1.9.22 + plugin do Compose 1.5.8
+  contra Compose Desktop 1.6.0 (4 testes verdes) e o cabeçalho foi renderizado com
+  `ImageComposeScene` (Desktop 1.5.12) em 360/412/480 dp, nos dois temas, em 0/9/25/60 dp de
+  rolagem. Sem blur nessa renderização (stub), sem toque/TalkBack. `FinaiApp` e as telas foram
+  revisados à mão. **Rodar `./gradlew assembleDebug testDebugUnitTest`** e conferir no aparelho:
+  vidro real, API < 31, TalkBack, troca de aba rolada, mola do assistente.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

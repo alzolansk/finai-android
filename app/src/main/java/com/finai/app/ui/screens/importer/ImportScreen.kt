@@ -80,6 +80,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.shadow
 import com.finai.app.ui.components.ScreenContentPadding
+import com.finai.app.ui.components.PageTitle
+import androidx.compose.foundation.lazy.LazyListState
+import com.finai.app.ui.components.PageHeaderSpec
 import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.util.formatBrl
 import java.time.Instant
@@ -94,6 +97,7 @@ import java.time.ZoneOffset
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ImportScreen(
+    listState: LazyListState,
     state: ImportUiState,
     onPickDocument: (android.net.Uri) -> Unit,
     onToggleItem: (String) -> Unit,
@@ -124,17 +128,12 @@ fun ImportScreen(
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
             // A barra de confirmação fica fixa por cima; o último item precisa rolar para cima dela.
-            contentPadding = if (showConfirm) PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 250.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()) else ScreenContentPadding,
+            state = listState,
+            contentPadding = if (showConfirm) PaddingValues(start = 16.dp, end = 16.dp, top = PageHeaderSpec.contentTop, bottom = 250.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()) else ScreenContentPadding,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            item {
-                Column {
-                    Text("Importar fatura", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
-                    Text(
-                        "PDF, planilha ou foto — lidos aqui no aparelho",
-                        fontSize = 13.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
+            item(key = "title") {
+                PageTitle("Importar fatura", listState, subtitle = "PDF, planilha ou foto — lidos aqui no aparelho")
             }
 
             when {

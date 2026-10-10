@@ -65,6 +65,8 @@ import com.finai.app.ui.components.OverflowMenu
 import com.finai.app.ui.components.PillTag
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
+import com.finai.app.ui.components.PageTitle
+import androidx.compose.foundation.lazy.LazyListState
 import com.finai.app.ui.components.TextAction
 import com.finai.app.ui.components.tipTarget
 import com.finai.app.ui.theme.FinaiColors
@@ -88,6 +90,7 @@ private val RoseOnDark = Color(0xFFFDA4AF)
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GoalsScreen(
+    listState: LazyListState,
     goals: List<Goal>,
     completedGoals: List<Goal>,
     plan: FinancialPlan?,
@@ -124,14 +127,12 @@ fun GoalsScreen(
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         // O rodapé de ScreenContentPadding (140 dp + inset) deixa o último card acima da barra de baixo.
+        state = listState,
         contentPadding = ScreenContentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Objetivos", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary, modifier = Modifier.weight(1f))
-                ActionButton("+ Novo", onNewGoal, primary = true)
-            }
+        item(key = "title") {
+            PageTitle("Objetivos", listState, trailing = { ActionButton("+ Novo", onNewGoal, primary = true) })
         }
 
         item(key = "plan") {

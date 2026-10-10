@@ -45,6 +45,8 @@ import com.finai.app.ui.components.ConfirmDeleteDialog
 import com.finai.app.ui.components.FadeInAppear
 import com.finai.app.ui.components.ProgressTrack
 import com.finai.app.ui.components.ScreenContentPadding
+import com.finai.app.ui.components.PageTitle
+import androidx.compose.foundation.lazy.LazyListState
 import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.ui.theme.themedText
 import com.finai.app.ui.theme.FinaiMotion
@@ -54,6 +56,7 @@ import com.finai.app.util.formatBrl0
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BudgetsScreen(
+    listState: LazyListState,
     budgets: List<Budget>,
     subscriptions: List<Subscription>,
     recentTransactions: List<TransacaoEntity>,
@@ -68,20 +71,16 @@ fun BudgetsScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
+        state = listState,
         contentPadding = ScreenContentPadding,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Limites do mês", style = MaterialTheme.typography.headlineSmall, color = FinaiColors.TextPrimary)
-                    Text(
-                        "Onde o dinheiro está indo este mês", fontSize = 13.sp, color = FinaiColors.TextTertiary,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
-                ActionButton("Lançar gasto", onNewTransaction, primary = true)
-            }
+        item(key = "title") {
+            PageTitle(
+                "Limites do mês", listState,
+                subtitle = "Onde o dinheiro está indo este mês",
+                trailing = { ActionButton("Lançar gasto", onNewTransaction, primary = true) },
+            )
         }
 
         item {

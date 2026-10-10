@@ -1,196 +1,19 @@
 package com.finai.app.ui.components
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.unit.sp
-import com.finai.app.R
-import com.finai.app.ui.theme.FinaiColors
-
-// Tons tirados da própria folha da logo (res/drawable-nodpi/finai_mark.png): o verde claro
-// do topo, o médio da dobra e o escuro da sombra interna. No tema escuro o degradê vira verde
-// bem fechado e o ícone, o verde claro da folha.
-private val BrandLeafMist get() = if (FinaiColors.isDark) Color(0xFF0F2A1C) else Color(0xFFF1FBF3)
-private val BrandLeafWash get() = if (FinaiColors.isDark) Color(0xFF133524) else Color(0xFFDDF6E3)
-private val BrandLeafEdge get() = if (FinaiColors.isDark) Color(0xFF1F5A3A) else Color(0xFFBFEBCB)
-private val BrandLeafDeep get() = if (FinaiColors.isDark) Color(0xFF6EE7A0) else Color(0xFF0B6B3A)
-
-/** Botão quadrado da topbar no verde da marca: fundo em degradê suave, contorno e ícone da folha. */
-@Composable
-private fun BrandIconButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .size(36.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Brush.linearGradient(listOf(BrandLeafMist, BrandLeafWash)))
-            .border(1.dp, BrandLeafEdge, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-        content = content,
-    )
-}
 
 /**
- * Sticky top bar: FinAI mark + screen label on the left, notification bell
- * (with unread badge) and the "Assistente" chat entry point on the right.
- * Mirrors the `top bar` block in the prototype.
+ * Barra das telas internas (Configurações, Parcelamentos): o mesmo cabeçalho 4a
+ * ([FinaiPageHeader]) com a seta no lugar do símbolo, sem as ações e sempre no estado
+ * rolado, porque essas telas não têm título grande no conteúdo. Fundo sólido: elas não
+ * ficam por cima da fonte do vidro.
  */
-@Composable
-fun FinaiTopBar(
-    screenLabel: String,
-    notifCount: Int,
-    onOpenNotifications: () -> Unit,
-    onOpenChat: () -> Unit,
-    onOpenAiSettings: () -> Unit,
-    modifier: Modifier = Modifier,
-    onBellCenterX: (Float) -> Unit = {},
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            // Backdrop blur has no direct Compose equivalent; a near-opaque flat fill stands in.
-            .background(FinaiColors.Background)
-            .border(width = 1.dp, color = FinaiColors.BorderHairline)
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Em telas estreitas (320 dp) o nome da tela encolhe com reticências e o "Assistente"
-        // vira só o ícone, em vez de quebrar em duas linhas por cima dos botões.
-        val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 360
-        Row(
-            modifier = Modifier.weight(1f).padding(end = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Image(
-                painter = painterResource(R.drawable.finai_mark),
-                contentDescription = null,
-                modifier = Modifier.height(34.dp),
-            )
-            Column {
-                Text("FinAI", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-                Text(
-                    screenLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
-            }
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            BrandIconButton(onClick = onOpenAiSettings) {
-                Icon(Icons.Outlined.Settings, contentDescription = "Configurações", tint = BrandLeafDeep, modifier = Modifier.size(20.dp))
-            }
-            // O painel de avisos aponta a seta para o centro do sino e cresce a partir dele.
-            BrandIconButton(
-                onClick = onOpenNotifications,
-                modifier = Modifier.onGloballyPositioned { onBellCenterX(it.boundsInRoot().center.x) },
-            ) {
-                Icon(Icons.Outlined.Notifications, contentDescription = "Avisos", tint = BrandLeafDeep, modifier = Modifier.size(20.dp))
-                // A new alert popping the badge in (rather than just appearing) is the one
-                // place a little spring feels right — it's rare and meant to catch the eye.
-                val reducedMotion = com.finai.app.ui.theme.rememberReducedMotion()
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = notifCount > 0,
-                    enter = if (reducedMotion) androidx.compose.animation.EnterTransition.None else {
-                        androidx.compose.animation.scaleIn(
-                            androidx.compose.animation.core.spring(dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy),
-                        ) + androidx.compose.animation.fadeIn()
-                    },
-                    exit = if (reducedMotion) androidx.compose.animation.ExitTransition.None else {
-                        androidx.compose.animation.scaleOut() + androidx.compose.animation.fadeOut()
-                    },
-                    modifier = Modifier.align(Alignment.TopEnd),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clip(CircleShape)
-                            .background(FinaiColors.Background)
-                            .padding(1.5.dp)
-                            .clip(CircleShape)
-                            .background(FinaiColors.RoseButton),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            if (notifCount > 9) "9+" else notifCount.toString(), color = Color.White, fontSize = 12.sp, lineHeight = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
-            }
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(99.dp))
-                    .background(FinaiColors.Ink)
-                    .clickable(onClick = onOpenChat)
-                    .padding(start = 6.dp, end = if (narrow) 6.dp else 11.dp, top = 6.dp, bottom = 6.dp)
-                    .then(if (narrow) Modifier.semantics { contentDescription = "Assistente" } else Modifier),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(FinaiColors.Emerald),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Filled.AutoAwesome,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(13.dp),
-                    )
-                }
-                if (!narrow) Text("Assistente", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, softWrap = false)
-            }
-        }
-    }
-}
-
-/** A quiet navigation bar for secondary flows, without the app-wide action shortcuts. */
 @Composable
 fun FinaiSettingsTopBar(
     title: String,
@@ -198,46 +21,26 @@ fun FinaiSettingsTopBar(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(FinaiColors.Background)
-            .border(width = 1.dp, color = FinaiColors.BorderHairline)
-            .statusBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        IconButton(
-            onClick = onNavigateBack,
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(FinaiColors.SurfaceMuted),
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = FinaiColors.TextBody, modifier = Modifier.size(20.dp))
-        }
-        if (subtitle == null) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-        } else {
-            Column {
-                Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
-                Text(subtitle, fontSize = 12.sp, color = FinaiColors.TextMuted)
-            }
-        }
-    }
+    FinaiPageHeader(
+        title = title,
+        subtitle = subtitle,
+        leading = HeaderLeading.Back(onNavigateBack),
+        solid = true,
+        modifier = modifier,
+    )
 }
 
 /**
- * Standard horizontal + bottom padding used by every screen's scrollable content. O
- * conteúdo rola por baixo da barra de vidro; os 140 dp do playbook mais o inset da
- * navegação do sistema deixam o último item visível acima dela.
+ * Padding padrão do conteúdo rolável das telas. Em cima, o espaço do cabeçalho 4a
+ * (status bar + 56 dp + 6 dp): o conteúdo rola por baixo do vidro dele. Embaixo, os 140 dp
+ * da barra de vidro mais o inset da navegação do sistema, para o último item ficar visível
+ * acima dela.
  */
 val ScreenContentPadding: PaddingValues
     @Composable get() = PaddingValues(
         start = 16.dp,
         end = 16.dp,
-        top = 16.dp,
+        top = PageHeaderSpec.contentTop,
         bottom = FinaiNavBarSpec.ContentBottomPadding +
             WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
     )
