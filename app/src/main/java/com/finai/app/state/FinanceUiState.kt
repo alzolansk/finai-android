@@ -74,6 +74,8 @@ data class FinanceUiState(
     val goalsFundedCents: Long = 0,
     /** Total que as metas pedem por mês ao lado da sobra prevista ([com.finai.app.domain.GoalPlanning]). */
     val goalsOverview: com.finai.app.domain.GoalsOverview? = null,
+    /** Gasto médio por dia ([com.finai.app.domain.GoalFlow.averageDailySpendingCents]): cobertura da reserva em dias. */
+    val averageDailySpendingCents: Long? = null,
     /** Pontos de atenção das metas, do mais grave ao menos grave. Calculados sem IA. */
     val goalInsights: List<com.finai.app.domain.GoalInsight> = emptyList(),
     /** Quantos pontos de atenção atuais o usuário dispensou (para "Mostrar dispensados"). */
