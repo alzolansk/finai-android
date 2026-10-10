@@ -112,6 +112,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import com.finai.app.ui.components.QuickActionSheet
 import com.finai.app.ui.screens.agenda.AgendaScreen
 import com.finai.app.ui.screens.budgets.BudgetsScreen
+import com.finai.app.ui.screens.installments.InstallmentsScreen
+import com.finai.app.domain.InstallmentsSummary
 import com.finai.app.ui.screens.debts.DebtsScreen
 import com.finai.app.ui.screens.goals.GoalsScreen
 import com.finai.app.ui.screens.home.HomeScreen
@@ -228,6 +230,8 @@ fun FinaiApp(
     var editingContaId by remember { mutableStateOf<Long?>(null) }
     var editingDividaId by remember { mutableStateOf<Long?>(null) }
     var openedInvoiceContaId by rememberSaveable { mutableStateOf<Long?>(null) }
+    /** Tela de Parcelamentos: camada por cima de tudo (entra da direita), não rota do NavHost. */
+    var showInstallments by rememberSaveable { mutableStateOf(false) }
     var editingObjetivoId by remember { mutableStateOf<Long?>(null) }
     val editingConta = financeState.rawContas.firstOrNull { it.id == editingContaId }
     val editingDivida = financeState.rawDividas.firstOrNull { it.id == editingDividaId }
@@ -236,6 +240,11 @@ fun FinaiApp(
 
     val agenda = remember(financeState.rawContas, financeState.rawFaturasCartao, financeState.rawTransacoes, financeState.rawDividas, uiState.monthIndex, uiState.agendaYear) {
         agendaDataFor(financeState.rawContas, financeState.rawFaturasCartao, financeState.rawTransacoes, financeState.rawDividas, uiState.monthIndex, uiState.agendaYear)
+    }
+
+    // Compras parceladas no cartão: o cartão da Agenda e a tela de Parcelamentos leem a mesma conta.
+    val installments = remember(financeState.rawTransacoes, financeState.rawFaturasCartao, financeState.rawContas) {
+        InstallmentsSummary.of(financeState.rawTransacoes, financeState.rawFaturasCartao, financeState.rawContas)
     }
 
     CompositionLocalProvider(LocalTipTargets provides tipRegistry) {
@@ -318,10 +327,8 @@ fun FinaiApp(
                             recurringTransactions = agenda.recurringTransactions,
                             transactions = agenda.transactions,
                             invoiceItemsByAccountId = agenda.invoiceItemsByAccountId,
-                            installmentsOverview = {
-                                com.finai.app.ui.components.InstallmentsOverview(financeState.rawTransacoes,
-                                    financeState.rawFaturasCartao, financeState.rawContas)
-                            },
+                            installments = installments,
+                            onOpenInstallments = { showInstallments = true },
                             debtsDue = agenda.debtsDue,
                             onPayInstallment = financeViewModel::pagarParcela,
                             onToggleContaPaga = financeViewModel::marcarContaPaga,
@@ -774,6 +781,8 @@ fun FinaiApp(
             onClose = { openedInvoiceContaId = null },
         )
 
+        InstallmentsScreen(visible = showInstallments, summary = installments, onBack = { showInstallments = false })
+
         DebtEntryScreen(
             visible = showAddDivida || editingDivida != null,
             initial = editingDivida,
@@ -845,7 +854,7 @@ fun FinaiApp(
             else -> null
         }
         val tipsBlocked = uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen ||
-            celebration != null || showAddTransaction || openedInvoiceContaId != null || showAddDivida ||
+            celebration != null || showAddTransaction || openedInvoiceContaId != null || showInstallments || showAddDivida ||
             editingDivida != null || showAddGoal || editingObjetivo != null || editingConta != null ||
             contributionTarget != null || budgetLimitTarget != null || initialSetupComplete != true
         LaunchedEffect(tipScreen, tipsBlocked, tipsSeen, activeTips == null) {
@@ -864,7 +873,7 @@ fun FinaiApp(
         // Segunda trava, independente da ordem em que os tratadores foram
         // registrados: com qualquer camada aberta por cima, a navegação entre
         // telas não reage ao voltar.
-        val anyLayerOpen = overlayOpen || celebration != null || showAddTransaction || openedInvoiceContaId != null ||
+        val anyLayerOpen = overlayOpen || celebration != null || showAddTransaction || openedInvoiceContaId != null || showInstallments ||
             showAddDivida || editingDivida != null || activeTips != null || initialSetupComplete == false ||
             showAddGoal || editingObjetivo != null || contributionTarget != null
         SideEffect { navController.enableOnBackPressed(!anyLayerOpen) }
