@@ -77,6 +77,11 @@ data class ObjetivoEntity(
     @androidx.room.ColumnInfo(defaultValue = "''") val descricao: String = "",
     /** Quando o valor guardado alcançou o alvo (epoch millis). Nulo se ainda em andamento. */
     val concluidoEm: Long? = null,
+    /**
+     * Aporte mensal que o usuário planeja fazer. Só é pedido na reserva contínua
+     * ([valorAlvoCentavos] = 0), que não tem alvo nem prazo para derivar um "necessário".
+     */
+    @androidx.room.ColumnInfo(defaultValue = "0") val aporteMensalCentavos: Long = 0,
 )
 
 @Entity(tableName = "dividas")

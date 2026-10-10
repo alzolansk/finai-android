@@ -17,11 +17,16 @@ import com.finai.app.ui.theme.themedText
  * montadas fora da composição e adaptadas por quem desenha.
  */
 
+/** Um selo por [com.finai.app.domain.GoalPace]: o que o card e a Início mostram. */
 enum class GoalBadge(val label: String, private val lightBg: Color, private val lightFg: Color) {
+    // Neutro: não é problema nem acerto, só ainda não começou.
+    NotStarted("Não iniciado", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
     OnTrack("No ritmo", Color(0xFFECFDF5), Color(0xFF047857)),
-    Reassess("Reavaliar", Color(0xFFFFFBEB), Color(0xFFB45309)),
-    // Neutro, não roxo (Fase 7, item 7): prioridade é informação, não alerta.
-    Priority("Prioridade", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
+    Attention("Atenção", Color(0xFFFFFBEB), Color(0xFFB45309)),
+    Late("Atrasado", Color(0xFFFFF1F2), Color(0xFFBE123C)),
+    Done("Concluído", Color(0xFFECFDF5), Color(0xFF047857)),
+    // Reserva sem alvo: não tem andamento a julgar, só um rótulo neutro.
+    Open("Reserva contínua", Color(0xFFF4F4F5), Color(0xFF3F3F46)),
     ;
 
     val bg: Color get() = lightBg.themedFill
@@ -48,8 +53,26 @@ data class Goal(
     val completedLabel: String? = null,
     /** Quanto passou do alvo (aportes depois de concluída). */
     val exceeded: Double = 0.0,
+    /** Quanto guardar por mês até o prazo para alcançar o alvo. */
+    val monthlyNeeded: Double = 0.0,
+    /** Quanto falta guardar. */
+    val missing: Double = 0.0,
+    /** Sobra projetada até o prazo, depois das metas de maior prioridade; nulo sem projeção. */
+    val projectedAvailable: Double? = null,
+    /** O que o plano central recomenda guardar nesta meta até o próximo salário (0 = nada agora). */
+    val recommended: Double = 0.0,
+    /** Por que a meta está em Atenção/Atrasado, em uma linha. Vazio quando o selo já basta. */
+    val headline: String = "",
+    /** Reserva sem valor-alvo: sem barra, sem percentual, sem "Concluído". */
+    val openReserve: Boolean = false,
+    /** Aporte mensal que o usuário planejou (reserva contínua). */
+    val plannedMonthly: Double = 0.0,
+    /** O prazo já passou e ainda falta dinheiro: não existe "por mês" que alcance a data. */
+    val overdue: Boolean = false,
+    val priority: Int = 0,
 ) {
-    val progress: Float get() = (saved / target).toFloat().coerceIn(0f, 1f)
+    // Alvo zero não pode virar 0/0 (NaN) nem 100%.
+    val progress: Float get() = if (target <= 0.0) 0f else (saved / target).toFloat().coerceIn(0f, 1f)
 }
 
 enum class TimelineTone(private val lightColor: Color, private val lightLine: Color) {

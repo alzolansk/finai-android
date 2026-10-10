@@ -58,7 +58,7 @@ class AiReplyFormatTest {
         val raw = "**Agora:** a passagem fica fora, então os R\$ 20 mil são só a viagem.\n" +
             "- proximo passo - guardar R\$ 700 este mês\n" +
             "Risco: abril já é antes do limite;\ndá para esticar o prazo."
-        val rows = AiReplyFormat.labeled(raw, AiPromptBuilder.GOAL_INSIGHT_LABELS)!!
+        val rows = AiReplyFormat.labeled(raw, listOf("Agora", "Próximo passo", "Risco"))!!
         assertEquals(listOf("Agora", "Próximo passo", "Risco"), rows.map { it.first })
         assertEquals("guardar R\$ 700 este mês", rows[1].second)
         assertEquals("abril já é antes do limite; dá para esticar o prazo.", rows[2].second)
@@ -66,7 +66,7 @@ class AiReplyFormatTest {
 
     @Test
     fun `leitura sem rotulos devolve null para a tela mostrar o texto inteiro`() {
-        assertEquals(null, AiReplyFormat.labeled("Você está no caminho.", AiPromptBuilder.GOAL_INSIGHT_LABELS))
+        assertEquals(null, AiReplyFormat.labeled("Você está no caminho.", listOf("Agora", "Próximo passo", "Risco")))
     }
 
     @Test

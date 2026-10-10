@@ -54,6 +54,7 @@ class FinancialPlanTest {
         plan.goals.forEach { assertTrue(plan.goalNote(it), plan.goalNote(it).contains("\"Rotativo\"")) }
         assertTrue(plan.decisions(emptyList(), emptyList()).first().action.contains("Rotativo"))
         assertTrue(plan.aiBlock().contains("recomendação não é gasto"))
+        assertEquals("Livre até o salário · 30/10", plan.untilShortLabel)
     }
 
     @Test fun aRecommendationNeverReducesWhatIsFree() {

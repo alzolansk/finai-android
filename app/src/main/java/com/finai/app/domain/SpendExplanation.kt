@@ -60,7 +60,8 @@ data class SpendExplanation(
             val steps = buildList {
                 add(ExplainStep(
                     "Saldo de hoje no ciclo", hoje,
-                    (c.inicio?.let { "Entrou ${formatBrl0(entrou / 100.0)} desde o salário de ${dm(it)}" } ?: "O primeiro salário ainda não caiu") +
+                    (c.inicio?.let { "Entrou ${formatBrl0(entrou / 100.0)} desde o salário de ${dm(it)}" }
+                        ?: "O primeiro salário ainda não caiu; entrou ${formatBrl0(entrou / 100.0)} desde ${dm(c.contaDesde ?: c.today)}") +
                         "; saiu ${formatBrl0(c.jaSaiuCents / 100.0)} ($saidas lançamento(s) e conta(s) pagas). Conta tudo com data até hoje.",
                 ))
                 if (floor.cents < hoje) {
@@ -90,18 +91,18 @@ data class SpendExplanation(
             } else null
             val assumptions = buildList {
                 add(NOT_BANK)
-                add("O que sobrou do ciclo anterior não entra. Se sobrou dinheiro, ele não aparece aqui.")
+                if (c.inicio != null) add("O que sobrou do ciclo anterior não entra. Se sobrou dinheiro, ele não aparece aqui.")
                 add("Compras no cartão contam pela fatura, no vencimento, e não no dia da compra.")
                 add("O saldo é simulado dia a dia: uma entrada e uma saída no mesmo dia se compensam.")
                 add("A recomendação do plano não desconta do livre: o valor só muda quando você registra o pagamento ou o aporte.")
                 if (c.proximoEstimado) add("O próximo salário foi estimado em ${dm(c.proximo)}, um mês depois do último.")
+                c.contaDesde?.let { add("Ainda não caiu nenhum salário: o app soma o que entrou e saiu desde ${dm(it)}. Antes disso, nada entra.") }
             }
             val missing = buildList {
                 if (!c.salarioDefinido) {
                     add("O app deduziu que \"${c.salarioNome}\" é sua renda principal (a maior receita recorrente). Confirme na Agenda com \"Marcar como renda principal\", ou lance a renda certa com essa opção ligada.")
                 }
                 if (c.proximoEstimado) add("Lance o próximo salário com a data certa para o período ficar exato.")
-                if (c.inicio == null) add("Nenhum salário antes de hoje: o que vence até ${dm(c.proximo)} aparece sem dinheiro para cobrir.")
             }
             return SpendExplanation(
                 period, steps, upcoming, safe.safeTodayCents, c.diasAteProximo, safe.shortfall, assumptions, missing,

@@ -985,6 +985,86 @@ Simulação de cenários de compra no chat (29/09/2026, branch `ccr-180beb76-nng
   fatura for importada depois, o `DuplicateDetector` pode não reconhecer (data diferente). A IA pode
   ter a resposta descartada por escrever um valor de outro jeito ("R$ 1 mil").
 
+Tela Objetivos mais enxuta + status real das metas (10/10/2026, branch `claude/loving-brahmagupta-u3sz58`):
+- **Status novo na tela** (`GoalPace` em `domain/GoalCalculator.kt`): Não iniciado, No ritmo, Atenção,
+  Atrasado, Concluído. `GoalStatus` (capacidade: a sobra projetada cobre o que falta?) continua igual e
+  segue alimentando alertas e IA. **Inconsistência corrigida:** o card mostrava `GoalStatus` direto, então
+  meta com R$ 0 guardados aparecia "No ritmo" só porque a sobra cobriria; e meta com prazo vencido podia
+  dizer "R$ X/mês mantém a data" (`monthsUntil` trava em 1). Regra: alvo atingido = Concluído; prazo
+  vencido = Atrasado; sem sobra prevista até o prazo = Atrasado; sobra parcial = Atenção; sobra cobre e
+  nada guardado = Não iniciado (Atenção se o prazo é este mês ou o próximo); sobra cobre e já há valor =
+  No ritmo. Sem data de criação nem histórico de aportes no Room, não há como medir "ritmo esperado até
+  hoje", por isso nada guardado nunca vira No ritmo. `GoalBadge` acompanhou (selos novos, Atrasado em rosa).
+- **Card da meta**: nome, selo, guardado/alvo, %, barra (cor pelo selo), "R$ X/mês até <prazo>", uma linha
+  curta só quando acrescenta algo (`Goal.headline`) e "Sugestão do plano: guardar R$ X" só na meta que o
+  plano recomenda (`Goal.recommended`). "Adicionar valor" e "Detalhes"; os detalhes (falta, sobra prevista,
+  por que o plano não sugere aporte, descrição, "Simular cenários", "Ver análise da IA") abrem no próprio card.
+- **"Leitura da IA" saiu do card fixo** e virou "Ver análise da IA", sob demanda: `FinaiApp` não chama mais
+  `ensureGoalInsights` ao abrir a tela, só quando a primeira análise é aberta (continua uma chamada para até
+  4 metas). Prompt pede linhas de até 15 palavras e proíbe "no ritmo" para meta não iniciada; "Risco: nenhum
+  relevante" some da tela.
+- **Card do topo**: "Livre até o salário · dd/MM", valor, `FinancialPlan.shortRecommendation` (só falta
+  prevista ou dívida prioritária; aporte em meta aparece no card da meta, para não repetir) e "Entenda este
+  valor", que abre a mesma folha da Início.
+- Testes: `GoalPaceTest` (novo) e asserções em `FinancialPlanTest`; 164 testes JVM de `domain/` verdes com
+  kotlinc avulso (sem os de importação). **Tela não compilada aqui** (sem acesso ao AGP); o usuário vai
+  testar no Android Studio.
+
+Objetivos como central de planejamento (10/10/2026, mesmo branch):
+- **Reserva contínua** (tipo Reserva + "Sem valor-alvo" no diálogo): `valorAlvoCentavos = 0`,
+  `ObjetivoEntity.isOpenReserve`, `GoalPace.Open`, selo "Reserva contínua". Sem barra, percentual,
+  prazo ou "Concluído"; mostra saldo e o aporte mensal planejado opcional (`aporteMensalCentavos`,
+  **Room 10→11**, `MIGRATION_10_11`, teste `Migration10To11Test`; o `11.json` é gerado no primeiro
+  build e precisa ser commitado). **Bug corrigido:** alvo zero dava "falta zero" e a meta virava
+  "Concluído" (era a "Reserva geral concluída com sucesso" da IA). Meta comum agora exige alvo > 0;
+  `Goal.progress` não divide por zero. Saldo de meta/reserva nunca é tratado como dinheiro livre (o
+  plano não lê `valorGuardado`; a IA recebe a regra explícita).
+- **`domain/GoalPlanning.kt`**: `GoalsOverview` (necessário/mês = falta ÷ meses, só metas com alvo, em
+  andamento e prazo à frente; vencidas à parte; reservas pelo aporte planejado; recomendação do plano
+  até o salário; sobra média projetada de 12 meses, nula sem renda) e `insights` (regras
+  determinísticas, cada uma só quando muda uma decisão): falta prevista, sem renda, metas pedem mais
+  que a sobra, dívida cara antes das metas, pagamento antes da próxima entrada com livre menor que os
+  aportes, adiar a meta de menor prioridade 6 meses (valor recalculado), metas com palavra comum no nome
+  (contagem dupla; some se a descrição diz "fora"/"separado"), prazo vencido, parcela de dívida
+  terminando em até 6 meses. Topo mostra até 3; os de uma meta aparecem nos detalhes dela. Cada ponto
+  tem ação real (`InsightAction`: editar prazo, comparar cenários no chat, Dívidas, Agenda, lançar renda).
+- **IA**: a leitura fixa por meta saiu (`goalInsights`/`ensureGoalInsights`/`GOAL_INSIGHT_LABELS`
+  removidos). "Analisar com IA" (planejamento inteiro ou uma meta) manda `GoalPlanning.factsBlock`
+  (confirmado × projeção × dados que o app não tem, cenários +6/+12 meses já calculados, pontos que o
+  usuário já vê) para `AiPromptBuilder.goalsPlanAnalysis`/`goalAnalysis` (`AiTask.GOALS_PLAN`/
+  `GOAL_INSIGHT`). Resposta: até 3 linhas "ação | porquê", "Pergunta:" quando falta dado, ou `NADA`.
+  Passa por `ScenarioReplyGuard`: valor ou data fora dos fatos descarta a resposta. Memoizado pelos fatos
+  (`AiViewModel.analyzeGoals`, chave `PLAN_ANALYSIS_KEY` ou id da meta). Nenhuma chamada sem toque.
+- **Tela**: card escuro com "Aportes mensais necessários", nomes, sobra prevista com barra de
+  cobertura e "Faltam/Cabe", e o livre até o salário com "Entenda ›" (o `shortRecommendation` saiu:
+  a dívida prioritária virou ponto de atenção). Card de meta recolhido: nome + selo, guardado / alvo +
+  %, barra, "Meta: <prazo>" + "R$ X/mês", "Adicionar valor" e "Detalhes". Editar/Excluir foram para os
+  detalhes. "Nada guardado ainda" saiu (o R$ 0 já diz).
+- 175 testes JVM de `domain/` verdes (kotlinc avulso; `GoalPlanningTest` novo). **UI e Room não
+  compilados aqui**: rodar `./gradlew assembleDebug testDebugUnitTest` no Android Studio.
+
+Ciclo antes do primeiro salário (10/10/2026, mesmo branch):
+- **Relato com print:** "Faltam R$ 1.500" até o salário com R$ 5,2 mil recebidos no mês (rescisão +
+  VT). Causa: sem salário antes de hoje, `PayCycle.of` começava o ciclo **hoje**; tudo que entrou antes
+  ficava fora, o saldo partia de zero e as faturas (já pagas, vencimento futuro) e o Picpay viravam falta.
+- **Correção:** sem salário anterior, o ciclo começa no **dia 1º do mês** (`PayCycle.contaDesde`). O que
+  entrou e saiu desde então forma o saldo de hoje. A regra "sobra do ciclo anterior não entra" continua
+  valendo quando há salário anterior. A folha "Entenda este valor" diz desde quando soma.
+- Teste `beforeFirstSalaryMoneyReceivedThisMonthCounts` com os números do relato (livre R$ 3.192, sem
+  falta); conferido que falha com a regra antiga (saldo 0). 176 testes JVM de `domain/` verdes.
+- Limite conhecido: dinheiro recebido no mês anterior, antes do primeiro salário, continua fora.
+
+Dispensar pontos de atenção (10/10/2026, mesmo branch):
+- **Relato:** o aviso "X e Y podem ser o mesmo gasto" não tinha saída; o usuário já tinha decidido manter as
+  duas metas separadas. Agora todo ponto aberto tem um botão de dispensa ao lado da ação.
+- Sobreposição: "Manter separadas", permanente (`GoalInsight.permanentDismiss`, chave
+  `sobreposicao-<menor id>-<maior id>`, não muda com aporte). A IA recebe "DECISÃO DO USUÁRIO: são metas
+  separadas" nos fatos. Os outros pontos: "Dispensar", com a chave `id|título`; como o título leva os
+  números, o aviso volta se a situação mudar.
+- Gravado em `FinaiPreferences.dismissedInsights`, lido no `combine` do `FinanceViewModel`
+  (`GoalPlanning.visible`). "Mostrar dispensados (N)" na seção desfaz tudo; "Apagar todos os dados" limpa.
+- 178 testes JVM de `domain/` verdes. UI não compilada aqui.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

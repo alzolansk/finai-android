@@ -298,20 +298,26 @@ private fun GoalTeaserCard(goal: Goal, onClick: () -> Unit) {
             goal.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary,
             modifier = Modifier.padding(top = 12.dp),
         )
-        Text(goal.eta, fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp))
+        Text(
+            if (goal.openReserve) "Sem valor-alvo" else goal.eta,
+            fontSize = 12.5.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+        )
         Row(
             modifier = Modifier.padding(top = 12.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Text(formatBrl0(goal.saved), fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.EmeraldDark)
-            Text("de ${formatBrl0(goal.target)}", fontSize = 12.5.sp, color = FinaiColors.TextMuted)
+            if (!goal.openReserve) Text("de ${formatBrl0(goal.target)}", fontSize = 12.5.sp, color = FinaiColors.TextMuted)
         }
-        ProgressTrack(
-            progress = goal.progress,
-            fillColor = FinaiColors.Emerald,
-            modifier = Modifier.padding(top = 8.dp),
-        )
+        // Reserva contínua não tem alvo: barra de progresso seria sempre vazia.
+        if (!goal.openReserve) {
+            ProgressTrack(
+                progress = goal.progress,
+                fillColor = FinaiColors.Emerald,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
         Text(
             goal.note, fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextSecondary,
             modifier = Modifier.padding(top = 9.dp),

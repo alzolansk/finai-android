@@ -104,6 +104,10 @@ data class FinancialPlan(
     fun debtNote(divida: DividaEntity): String? =
         forDebt(divida.id).takeIf { it > 0 }?.let { "Recomendação $untilLabel: usar ${brl(it)} do livre para amortizar." }
 
+    /** Rótulo curto do card de Objetivos: "Livre até o salário · 28/10" (sem renda, até o fim do mês). */
+    val untilShortLabel: String get() =
+        if (cycle != null) "Livre até o salário · ${dm(cycle.proximo)}" else "Livre até o fim do mês · ${dm(until)}"
+
     /** "Livre até o salário de 28/10: R$ 114. Recomendação: R$ 114 para "X"." */
     val recommendationSummary: String get() = when {
         shortfall != null -> "Nada livre $untilLabel: primeiro é preciso cobrir a falta de ${brl(shortfall.cents)}."

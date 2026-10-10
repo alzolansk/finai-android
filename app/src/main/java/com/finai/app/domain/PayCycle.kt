@@ -52,6 +52,11 @@ data class PayCycle(
      * tem "salário" no nome). Falso quando o app deduziu a maior receita recorrente.
      */
     val salarioDefinido: Boolean = true,
+    /**
+     * Primeiro dia somado quando nenhum salário caiu antes de hoje ([inicio] nulo): o dia 1º do
+     * mês. Nulo quando o ciclo começa no salário.
+     */
+    val contaDesde: LocalDate? = null,
 ) {
     val entradasCents: Long get() = entries.filter { it.cents > 0 }.sumOf { it.cents }
     val aReceberCents: Long get() = entries.filter { it.cents > 0 && !it.done }.sumOf { it.cents }
@@ -178,7 +183,11 @@ data class PayCycle(
             val inicio = last?.first
             val proximo = next?.first ?: inicio!!.plusMonths(1)
             val salario = (last ?: next)!!.second
-            val start = inicio ?: today
+            // Sem salário antes de hoje não existe ciclo anterior, e o dinheiro que entrou neste
+            // mês (rescisão, VT, freela) é real. Começar o ciclo hoje jogava isso fora: o saldo
+            // partia de zero e qualquer conta até o primeiro salário virava "falta". Agora o
+            // ciclo começa no dia 1º do mês, e o que entrou e saiu desde então forma o saldo.
+            val start = inicio ?: today.withDayOfMonth(1)
             fun inCycle(d: LocalDate) = !d.isBefore(start) && d.isBefore(proximo)
             val months = generateSequence(YearMonth.from(start)) { it.plusMonths(1) }
                 .takeWhile { it <= YearMonth.from(proximo) }.toList()
@@ -227,6 +236,7 @@ data class PayCycle(
                 salarioDefinido = isMainIncome(salario),
                 salarioCents = salario.valorCentavos,
                 inicio = inicio,
+                contaDesde = if (inicio == null) start else null,
                 proximo = proximo,
                 proximoEstimado = next == null,
                 entries = lancamentos + contasEntries + parcelas,

@@ -75,6 +75,8 @@ import com.finai.app.ui.components.AddGoalDialog
 import com.finai.app.ui.components.CelebrationOverlay
 import com.finai.app.domain.AssistantTopic
 import com.finai.app.domain.AssistantTopics
+import com.finai.app.domain.InsightAction
+import com.finai.app.domain.AiPromptBuilder
 import com.finai.app.ui.components.TransactionEntryScreen
 import com.finai.app.domain.transactionsInMonth
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -132,7 +134,7 @@ fun FinaiApp(
     val uiState by viewModel.uiState.collectAsState()
     val financeState by financeViewModel.uiState.collectAsState()
     val configuredAiProviders by aiViewModel.configuredProviders.collectAsState()
-    val goalInsights by aiViewModel.goalInsights.collectAsState()
+    val goalAnalyses by aiViewModel.goalAnalyses.collectAsState()
     val purchaseVerdict by aiViewModel.purchaseVerdict.collectAsState()
     val debtNegotiation by aiViewModel.debtNegotiation.collectAsState()
     val coachInsight by aiViewModel.coachInsight.collectAsState()
@@ -298,19 +300,49 @@ fun FinaiApp(
                         )
                     }
                     composable(FinaiDestination.Goals.route) {
-                        LaunchedEffect(financeState.goals, financeState.aiPlanBlock) {
-                            aiViewModel.ensureGoalInsights(financeState.goals, financeState.aiPlanBlock)
-                        }
+                        // Pontos de atenção são calculados sem IA. A IA só roda quando o usuário toca em
+                        // "Analisar com IA" (planejamento inteiro ou uma meta), sobre os fatos calculados.
+                        val facts = financeState.goalFacts
                         GoalsScreen(
                             goals = financeState.goals,
                             completedGoals = financeState.completedGoals,
                             plan = financeState.plan,
-                            goalInsights = goalInsights,
+                            overview = financeState.goalsOverview,
+                            insights = financeState.goalInsights,
+                            planAnalysis = goalAnalyses[AiViewModel.PLAN_ANALYSIS_KEY],
+                            goalAnalyses = goalAnalyses,
                             onNewGoal = { showAddGoal = true },
                             onContribute = { goal -> contributionTarget = goal },
                             onEdit = { goal -> editingObjetivoId = goal.id.toLong() },
                             onDelete = { goal -> financeViewModel.deleteObjetivoById(goal.id.toLong()) },
-                            onSimulate = { goal -> askAbout(AssistantTopics.goal(goal)) },
+                            onSimulate = { goal -> askAbout(AssistantTopics.goal(goal, facts)) },
+                            onExplain = viewModel::openSpendExplanation,
+                            onAnalyzePlan = {
+                                aiViewModel.analyzeGoals(AiViewModel.PLAN_ANALYSIS_KEY, AiPromptBuilder.goalsPlanAnalysis(facts), facts)
+                            },
+                            onAnalyzeGoal = { goal ->
+                                aiViewModel.analyzeGoals(goal.id, AiPromptBuilder.goalAnalysis(goal.name, facts), facts)
+                            },
+                            onInsightAction = { insight ->
+                                // Cada ação leva a uma função que já existe: nada de botão decorativo.
+                                when (insight.action) {
+                                    InsightAction.EditGoal -> insight.actionGoalId?.let { editingObjetivoId = it }
+                                    InsightAction.SimulateGoal -> financeState.goals.firstOrNull { it.id == insight.actionGoalId?.toString() }
+                                        ?.let { askAbout(AssistantTopics.goal(it, facts)) }
+                                    InsightAction.ComparePlan -> askAbout(AssistantTopics.goalsPlan(facts))
+                                    InsightAction.OpenDebts -> navigateTo(FinaiDestination.Debts)
+                                    InsightAction.OpenAgenda -> navigateTo(FinaiDestination.Agenda)
+                                    InsightAction.AddIncome -> {
+                                        transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name
+                                        transactionEntryInitialExtra = false
+                                        showAddTransaction = true
+                                    }
+                                    InsightAction.None -> Unit
+                                }
+                            },
+                            dismissedCount = financeState.dismissedInsightCount,
+                            onDismissInsight = { insight -> financeViewModel.dismissInsight(insight.dismissKey) },
+                            onRestoreDismissed = { financeViewModel.restoreDismissedInsights() },
                         )
                     }
                     composable(FinaiDestination.Debts.route) {
@@ -645,7 +677,7 @@ fun FinaiApp(
         if (showAddGoal) {
             AddGoalDialog(
                 onDismiss = { showAddGoal = false },
-                onConfirm = { nome, tipo, valorAlvo, valorGuardado, prazo, prioridade, descricao ->
+                onConfirm = { nome, tipo, valorAlvo, valorGuardado, prazo, prioridade, descricao, aporteMensal ->
                     financeViewModel.saveObjetivo(
                         ObjetivoEntity(
                             tipo = tipo, nome = nome, descricao = descricao,
@@ -653,6 +685,7 @@ fun FinaiApp(
                             valorGuardadoCentavos = Math.round(valorGuardado * 100),
                             prazo = prazo.toEpochMillis(),
                             prioridade = prioridade,
+                            aporteMensalCentavos = Math.round(aporteMensal * 100),
                         ),
                     )
                     showAddGoal = false
@@ -664,7 +697,7 @@ fun FinaiApp(
             AddGoalDialog(
                 initial = objetivo,
                 onDismiss = { editingObjetivoId = null },
-                onConfirm = { nome, tipo, valorAlvo, valorGuardado, prazo, prioridade, descricao ->
+                onConfirm = { nome, tipo, valorAlvo, valorGuardado, prazo, prioridade, descricao, aporteMensal ->
                     financeViewModel.saveObjetivo(
                         objetivo.copy(
                             tipo = tipo, nome = nome, descricao = descricao,
@@ -672,6 +705,7 @@ fun FinaiApp(
                             valorGuardadoCentavos = Math.round(valorGuardado * 100),
                             prazo = prazo.toEpochMillis(),
                             prioridade = prioridade,
+                            aporteMensalCentavos = Math.round(aporteMensal * 100),
                         ),
                     )
                     editingObjetivoId = null

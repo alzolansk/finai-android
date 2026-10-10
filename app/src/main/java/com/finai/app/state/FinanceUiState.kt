@@ -72,6 +72,14 @@ data class FinanceUiState(
     /** Balanço projetado mês a mês até o prazo da meta mais distante. */
     val savingsProjection: com.finai.app.domain.SavingsProjection? = null,
     val goalsFundedCents: Long = 0,
+    /** Total que as metas pedem por mês ao lado da sobra prevista ([com.finai.app.domain.GoalPlanning]). */
+    val goalsOverview: com.finai.app.domain.GoalsOverview? = null,
+    /** Pontos de atenção das metas, do mais grave ao menos grave. Calculados sem IA. */
+    val goalInsights: List<com.finai.app.domain.GoalInsight> = emptyList(),
+    /** Quantos pontos de atenção atuais o usuário dispensou (para "Mostrar dispensados"). */
+    val dismissedInsightCount: Int = 0,
+    /** O que a análise da IA das metas pode citar ([com.finai.app.domain.GoalPlanning.factsBlock]). */
+    val goalFacts: String = "",
 
     // Agenda
     val allBillsAndIncome: List<ContaEntity> = emptyList(),
@@ -147,7 +155,10 @@ fun FinanceUiState.toAiSummaryText(): String = buildString {
     }
     if (aiGoalsBlock.isNotBlank()) appendLine(aiGoalsBlock)
     else if (goals.isNotEmpty()) {
-        appendLine("Objetivos ativos: " + goals.joinToString { "${it.name} (${(it.progress * 100).toInt()}%, ${it.badge.label})" } + ".")
+        appendLine("Objetivos ativos: " + goals.joinToString {
+            if (it.openReserve) "${it.name} (reserva contínua, saldo ${com.finai.app.util.formatBrl0(it.saved)})"
+            else "${it.name} (${(it.progress * 100).toInt()}%, ${it.badge.label})"
+        } + ".")
     }
     if (completedGoals.isNotEmpty()) appendLine("Metas já concluídas: " + completedGoals.joinToString { it.name } + ".")
     if (paidDebts.isNotEmpty()) appendLine("Dívidas já quitadas (fora das contas): " + paidDebts.joinToString { it.name } + ".")

@@ -74,6 +74,7 @@ object BackupCodec {
             JSONObject().put("id", o.id).put("tipo", o.tipo).put("nome", o.nome).put("valorAlvoCentavos", o.valorAlvoCentavos)
                 .put("valorGuardadoCentavos", o.valorGuardadoCentavos).put("prazo", o.prazo).put("prioridade", o.prioridade)
                 .put("descricao", o.descricao).putOpt("concluidoEm", o.concluidoEm)
+                .put("aporteMensalCentavos", o.aporteMensalCentavos)
         }))
         put("dividas", JSONArray(b.dividas.map { d ->
             JSONObject().put("id", d.id).put("nome", d.nome).put("valorOriginalCentavos", d.valorOriginalCentavos)
@@ -135,6 +136,7 @@ object BackupCodec {
                         valorAlvoCentavos = o.getLong("valorAlvoCentavos"), valorGuardadoCentavos = o.optLong("valorGuardadoCentavos"),
                         prazo = o.getLong("prazo"), prioridade = o.optInt("prioridade"), descricao = o.optString("descricao"),
                         concluidoEm = o.longOrNull("concluidoEm"),
+                        aporteMensalCentavos = o.optLong("aporteMensalCentavos"),
                     )
                 },
                 dividas = root.list("dividas") { o ->

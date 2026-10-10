@@ -136,10 +136,48 @@ class PayCycleTest {
         assertNull(PayCycle.of(emptyList(), listOf(tx(today, 50_000, TransactionType.Receita)), emptyList(), today))
     }
 
-    @Test fun beforeFirstSalaryEverythingIsUncovered() {
+    @Test fun beforeFirstSalaryWithNoOtherIncomeBillsAreUncovered() {
         val c = cycle(listOf(salario(desde = LocalDate.of(2026, 10, 30))), contas = listOf(conta("Fatura", 50_000, LocalDate.of(2026, 10, 12))))
         assertNull(c.inicio)
+        assertEquals(LocalDate.of(2026, 10, 1), c.contaDesde)
         assertEquals(-50_000L, c.livreCents)
+    }
+
+    /**
+     * O caso relatado em 10/10/2026: primeiro salário só em 31/10, rescisão e VT já recebidos
+     * em outubro, faturas pagas com vencimento futuro. Antes o ciclo começava hoje, o saldo
+     * partia de zero e a tela dizia "Faltam R$ 1.500" com quase R$ 5 mil entrando no mês.
+     */
+    @Test fun beforeFirstSalaryMoneyReceivedThisMonthCounts() {
+        val hoje = LocalDate.of(2026, 10, 10)
+        val transacoes = listOf(
+            tx(LocalDate.of(2026, 10, 31), 410_000, TransactionType.Receita, recorrente = true, desc = "Salario").copy(rendaPrincipal = true),
+            tx(LocalDate.of(2026, 10, 2), 42_700, TransactionType.Receita, desc = "VT"),
+            tx(LocalDate.of(2026, 10, 9), 470_000, TransactionType.Receita, desc = "Rescisão Estágio", extra = true),
+            tx(LocalDate.of(2026, 10, 1), 4_000, TransactionType.Gasto, desc = "Popeyes"),
+            tx(LocalDate.of(2026, 10, 9), 22_000, TransactionType.Gasto, desc = "Tablet · parcela 10 de 12"),
+            tx(LocalDate.of(2026, 10, 9), 6_000, TransactionType.Gasto, desc = "Game Pass"),
+            tx(LocalDate.of(2026, 10, 9), 11_400, TransactionType.Gasto, desc = "Cea Pay"),
+        )
+        val contas = listOf(
+            conta("Fatura Nubank", 68_200, LocalDate.of(2026, 10, 12), status = "pago"),
+            conta("Fatura Porto Jaque", 33_800, LocalDate.of(2026, 10, 26), status = "pago"),
+            conta("Contas de casa", 100_000, LocalDate.of(2026, 10, 31)),
+        )
+        val dividas = listOf(divida(48_100, 4, LocalDate.of(2026, 10, 30)))
+        val c = cycle(transacoes, contas, dividas, on = hoje)
+
+        assertNull(c.inicio)
+        assertEquals(LocalDate.of(2026, 10, 31), c.proximo)
+        // 427 + 4.700 − 40 − 220 − 60 − 114 = R$ 4.693 hoje.
+        assertEquals(469_300L, c.saldoHojeCents)
+        // Menos as duas faturas e o Picpay até 30/10; o que vence em 31/10 é do próximo ciclo.
+        assertEquals(319_200L, c.floor.cents)
+        assertNull(c.shortfall)
+
+        val plan = FinancialPlan.build(contas, transacoes, dividas, emptyList(), hoje)
+        assertNull(plan.shortfall)
+        assertEquals(319_200L, plan.livreCents)
     }
 
     @Test fun payingAnInstallmentKeepsWhatIsFree() {
