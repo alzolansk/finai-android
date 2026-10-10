@@ -1175,6 +1175,45 @@ Parcelamentos: cartão compacto na Agenda + tela própria (10/10/2026, referênc
 - Build e testes JVM verdes; conferido no emulador Pixel 6 API 34 (tema escuro): cartão, tela, seleção de
   mês e voltar do sistema. Tema claro e telas estreitas não conferidos.
 
+Barra de navegação de vidro (10/10/2026, branch `claude/nav-vidro-3a`; playbook em
+`uploads/design-nav/finai-nav-playbook.pdf`):
+- **`ui/components/FinaiBottomNav.kt` reescrito** no design 3a: pílula flutuante (12 dp das
+  laterais, 16 dp + inset da navegação acima da base), 64 dp expandida / 52 dp recolhida com
+  escala 0,94, quatro abas + "+" (56 × altura − 14). Todas as medidas, curvas e durações ficam
+  em `FinaiNavBarSpec`. Indicador: `Animatable` com mola (amortecimento 0,6, rigidez 380) e um
+  coletor só, para toques seguidos partirem da posição e velocidade atuais; esticar
+  1,22 × 0,86 em 280 ms, voltando aos 240 ms. Altura, escala e posição do indicador são lidas
+  só em layout/desenho (sem recompor por quadro). Abas com `Role.Tab` e o nome lido mesmo
+  recolhida; "+" e abas sem ripple, escala 0,92 ao pressionar. Tocar na aba ativa só expande.
+- **Vidro próprio, sem Haze** (`ui/components/GlassBackdrop.kt`): o Haze 0.7.x (o único
+  compatível com o Compose 1.6) não tem saturação, só desfoca na API 32+ e subiria o Compose e
+  o core-ktx do app. O `glassSource` grava as telas num `RenderNode`; a barra desenha esse nó
+  num segundo nó com `RenderEffect` (blur 22 dp + saturação 180%). **Dois achados no
+  emulador:** (1) o nó com efeito vira camada em cache no HWUI e não é refeito quando só o
+  conteúdo muda, por isso a fonte regrava o efeito a cada quadro dela; (2) converter os 22 dp
+  para o "sigma do CSS" dava raio de ~113 px, e o blur saía **vazio** (sem erro). Ficou o raio
+  22 dp direto, como o Haze faria com o valor do playbook. API < 31: tinta #27272A a 92%, com
+  borda e brilho; a sombra (y 12, blur 32, preto 45%, desenhada só por fora da pílula) só
+  existe na API 28+. Campos `RenderNode` são `Any?` para nada carregado na API 26–30 depender
+  do tipo.
+- **Recolher ao rolar** (`ui/components/NavBarCollapse.kt`, `NavBarCollapseStateTest` JVM): um
+  `NestedScrollConnection` em volta do `NavHost` cobre todas as telas. Conta só a rolagem
+  consumida (overscroll não conta) e exige 6 dp seguidos na mesma direção, com a contagem
+  zerada a cada troca, para não piscar. Trocar de tela volta expandida. Animações do sistema
+  desligadas = nunca recolhe e tudo troca direto. Teclado aberto esconde a barra
+  (`derivedStateOf` sobre o inset, sem recompor o app a cada quadro do teclado).
+- **Decisões do usuário:** vidro escuro nos dois temas, com o degradê da base (130 dp,
+  85% → 0) na cor de fundo do tema; as abas continuam restaurando a posição de rolagem (o
+  playbook dizia "começa no topo"). A distância do topo é contada desde a troca de tela, então
+  numa aba restaurada já rolada a barra só recolhe depois de mais 60 dp.
+- `ScreenContentPadding` virou getter `@Composable`: 140 dp + inset da navegação. A barra de
+  confirmação da importação, o aviso de erro de gravação e o menu do "+" passaram a somar o inset.
+- 286 testes JVM verdes. Conferido no emulador Pixel 6 API 34 (tema escuro) em 360, 412 e
+  480 dp: vidro, recolher/expandir, troca de aba quadro a quadro (overshoot contido na pílula)
+  e animações desligadas. **Não conferido:** API < 31 (o AVD API 27 não subiu por falta de
+  memória), tema claro, TalkBack, celular. `lintDebug` falha com 5 erros que já existiam no
+  `main` (`PathParser` restrito, BOM, `AnimatedContent`), nenhum nos arquivos novos.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/
