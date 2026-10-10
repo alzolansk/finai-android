@@ -28,9 +28,9 @@ import java.time.format.DateTimeParseException
 
 /**
  * Plain Material3 [AlertDialog] forms for the manual-entry flows Fase 1
- * requires (planning.md §9) — contas e objetivos (dívidas têm tela própria,
- * [DebtEntryScreen]). The same dialog serves create and edit: pass
- * [AddContaDialog]'s/[AddGoalDialog]'s `initial` to pre-fill the fields from an existing
+ * requires (planning.md §9) — contas (dívidas e objetivos têm telas próprias,
+ * [DebtEntryScreen], [GoalCreateScreen], [GoalEditScreen]). The same dialog serves create and edit: pass
+ * [AddContaDialog]'s `initial` to pre-fill the fields from an existing
  * entity — `onConfirm` still returns plain field values (never the id), so
  * the caller decides whether to insert a new row or `.copy()` the one being
  * edited (preserving its id and whatever fields the dialog doesn't expose,
@@ -50,116 +50,6 @@ internal fun parseDateOrNull(text: String): LocalDate? = try {
 }
 
 internal fun parseAmountOrNull(text: String): Double? = text.replace(",", ".").toDoubleOrNull()
-
-@Composable
-fun AddGoalDialog(
-    initial: ObjetivoEntity? = null,
-    onDismiss: () -> Unit,
-    onConfirm: (nome: String, tipo: String, valorAlvo: Double, valorGuardado: Double, prazo: LocalDate, prioridade: Int, descricao: String, aporteMensal: Double) -> Unit,
-) {
-    var nome by remember { mutableStateOf(initial?.nome ?: "") }
-    var descricao by remember { mutableStateOf(initial?.descricao ?: "") }
-    var tipo by remember { mutableStateOf(initial?.tipo ?: "Compra") }
-    var valorAlvo by remember { mutableStateOf(initial?.let { (it.valorAlvoCentavos / 100.0).toString() } ?: "") }
-    var valorGuardado by remember { mutableStateOf(initial?.let { (it.valorGuardadoCentavos / 100.0).toString() } ?: "0") }
-    var prazoTexto by remember { mutableStateOf((initial?.prazo?.toLocalDate() ?: LocalDate.now().plusMonths(6)).format(dateFormatter)) }
-    var prioridade by remember { mutableStateOf((initial?.prioridade ?: 2).toString()) }
-    // Reserva contínua: sem valor-alvo e sem prazo, só saldo e um aporte mensal opcional.
-    var semAlvo by remember { mutableStateOf(initial != null && initial.valorAlvoCentavos <= 0) }
-    var aporteMensal by remember {
-        mutableStateOf(initial?.aporteMensalCentavos?.takeIf { it > 0 }?.let { (it / 100.0).toString() } ?: "")
-    }
-    val continua = tipo == "Reserva" && semAlvo
-    val aporteOk = aporteMensal.isBlank() || parseAmountOrNull(aporteMensal) != null
-    // Alvo zero numa meta comum deixava a meta "concluída" na hora. Sem alvo, só como reserva contínua.
-    val alvoOk = continua || (parseAmountOrNull(valorAlvo) ?: 0.0) > 0
-    val guardadoOk = parseAmountOrNull(valorGuardado) != null
-    val prazoOk = parseDateOrNull(prazoTexto) != null
-    val prioridadeOk = prioridade.toIntOrNull() != null
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial != null) "Editar objetivo" else "Novo objetivo") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                OutlinedTextField(nome, { nome = it }, label = { Text("Nome") }, singleLine = true)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("Viagem", "Compra", "Reserva").forEach { t ->
-                        FilterChip(selected = tipo == t, onClick = { tipo = t }, label = { Text(t) })
-                    }
-                }
-                if (tipo == "Reserva") {
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Checkbox(checked = semAlvo, onCheckedChange = { semAlvo = it })
-                        Text("Sem valor-alvo (reserva contínua)")
-                    }
-                }
-                if (!continua) {
-                    OutlinedTextField(valorAlvo, { valorAlvo = it }, label = { Text("Valor alvo (R$)") }, singleLine = true, isError = valorAlvo.isNotEmpty() && !alvoOk)
-                }
-                OutlinedTextField(
-                    valorGuardado, { valorGuardado = it },
-                    label = { Text(if (continua) "Saldo atual (R$)" else "Já guardado (R$)") }, singleLine = true, isError = !guardadoOk,
-                )
-                if (continua) {
-                    OutlinedTextField(
-                        aporteMensal, { aporteMensal = it }, label = { Text("Aporte mensal planejado (opcional)") },
-                        singleLine = true, isError = !aporteOk,
-                    )
-                } else {
-                    OutlinedTextField(prazoTexto, { prazoTexto = it }, label = { Text("Prazo (dd/mm/aaaa)") }, singleLine = true, isError = !prazoOk)
-                }
-                OutlinedTextField(prioridade, { prioridade = it }, label = { Text("Prioridade (1 = mais alta)") }, singleLine = true, isError = !prioridadeOk)
-                // Opcional. É o que dá profundidade à leitura da IA: por que a meta existe,
-                // o que fica de fora dela, quanto o prazo pode mudar.
-                OutlinedTextField(
-                    descricao, { descricao = it.take(300) },
-                    label = { Text("Descrição (opcional)") },
-                    placeholder = { Text("Ex.: viagem com amiga; passagem fica fora da meta; dá para ir até junho de 2028") },
-                    minLines = 2, maxLines = 4,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = nome.isNotBlank() && alvoOk && guardadoOk && (continua || prazoOk) && prioridadeOk && aporteOk,
-                onClick = {
-                    onConfirm(
-                        nome.trim(), tipo,
-                        if (continua) 0.0 else parseAmountOrNull(valorAlvo)!!,
-                        parseAmountOrNull(valorGuardado)!!,
-                        // A reserva contínua não usa prazo; guarda o que já havia (ou um ano à frente) só porque a coluna é obrigatória.
-                        if (continua) parseDateOrNull(prazoTexto) ?: LocalDate.now().plusYears(1) else parseDateOrNull(prazoTexto)!!,
-                        prioridade.toInt(), descricao.trim(),
-                        if (continua) parseAmountOrNull(aporteMensal) ?: 0.0 else 0.0,
-                    )
-                },
-            ) { Text("Salvar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
-    )
-}
-
-@Composable
-fun ContributionDialog(goalName: String, onDismiss: () -> Unit, onConfirm: (Double) -> Unit) {
-    var valor by remember { mutableStateOf("") }
-    val ok = parseAmountOrNull(valor) != null && (parseAmountOrNull(valor) ?: 0.0) > 0
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Registrar aporte") },
-        text = {
-            Column {
-                Text("Quanto você guardou para \"$goalName\"?")
-                OutlinedTextField(valor, { valor = it }, label = { Text("Valor (R$)") }, singleLine = true, isError = valor.isNotEmpty() && !ok)
-            }
-        },
-        confirmButton = { TextButton(enabled = ok, onClick = { onConfirm(parseAmountOrNull(valor)!!) }) { Text("Salvar") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
-    )
-}
 
 @Composable
 fun AddContaDialog(

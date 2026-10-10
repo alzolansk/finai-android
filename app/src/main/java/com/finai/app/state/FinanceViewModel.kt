@@ -263,6 +263,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             savingsProjection = savingsProjection,
             goalsFundedCents = goalPlans.sumOf { it.monthlyContributionFundedCents },
             goalsOverview = goalsOverview,
+            averageDailySpendingCents = com.finai.app.domain.GoalFlow.averageDailySpendingCents(s.contas, s.transacoes, s.dividas, today),
             goalInsights = goalInsights,
             dismissedInsightCount = dismissedInsightCount,
             goalFacts = com.finai.app.domain.GoalPlanning.factsBlock(plan, goalsOverview, goalInsights, s.dividas, hasIncome, today, dismissed),
@@ -465,18 +466,44 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun contribuirParaObjetivo(objetivoId: Long, valorReais: Double) {
-        launchSafely("registrar a contribuição") {
+    /**
+     * Comemoração de um aporte que concluiu a meta, guardada até o usuário tocar em "Concluir" na
+     * confirmação do aporte — senão ela cobriria a própria confirmação. "Desfazer" a descarta.
+     */
+    private var deferredCelebration: ObjetivoEntity? = null
+
+    /** Registra um aporte (folha "Registrar aporte"). A comemoração, se houver, sai em [releaseContributionCelebration]. */
+    fun registrarAporte(objetivoId: Long, cents: Long) {
+        launchSafely("registrar o aporte") {
             val objetivo = uiState.value.rawObjetivos.firstOrNull { it.id == objetivoId } ?: return@launchSafely
             // Aporte continua valendo depois de concluída: o excedente fica visível no histórico.
             val update = Completion.onGoalSaved(
                 objetivo,
-                objetivo.copy(valorGuardadoCentavos = objetivo.valorGuardadoCentavos + Math.round(valorReais * 100)),
+                objetivo.copy(valorGuardadoCentavos = objetivo.valorGuardadoCentavos + cents),
                 System.currentTimeMillis(),
             )
             repository.salvarObjetivo(update.objetivo)
-            if (update.celebrate) celebrateGoal(update.objetivo)
+            deferredCelebration = update.objetivo.takeIf { update.celebrate }
         }
+    }
+
+    /** "Desfazer" na confirmação: tira o mesmo valor (a meta reabre se tinha sido concluída). */
+    fun desfazerAporte(objetivoId: Long, cents: Long) {
+        deferredCelebration = null
+        launchSafely("desfazer o aporte") {
+            val objetivo = uiState.value.rawObjetivos.firstOrNull { it.id == objetivoId } ?: return@launchSafely
+            val update = Completion.onGoalSaved(
+                objetivo,
+                objetivo.copy(valorGuardadoCentavos = (objetivo.valorGuardadoCentavos - cents).coerceAtLeast(0)),
+                System.currentTimeMillis(),
+            )
+            repository.salvarObjetivo(update.objetivo)
+        }
+    }
+
+    fun releaseContributionCelebration() {
+        deferredCelebration?.let(::celebrateGoal)
+        deferredCelebration = null
     }
 
     // ── manual entry: dívidas ───────────────────────────────────

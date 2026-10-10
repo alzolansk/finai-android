@@ -1094,6 +1094,32 @@ Objetivos mais limpos (10/10/2026, branch `claude/exciting-meitner-5ptbtq`):
   foram dos ícones da biblioteca estendida, não baixada, em código que não mudou). **Gradle Android
   não rodado** (sem acesso a dl.google.com): rodar `./gradlew assembleDebug testDebugUnitTest`.
 
+Novo design de aporte, novo objetivo e edição (10/10/2026, referências em `uploads/design-metas`):
+- **Registrar aporte** (`ui/components/GoalContributionSheet.kt`, ref. 1a): folha sobre a tela desfocada
+  (`Modifier.blur` no conteúdo em `FinaiApp`, Android 12+), −/+, controle deslizante com halo e balão,
+  atalhos e prévia ("vai para R$ X · cobre N dias"/"% da meta"). Confirmação na mesma folha: check com
+  dois anéis estáticos, contagem de R$ 0 ao aporte e barra/percentual do antigo ao novo, 1 s, ease-out
+  cubic (`EaseOutCubic`), começando depois do fade de entrada; "Desfazer" tira o valor
+  (`FinanceViewModel.desfazerAporte`). A comemoração de meta concluída espera o "Concluir"
+  (`releaseContributionCelebration`), para não cobrir a confirmação. `contribuirParaObjetivo` virou
+  `registrarAporte` (centavos).
+- **Novo objetivo** (`GoalCreateScreen.kt`, ref. 1b): tipo (Viagem/Compra/Reserva/Outro) e nome com
+  sugestões → valor (R$ 500–50.000) e já guardado → prazo (1–60 meses, linear como a referência) com
+  aporte mensal e selo Folgado/Apertado/Não cabe/Sem renda contra a sobra média de `GoalsOverview` →
+  "Objetivo criado". Reserva tem o interruptor "Reserva contínua" no passo 2; aí o passo 3 vira
+  "Quanto por mês?" (aporte planejado opcional). Descrição só na edição.
+- **Editar objetivo** (`GoalEditScreen.kt`, ref. 1c): chips de todos os objetivos (ordem fixa por
+  id), prévia, campos em cartões, "O que vai mudar" (`GoalFlow.changes`), "Salvar · N alterações",
+  aviso "Alterações salvas" e fica na tela. Trocar de objetivo/voltar com alteração pendente pede
+  confirmação.
+- Regras em `domain/GoalFlow.kt` (`GoalFlowTest`): faixas dos controles, prazo, aporte necessário,
+  encaixe na sobra, cobertura da reserva (gasto médio diário = média das saídas de `MonthCashFlow`
+  no mês atual e nos dois anteriores ÷ 30) e textos. Peças visuais em `GoalFlowKit.kt` (`GoalUi`:
+  no escuro, as cores das referências; no claro, o mesmo layout com as superfícies claras).
+  `AddGoalDialog`/`ContributionDialog` removidos.
+- 265 testes JVM verdes. Conferido no emulador Pixel 6 API 34 nos dois temas: as três telas, arraste
+  com halo, confirmação, Desfazer, aviso de salvo e a contagem (gravação de tela). Não testado no celular.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

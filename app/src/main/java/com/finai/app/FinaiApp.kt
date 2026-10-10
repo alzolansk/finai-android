@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -71,7 +72,6 @@ import com.finai.app.state.ImportViewModel
 import com.finai.app.state.toAiSummaryText
 import com.finai.app.ui.components.AddContaDialog
 import com.finai.app.ui.components.DebtEntryScreen
-import com.finai.app.ui.components.AddGoalDialog
 import com.finai.app.ui.components.CelebrationOverlay
 import com.finai.app.domain.AssistantTopic
 import com.finai.app.domain.AssistantTopics
@@ -85,7 +85,9 @@ import com.finai.app.ui.components.rememberOnResume
 import com.finai.app.ui.components.BudgetLimitDialog
 import com.finai.app.ui.components.BuySimulatorContent
 import com.finai.app.ui.components.ChatOverlay
-import com.finai.app.ui.components.ContributionDialog
+import com.finai.app.ui.components.GoalContributionSheet
+import com.finai.app.ui.components.GoalCreateScreen
+import com.finai.app.ui.components.GoalEditScreen
 import com.finai.app.ui.components.FinaiBottomNav
 import com.finai.app.ui.components.FinaiTopBar
 import com.finai.app.ui.components.InitialSetupWizard
@@ -208,6 +210,7 @@ fun FinaiApp(
     val editingConta = financeState.rawContas.firstOrNull { it.id == editingContaId }
     val editingDivida = financeState.rawDividas.firstOrNull { it.id == editingDividaId }
     val editingObjetivo = financeState.rawObjetivos.firstOrNull { it.id == editingObjetivoId }
+    val contributionObjetivo = contributionTarget?.let { goal -> financeState.rawObjetivos.firstOrNull { it.id.toString() == goal.id } }
 
     val agenda = remember(financeState.rawContas, financeState.rawFaturasCartao, financeState.rawTransacoes, financeState.rawDividas, uiState.monthIndex, uiState.agendaYear) {
         agendaDataFor(financeState.rawContas, financeState.rawFaturasCartao, financeState.rawTransacoes, financeState.rawDividas, uiState.monthIndex, uiState.agendaYear)
@@ -215,7 +218,12 @@ fun FinaiApp(
 
     CompositionLocalProvider(LocalTipTargets provides tipRegistry) {
     Box(modifier = Modifier.fillMaxSize().background(FinaiColors.Background).onSizeChanged { rootHeightPx = it.height.toFloat() }) {
-        Column(modifier = Modifier.fillMaxSize().then(if (showAddTransaction) Modifier.clearAndSetSemantics {} else Modifier)) {
+        Column(
+            modifier = Modifier.fillMaxSize()
+                .then(if (showAddTransaction || contributionTarget != null) Modifier.clearAndSetSemantics {} else Modifier)
+                // Fundo da folha de aporte desfocado, como na referência (Android 12+; antes disso só o escurecido).
+                .then(if (contributionTarget != null) Modifier.blur(8.dp) else Modifier),
+        ) {
             // Configurações desenha a própria topbar: o título e o "voltar"
             // acompanham a subpágina aberta dentro dela.
             if (current != FinaiDestination.AiSettings) {
@@ -680,44 +688,23 @@ fun FinaiApp(
             },
         )
 
-        if (showAddGoal) {
-            AddGoalDialog(
-                onDismiss = { showAddGoal = false },
-                onConfirm = { nome, tipo, valorAlvo, valorGuardado, prazo, prioridade, descricao, aporteMensal ->
-                    financeViewModel.saveObjetivo(
-                        ObjetivoEntity(
-                            tipo = tipo, nome = nome, descricao = descricao,
-                            valorAlvoCentavos = Math.round(valorAlvo * 100),
-                            valorGuardadoCentavos = Math.round(valorGuardado * 100),
-                            prazo = prazo.toEpochMillis(),
-                            prioridade = prioridade,
-                            aporteMensalCentavos = Math.round(aporteMensal * 100),
-                        ),
-                    )
-                    showAddGoal = false
-                },
-            )
-        }
+        // Novo objetivo em três passos e edição (referências 1b e 1c em uploads/design-metas).
+        GoalCreateScreen(
+            visible = showAddGoal,
+            averageSurplusCents = financeState.goalsOverview?.averageSurplusCents,
+            otherGoalsMonthlyCents = financeState.goalsOverview?.totalMonthlyCents ?: 0,
+            onCreate = financeViewModel::saveObjetivo,
+            onViewGoals = { showAddGoal = false; navigateTo(FinaiDestination.Goals) },
+            onDismiss = { showAddGoal = false },
+        )
 
-        editingObjetivo?.let { objetivo ->
-            AddGoalDialog(
-                initial = objetivo,
-                onDismiss = { editingObjetivoId = null },
-                onConfirm = { nome, tipo, valorAlvo, valorGuardado, prazo, prioridade, descricao, aporteMensal ->
-                    financeViewModel.saveObjetivo(
-                        objetivo.copy(
-                            tipo = tipo, nome = nome, descricao = descricao,
-                            valorAlvoCentavos = Math.round(valorAlvo * 100),
-                            valorGuardadoCentavos = Math.round(valorGuardado * 100),
-                            prazo = prazo.toEpochMillis(),
-                            prioridade = prioridade,
-                            aporteMensalCentavos = Math.round(aporteMensal * 100),
-                        ),
-                    )
-                    editingObjetivoId = null
-                },
-            )
-        }
+        GoalEditScreen(
+            goalId = editingObjetivo?.id,
+            objetivos = financeState.rawObjetivos,
+            onSave = financeViewModel::saveObjetivo,
+            onDelete = financeViewModel::deleteObjetivo,
+            onClose = { editingObjetivoId = null },
+        )
 
         // Criar uma Conta nova não tem mais UI própria — "+" duplicado com o lançamento
         // confundia o usuário sobre onde cadastrar as coisas (ver planning.md §11).
@@ -759,16 +746,22 @@ fun FinaiApp(
             },
         )
 
-        contributionTarget?.let { goal ->
-            ContributionDialog(
-                goalName = goal.name,
-                onDismiss = { contributionTarget = null },
-                onConfirm = { valor ->
-                    financeViewModel.contribuirParaObjetivo(goal.id.toLong(), valor)
-                    contributionTarget = null
-                },
-            )
-        }
+        // Registrar aporte (referência 1a): folha sobre a tela desfocada.
+        GoalContributionSheet(
+            visible = contributionTarget != null,
+            objetivo = contributionObjetivo,
+            dailySpendingCents = financeState.averageDailySpendingCents,
+            onSave = { objetivo, cents -> financeViewModel.registrarAporte(objetivo.id, cents) },
+            onUndo = { objetivo, cents ->
+                financeViewModel.desfazerAporte(objetivo.id, cents)
+                contributionTarget = null
+            },
+            onDone = {
+                contributionTarget = null
+                financeViewModel.releaseContributionCelebration()
+            },
+            onDismiss = { contributionTarget = null },
+        )
 
         budgetLimitTarget?.let { categoria ->
             val currentLimit = financeState.budgets.firstOrNull { it.name == categoria }?.limit ?: 0.0
@@ -833,7 +826,8 @@ fun FinaiApp(
         // registrados: com qualquer camada aberta por cima, a navegação entre
         // telas não reage ao voltar.
         val anyLayerOpen = overlayOpen || celebration != null || showAddTransaction || openedInvoiceContaId != null ||
-            showAddDivida || editingDivida != null || activeTips != null || initialSetupComplete == false
+            showAddDivida || editingDivida != null || activeTips != null || initialSetupComplete == false ||
+            showAddGoal || editingObjetivo != null || contributionTarget != null
         SideEffect { navController.enableOnBackPressed(!anyLayerOpen) }
 
         // Meta concluída / dívida quitada: por cima de tudo, fecha com toque ou voltar.
