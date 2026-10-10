@@ -100,6 +100,22 @@ data class FinancialPlan(
         }
     }
 
+    /**
+     * [goalNote] curta, para os detalhes do card: só o porquê de não haver sugestão de aporte.
+     * Vazia quando há sugestão (o card mostra o valor) ou a meta já chegou ao alvo.
+     */
+    fun goalNoteShort(goal: GoalPlan): String {
+        if (goal.missingCents <= 0L || goal.objetivo.isOpenReserve || forGoal(goal.objetivo.id) > 0) return ""
+        val falta = shortfall
+        val debt = recommendations.firstOrNull { it.target == RecommendationTarget.Debt }
+        return when {
+            falta != null -> "Sem aporte agora: antes, cobrir a falta de ${brl(falta.cents)} em ${dm(falta.date)}."
+            livreCents <= 0 -> "Sem aporte agora: nada livre até ${dm(until)}."
+            debt != null -> "Sem aporte agora: o livre vai primeiro para \"${debt.name}\"."
+            else -> "Sem aporte agora: o livre vai para metas de maior prioridade."
+        }
+    }
+
     /** Frase da dívida que o plano recomenda amortizar; nulo para as outras. */
     fun debtNote(divida: DividaEntity): String? =
         forDebt(divida.id).takeIf { it > 0 }?.let { "Recomendação $untilLabel: usar ${brl(it)} do livre para amortizar." }

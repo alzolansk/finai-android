@@ -202,13 +202,13 @@ object GoalPlanning {
         if (conflict && average != null && gap != null) {
             val estimated = if (overview.surplusUsesEstimatedSalary) " A projeção usa salário estimado nos meses sem salário lançado." else ""
             out += if (average <= 0) GoalInsight(
-                id = "conflito", severity = InsightSeverity.Risk,
+                id = CONFLICT_ID, severity = InsightSeverity.Risk,
                 title = "Sem sobra prevista para as metas",
                 detail = "A sobra média dos próximos ${overview.monthsInAverage} meses é ${brl(average)}/mês, antes de qualquer aporte. " +
                     "Os ${brl(total)}/mês das metas só cabem mudando receitas, despesas ou prazos.$estimated",
                 action = InsightAction.ComparePlan, actionLabel = "Comparar cenários",
             ) else GoalInsight(
-                id = "conflito", severity = InsightSeverity.Attention,
+                id = CONFLICT_ID, severity = InsightSeverity.Attention,
                 title = "Metas pedem ${brl(total)}/mês; sobram ${brl(average)}/mês",
                 detail = "Faltam ${brl(gap)}/mês na média dos próximos ${overview.monthsInAverage} meses. " +
                     "Do jeito que está, nem todas as metas chegam no prazo.$estimated",
@@ -317,6 +317,17 @@ object GoalPlanning {
 
         return out.sortedByDescending { it.severity.ordinal }
     }
+
+    /** Id do ponto "metas pedem mais do que sobra"; a tela já mostra isso no card do topo. */
+    const val CONFLICT_ID = "conflito"
+
+    /**
+     * Pontos que tratam do livre até o salário (falta prevista, dívida antes das metas, pagamento
+     * antes da próxima entrada). O mais grave deles vira a única recomendação do card do topo.
+     */
+    fun isPlanTip(insight: GoalInsight): Boolean = insight.id in PLAN_TIP_IDS
+
+    private val PLAN_TIP_IDS = setOf("falta", "divida-primeiro", "vencimento")
 
     /** Os pontos do topo: os mais graves, até [MAX_GLOBAL]. */
     fun topInsights(all: List<GoalInsight>): List<GoalInsight> = all.filter { it.global }.take(MAX_GLOBAL)

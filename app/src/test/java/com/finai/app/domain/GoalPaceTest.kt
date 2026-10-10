@@ -68,4 +68,26 @@ class GoalPaceTest {
         assertEquals(12_000.0, ui.missing, 0.0)
         assertEquals(300.0, ui.recommended, 0.0)
     }
+
+    // Sem renda cadastrada, a projeção só tem saídas: "sem sobra" seria falta de dado.
+    @Test fun withoutIncomeNothingSavedIsNotStartedNotLate() {
+        val p = plan(meta(0, today.plusMonths(12)), capacity = 0)
+        assertEquals(GoalStatus.Priority, p.status)
+        assertEquals(GoalPace.NotStarted, GoalPace.of(p, today, capacityKnown = false))
+    }
+
+    @Test fun withoutIncomeSavingIsNeverOnTrack() {
+        val p = plan(meta(200_000, today.plusMonths(12)), capacity = 500_000)
+        assertEquals(GoalPace.Attention, GoalPace.of(p, today, capacityKnown = false))
+        val ui = p.toUiGoal(today = today, capacityKnown = false)
+        assertEquals(GoalBadge.Attention, ui.badge)
+        assertTrue(ui.headline, ui.headline.startsWith("Sem renda cadastrada"))
+        // Sem renda, a "sobra prevista até o prazo" não é mostrada como se fosse conhecida.
+        assertEquals(null, ui.projectedAvailable)
+    }
+
+    @Test fun withoutIncomeAPassedDeadlineIsStillLate() {
+        val p = plan(meta(100_000, today.minusMonths(1)), capacity = 0)
+        assertEquals(GoalPace.Late, GoalPace.of(p, today, capacityKnown = false))
+    }
 }

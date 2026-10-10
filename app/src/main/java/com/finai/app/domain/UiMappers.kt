@@ -41,8 +41,12 @@ fun GoalPlan.toUiGoal(
     planNote: String = "",
     recommendedCents: Long = 0,
     today: LocalDate = LocalDate.now(),
+    /** Falso sem renda cadastrada: o selo não julga a capacidade ([GoalPace.of]). */
+    capacityKnown: Boolean = true,
+    /** Por que o plano não sugere aporte agora, em uma linha ([FinancialPlan.goalNoteShort]). */
+    planShort: String = "",
 ): Goal {
-    val pace = GoalPace.of(this, today)
+    val pace = GoalPace.of(this, today, capacityKnown)
     val badge = when (pace) {
         GoalPace.NotStarted -> GoalBadge.NotStarted
         GoalPace.OnTrack -> GoalBadge.OnTrack
@@ -73,6 +77,8 @@ fun GoalPlan.toUiGoal(
     // dispensa frase; "No ritmo", "Concluído" e reserva também.
     val headline = when (pace) {
         GoalPace.Attention -> when {
+            !capacityKnown -> if (objetivo.valorGuardadoCentavos > 0) "Sem renda cadastrada, não dá para confirmar o ritmo."
+            else "Prazo próximo e nada guardado ainda."
             objetivo.valorGuardadoCentavos <= 0L && status == GoalStatus.OnTrack -> "Prazo próximo e nada guardado ainda."
             available != null -> "A sobra prevista até o prazo cobre ${formatBrl0(centsToReais(available.coerceAtLeast(0)))} de $missingLabel."
             else -> "Disputa a sobra com outras metas."
@@ -98,13 +104,14 @@ fun GoalPlan.toUiGoal(
         description = objetivo.descricao,
         projectionNote = projectionNote,
         planNote = planNote,
+        planShort = planShort,
         completedLabel = if (Completion.isDone(objetivo)) {
             objetivo.concluidoEm?.let { "Concluída em ${monthShort(it)}" } ?: "Concluída"
         } else null,
         exceeded = centsToReais((objetivo.valorGuardadoCentavos - objetivo.valorAlvoCentavos).coerceAtLeast(0)),
         monthlyNeeded = if (overdue) 0.0 else centsToReais(monthlyContributionNeededCents),
         missing = centsToReais(missingCents),
-        projectedAvailable = available?.takeIf { pace != GoalPace.Open }?.let(::centsToReais),
+        projectedAvailable = available?.takeIf { pace != GoalPace.Open && capacityKnown }?.let(::centsToReais),
         recommended = centsToReais(recommendedCents),
         headline = headline,
         openReserve = pace == GoalPace.Open,

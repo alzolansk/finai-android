@@ -234,7 +234,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             rawOrcamentos = orcamentos,
             rawTransacoesDoMes = transacoesDoMes,
             rawTransacoes = s.transacoes,
-            goals = goalPlans.filterNot { Completion.isDone(it.objetivo) }.map { it.toUiGoal(plan.goalNote(it), plan.forGoal(it.objetivo.id), plan.today) },
+            goals = goalPlans.filterNot { Completion.isDone(it.objetivo) }.map {
+                it.toUiGoal(plan.goalNote(it), plan.forGoal(it.objetivo.id), plan.today, capacityKnown = hasIncome, planShort = plan.goalNoteShort(it))
+            },
             completedGoals = goalPlans.filter { Completion.isDone(it.objetivo) }
                 .sortedByDescending { it.objetivo.concluidoEm ?: 0L }
                 .map { it.toUiGoal(today = plan.today) },
