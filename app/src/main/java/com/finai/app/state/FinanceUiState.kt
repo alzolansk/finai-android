@@ -76,6 +76,8 @@ data class FinanceUiState(
     val goalsOverview: com.finai.app.domain.GoalsOverview? = null,
     /** Pontos de atenção das metas, do mais grave ao menos grave. Calculados sem IA. */
     val goalInsights: List<com.finai.app.domain.GoalInsight> = emptyList(),
+    /** Quantos pontos de atenção atuais o usuário dispensou (para "Mostrar dispensados"). */
+    val dismissedInsightCount: Int = 0,
     /** O que a análise da IA das metas pode citar ([com.finai.app.domain.GoalPlanning.factsBlock]). */
     val goalFacts: String = "",
 

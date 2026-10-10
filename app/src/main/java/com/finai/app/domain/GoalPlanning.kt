@@ -75,7 +75,17 @@ data class GoalInsight(
     val goalIds: Set<Long> = emptySet(),
     /** Vale para o planejamento todo (lista do topo) ou só para os detalhes da meta. */
     val global: Boolean = true,
-)
+    /**
+     * Se for verdadeiro, a dispensa vale para sempre (o usuário decidiu, como "manter metas
+     * separadas"). Se for falso, o ponto volta quando a situação muda, porque a chave inclui o título
+     * com os números.
+     */
+    val permanentDismiss: Boolean = false,
+    val dismissLabel: String = "Dispensar",
+) {
+    /** O que fica gravado quando o usuário dispensa este ponto. */
+    val dismissKey: String get() = if (permanentDismiss) id else "$id|$title"
+}
 
 object GoalPlanning {
     /** Meses na média da sobra: um ano, o mesmo horizonte mínimo da projeção. */
@@ -132,6 +142,24 @@ object GoalPlanning {
      * muda uma decisão: nada de "meta concluída com sucesso" ou "continue guardando". Sem
      * nenhum, a lista vem vazia e a tela não mostra a seção.
      */
+    /** Chave da sobreposição entre duas metas, igual nos dois sentidos. */
+    fun overlapId(a: Long, b: Long) = "sobreposicao-${minOf(a, b)}-${maxOf(a, b)}"
+
+    /** Pares de metas que o usuário confirmou serem separadas, tirados das chaves dispensadas. */
+    fun confirmedSeparate(dismissed: Set<String>): Set<Pair<Long, Long>> = dismissed.mapNotNull { key ->
+        key.removePrefix("sobreposicao-").takeIf { it != key }?.split("-")?.takeIf { it.size == 2 }
+            ?.let { (a, b) -> a.toLongOrNull()?.let { x -> b.toLongOrNull()?.let { y -> x to y } } }
+    }.toSet()
+
+    /**
+     * Os pontos que sobram depois do que o usuário dispensou, e quantos ficaram escondidos (para
+     * a tela oferecer "Mostrar dispensados").
+     */
+    fun visible(all: List<GoalInsight>, dismissed: Set<String>): Pair<List<GoalInsight>, Int> {
+        val shown = all.filterNot { it.dismissKey in dismissed }
+        return shown to (all.size - shown.size)
+    }
+
     fun insights(
         plan: FinancialPlan,
         overview: GoalsOverview,
@@ -234,11 +262,12 @@ object GoalPlanning {
         // 7. Duas metas que parecem o mesmo gasto (contagem dupla no total).
         overlaps(needs).forEach { (a, b) ->
             out += GoalInsight(
-                id = "sobreposicao-${a.id}-${b.id}", severity = InsightSeverity.Attention,
+                id = overlapId(a.id, b.id), severity = InsightSeverity.Attention,
                 title = "\"${a.name}\" e \"${b.name}\" podem ser o mesmo gasto",
                 detail = "Se \"${b.name}\" já está no valor de \"${a.name}\", o total de ${brl(total)}/mês conta ${brl(b.neededCents)}/mês duas vezes. " +
                     "Escreva na descrição se ela fica fora, ou reduza o alvo.",
                 action = InsightAction.EditGoal, actionLabel = "Revisar meta", actionGoalId = b.id, goalIds = setOf(a.id, b.id),
+                permanentDismiss = true, dismissLabel = "Manter separadas",
             )
         }
 
@@ -338,6 +367,7 @@ object GoalPlanning {
         dividas: List<DividaEntity>,
         hasIncome: Boolean,
         today: LocalDate,
+        dismissed: Set<String> = emptySet(),
     ): String = buildString {
         appendLine("Hoje: ${dm(today)}/${today.year}.")
         appendLine("CONFIRMADO (lançado pelo usuário ou calculado das datas):")
@@ -403,6 +433,12 @@ object GoalPlanning {
         }
         appendLine("DADOS QUE O APP NÃO TEM: saldo em banco; histórico de aportes (só o total guardado em cada meta); rendimento das reservas.")
         appendLine("REGRA: dinheiro guardado em metas e reservas não é livre; só entra em outro objetivo se o usuário pedir.")
+        val names = plan.goals.associate { it.objetivo.id to it.objetivo.nome }
+        confirmedSeparate(dismissed).forEach { (a, b) ->
+            val na = names[a] ?: return@forEach
+            val nb = names[b] ?: return@forEach
+            appendLine("DECISÃO DO USUÁRIO: \"$na\" e \"$nb\" são metas separadas, sem contagem dupla. Não sugira juntar nem questione isso.")
+        }
         val shown = insights.filter { it.global }
         if (shown.isNotEmpty()) {
             appendLine("O USUÁRIO JÁ VÊ ESTES PONTOS NA TELA (não repita; aprofunde ou priorize):")

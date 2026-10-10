@@ -1054,6 +1054,17 @@ Ciclo antes do primeiro salário (10/10/2026, mesmo branch):
   falta); conferido que falha com a regra antiga (saldo 0). 176 testes JVM de `domain/` verdes.
 - Limite conhecido: dinheiro recebido no mês anterior, antes do primeiro salário, continua fora.
 
+Dispensar pontos de atenção (10/10/2026, mesmo branch):
+- **Relato:** o aviso "X e Y podem ser o mesmo gasto" não tinha saída; o usuário já tinha decidido manter as
+  duas metas separadas. Agora todo ponto aberto tem um botão de dispensa ao lado da ação.
+- Sobreposição: "Manter separadas", permanente (`GoalInsight.permanentDismiss`, chave
+  `sobreposicao-<menor id>-<maior id>`, não muda com aporte). A IA recebe "DECISÃO DO USUÁRIO: são metas
+  separadas" nos fatos. Os outros pontos: "Dispensar", com a chave `id|título`; como o título leva os
+  números, o aviso volta se a situação mudar.
+- Gravado em `FinaiPreferences.dismissedInsights`, lido no `combine` do `FinanceViewModel`
+  (`GoalPlanning.visible`). "Mostrar dispensados (N)" na seção desfaz tudo; "Apagar todos os dados" limpa.
+- 178 testes JVM de `domain/` verdes. UI não compilada aqui.
+
 **Decisão (26/09/2026): o app é para uso pessoal, não vai ser publicado na Play
 Store.** Isso fecha a Fase 6: os itens que só existiam por exigência da loja
 (keystore de assinatura de produção, `targetSdk` mínimo da Play, ficha/imagens/

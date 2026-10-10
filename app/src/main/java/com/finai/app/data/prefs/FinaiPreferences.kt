@@ -34,6 +34,21 @@ class FinaiPreferences(private val context: Context) {
         val KNOWN_ACCOUNTS = stringSetPreferencesKey("known_accounts")
         val TIPS_SEEN = stringSetPreferencesKey("tips_seen")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val DISMISSED_INSIGHTS = stringSetPreferencesKey("dismissed_insights")
+    }
+
+    /**
+     * Pontos de atenção de Objetivos que o usuário dispensou ([com.finai.app.domain.GoalInsight.dismissKey]).
+     * Apagado com "Apagar todos os dados", junto com as metas a que se refere.
+     */
+    val dismissedInsights: Flow<Set<String>> = context.dataStore.data.map { it[Keys.DISMISSED_INSIGHTS] ?: emptySet() }
+
+    suspend fun dismissInsight(key: String) {
+        context.dataStore.edit { it[Keys.DISMISSED_INSIGHTS] = (it[Keys.DISMISSED_INSIGHTS] ?: emptySet()) + key }
+    }
+
+    suspend fun clearDismissedInsights() {
+        context.dataStore.edit { it.remove(Keys.DISMISSED_INSIGHTS) }
     }
 
     /**

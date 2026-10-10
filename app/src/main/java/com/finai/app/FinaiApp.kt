@@ -340,6 +340,9 @@ fun FinaiApp(
                                     InsightAction.None -> Unit
                                 }
                             },
+                            dismissedCount = financeState.dismissedInsightCount,
+                            onDismissInsight = { insight -> financeViewModel.dismissInsight(insight.dismissKey) },
+                            onRestoreDismissed = { financeViewModel.restoreDismissedInsights() },
                         )
                     }
                     composable(FinaiDestination.Debts.route) {

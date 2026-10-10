@@ -148,4 +148,34 @@ class GoalPlanningTest {
         assertEquals("falta", insights.first().id)
         assertEquals(InsightSeverity.Risk, insights.first().severity)
     }
+
+    @Test fun keepingGoalsSeparateSilencesTheOverlapForGoodAndTellsTheAi() {
+        val (plan, overview, all) = build(listOf(italia, passagem))
+        val overlap = all.single { it.id.startsWith("sobreposicao") }
+        assertEquals("Manter separadas", overlap.dismissLabel)
+        assertEquals("sobreposicao-1-2", overlap.dismissKey)
+        val dismissed = setOf(overlap.dismissKey)
+
+        val (shown, hidden) = GoalPlanning.visible(all, dismissed)
+        assertTrue(shown.none { it.id.startsWith("sobreposicao") })
+        assertEquals(1, hidden)
+
+        // Depois de um aporte, o total muda, mas a decisão continua valendo.
+        val (_, _, later) = build(listOf(italia.copy(valorGuardadoCentavos = 300_000), passagem))
+        assertTrue(GoalPlanning.visible(later, dismissed).first.none { it.id.startsWith("sobreposicao") })
+
+        val facts = GoalPlanning.factsBlock(plan, overview, shown, emptyList(), true, today, dismissed)
+        assertTrue(facts, facts.contains("\"Itália 2028\" e \"Passagem Itália\" são metas separadas"))
+    }
+
+    @Test fun aDismissedNumberAlertComesBackWhenTheNumbersChange() {
+        val carro = meta(3, "Entrada Carro", 3_600_000, prazo = LocalDate.of(2027, 10, 1))
+        val (_, _, all) = build(listOf(italia, carro))
+        val conflito = all.single { it.id == "conflito" }
+        val dismissed = setOf(conflito.dismissKey)
+        assertTrue(GoalPlanning.visible(all, dismissed).first.none { it.id == "conflito" })
+        // Alvo maior, outro total: o aviso volta, porque é outra situação.
+        val (_, _, changed) = build(listOf(italia, carro.copy(valorAlvoCentavos = 4_800_000)))
+        assertTrue(GoalPlanning.visible(changed, dismissed).first.any { it.id == "conflito" })
+    }
 }

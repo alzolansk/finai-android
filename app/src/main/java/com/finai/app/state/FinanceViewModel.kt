@@ -68,6 +68,7 @@ import kotlinx.coroutines.launch
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = FinanceRepository(FinaiDatabase.get(application))
+    private val prefs = com.finai.app.data.prefs.FinaiPreferences(application)
 
     /**
      * Última falha de escrita no Room, para a tela avisar em vez de o app
@@ -137,7 +138,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }.combine(repository.assinaturas) { snapshot, assinaturas ->
         snapshot.copy(assinaturas = assinaturas)
     }.combine(repository.orcamentosDoMes(mesAtual)) { snapshot, orcamentos ->
-        buildState(snapshot, orcamentos)
+        snapshot to orcamentos
+    }.combine(prefs.dismissedInsights) { (snapshot, orcamentos), dismissed ->
+        buildState(snapshot, orcamentos, dismissed)
     }.catch { t ->
         // Uma exceção aqui (leitura do banco, ou um calculator diante de um dado
         // inesperado) cancelaria o StateFlow e levaria o app junto. Em vez disso
@@ -157,7 +160,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val assinaturas: List<AssinaturaEntity>,
     )
 
-    private fun buildState(s: Snapshot, orcamentos: List<OrcamentoCategoriaEntity>): FinanceUiState {
+    private fun buildState(s: Snapshot, orcamentos: List<OrcamentoCategoriaEntity>, dismissed: Set<String> = emptySet()): FinanceUiState {
         val today = LocalDate.now()
         // Uma conta só, lida por todas as telas e pela IA: ciclo dia a dia, disponível e o
         // destino único da sobra (dívida cara ou metas).
@@ -168,7 +171,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val hasIncome = s.transacoes.any { it.tipo == TransactionType.Receita.name && it.valorCentavos > 0 } ||
             s.contas.any { it.tipo == "a_receber" }
         val goalsOverview = com.finai.app.domain.GoalPlanning.overview(plan, hasIncome, today)
-        val goalInsights = com.finai.app.domain.GoalPlanning.insights(plan, goalsOverview, s.dividas, hasIncome, today)
+        // O que o usuário dispensou some da tela e da lista "já vê" da IA; a decisão de manter
+        // metas separadas vai para a IA como fato.
+        val (goalInsights, dismissedInsightCount) = com.finai.app.domain.GoalPlanning.visible(
+            com.finai.app.domain.GoalPlanning.insights(plan, goalsOverview, s.dividas, hasIncome, today), dismissed,
+        )
         val monthlyCapacityCents = plan.capacidadeMensalCents
         val savingsProjection = plan.projection
         val goalPlans = plan.goals
@@ -255,7 +262,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             goalsFundedCents = goalPlans.sumOf { it.monthlyContributionFundedCents },
             goalsOverview = goalsOverview,
             goalInsights = goalInsights,
-            goalFacts = com.finai.app.domain.GoalPlanning.factsBlock(plan, goalsOverview, goalInsights, s.dividas, hasIncome, today),
+            dismissedInsightCount = dismissedInsightCount,
+            goalFacts = com.finai.app.domain.GoalPlanning.factsBlock(plan, goalsOverview, goalInsights, s.dividas, hasIncome, today, dismissed),
             allBillsAndIncome = s.contas,
             debts = debtSummary.ordered.map { it.toUiDebt(plan.debtNote(it.divida)) },
             debtTotalLabel = formatBrl0(debtSummary.totalOpenCents / 100.0),
@@ -593,9 +601,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
      * volta o app para o fluxo de onboarding). Não mexe em chave de provedor
      * nem em contagem de cota: são configuração técnica, não dado financeiro.
      */
+    /** "Manter separadas" / "Dispensar" num ponto de atenção de Objetivos. */
+    fun dismissInsight(key: String) = launchSafely("dispensar o aviso") { prefs.dismissInsight(key) }
+
+    /** "Mostrar dispensados": todos os pontos voltam, inclusive "manter separadas". */
+    fun restoreDismissedInsights() = launchSafely("mostrar os avisos dispensados") { prefs.clearDismissedInsights() }
+
     fun apagarTodosOsDados(onDone: () -> Unit = {}) {
         launchSafely("apagar todos os dados") {
             repository.apagarTodosOsDados()
+            prefs.clearDismissedInsights()
             AiResponseCache.clear()
             FinaiNotifier(getApplication()).cancelAll()
             onDone()

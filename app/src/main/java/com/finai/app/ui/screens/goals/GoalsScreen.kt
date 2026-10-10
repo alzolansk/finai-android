@@ -102,6 +102,9 @@ fun GoalsScreen(
     onAnalyzePlan: () -> Unit,
     onAnalyzeGoal: (Goal) -> Unit,
     onInsightAction: (GoalInsight) -> Unit,
+    dismissedCount: Int = 0,
+    onDismissInsight: (GoalInsight) -> Unit = {},
+    onRestoreDismissed: () -> Unit = {},
 ) {
     var pendingDelete by remember { mutableStateOf<Goal?>(null) }
     var expanded by remember { mutableStateOf(setOf<String>()) }
@@ -123,7 +126,9 @@ fun GoalsScreen(
         item { PlanningCard(goals, overview, plan, onExplain) }
 
         if (goals.isNotEmpty()) {
-            item(key = "insights") { InsightsSection(topInsights, planAnalysis, onAnalyzePlan, onInsightAction) }
+            item(key = "insights") {
+                InsightsSection(topInsights, planAnalysis, onAnalyzePlan, onInsightAction, onDismissInsight, dismissedCount, onRestoreDismissed)
+            }
         }
 
         if (goals.isEmpty()) {
@@ -153,6 +158,7 @@ fun GoalsScreen(
                 onSimulate = { onSimulate(goal) },
                 onAnalyze = { onAnalyzeGoal(goal) },
                 onInsightAction = onInsightAction,
+                onDismissInsight = onDismissInsight,
                 modifier = Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard))
                     .then(if (first) Modifier.tipTarget("goals.card") else Modifier),
                 detailsModifier = if (first) Modifier.tipTarget("goals.details") else Modifier,
@@ -299,6 +305,9 @@ private fun InsightsSection(
     analysis: AiText?,
     onAnalyze: () -> Unit,
     onAction: (GoalInsight) -> Unit,
+    onDismiss: (GoalInsight) -> Unit,
+    dismissedCount: Int,
+    onRestoreDismissed: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -317,13 +326,19 @@ private fun InsightsSection(
             )
             TextAction(if (analysis == null) "Analisar com IA" else "Atualizar análise", onAnalyze)
         }
-        insights.forEach { insight -> InsightRow(insight, onAction) }
+        insights.forEach { insight -> InsightRow(insight, onAction, onDismiss) }
         if (analysis != null) AiAnalysisBlock(analysis, modifier = Modifier.padding(end = 8.dp, bottom = 10.dp))
+        // Desfaz qualquer dispensa, inclusive "manter separadas".
+        if (dismissedCount > 0) {
+            TextAction(
+                "Mostrar dispensados ($dismissedCount)", onRestoreDismissed, color = FinaiColors.TextTertiary,
+            )
+        }
     }
 }
 
 @Composable
-private fun InsightRow(insight: GoalInsight, onAction: (GoalInsight) -> Unit) {
+private fun InsightRow(insight: GoalInsight, onAction: (GoalInsight) -> Unit, onDismiss: (GoalInsight) -> Unit) {
     var open by remember(insight.id) { mutableStateOf(false) }
     val rotation by animateFloatAsState(if (open) 180f else 0f, finaiTween(FinaiMotion.Quick), label = "chevron")
     Column {
@@ -349,8 +364,14 @@ private fun InsightRow(insight: GoalInsight, onAction: (GoalInsight) -> Unit) {
         ) {
             Column(modifier = Modifier.padding(start = 18.dp, end = 8.dp, bottom = 10.dp)) {
                 Text(insight.detail, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary)
-                if (insight.action != InsightAction.None) {
-                    ActionButton(insight.actionLabel, { onAction(insight) }, modifier = Modifier.padding(top = 8.dp))
+                Row(
+                    modifier = Modifier.padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (insight.action != InsightAction.None) ActionButton(insight.actionLabel, { onAction(insight) })
+                    // Sem saída, um aviso já resolvido ficaria na tela até a meta acabar.
+                    TextAction(insight.dismissLabel, { onDismiss(insight) }, color = FinaiColors.TextSecondary)
                 }
             }
         }
@@ -449,6 +470,7 @@ private fun GoalCard(
     onSimulate: () -> Unit,
     onAnalyze: () -> Unit,
     onInsightAction: (GoalInsight) -> Unit,
+    onDismissInsight: (GoalInsight) -> Unit,
     modifier: Modifier = Modifier,
     detailsModifier: Modifier = Modifier,
 ) {
@@ -513,7 +535,7 @@ private fun GoalCard(
             enter = fadeIn(finaiTween(FinaiMotion.Standard)) + expandVertically(finaiTween(FinaiMotion.Standard)),
             exit = fadeOut(finaiTween(FinaiMotion.Quick)) + shrinkVertically(finaiTween(FinaiMotion.Standard)),
         ) {
-            GoalDetails(goal, insights, analysis, onSimulate, onAnalyze, onInsightAction, onEdit, onDelete)
+            GoalDetails(goal, insights, analysis, onSimulate, onAnalyze, onInsightAction, onDismissInsight, onEdit, onDelete)
         }
     }
 }
@@ -527,6 +549,7 @@ private fun GoalDetails(
     onSimulate: () -> Unit,
     onAnalyze: () -> Unit,
     onInsightAction: (GoalInsight) -> Unit,
+    onDismissInsight: (GoalInsight) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -549,7 +572,7 @@ private fun GoalDetails(
             Text(goal.description, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 8.dp))
         }
         if (insights.isNotEmpty()) {
-            Column(modifier = Modifier.padding(top = 8.dp)) { insights.forEach { InsightRow(it, onInsightAction) } }
+            Column(modifier = Modifier.padding(top = 8.dp)) { insights.forEach { InsightRow(it, onInsightAction, onDismissInsight) } }
         }
         Row(modifier = Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton("Simular cenários", onSimulate, modifier = Modifier.weight(1f))
