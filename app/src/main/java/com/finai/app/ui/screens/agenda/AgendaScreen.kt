@@ -270,12 +270,13 @@ fun AgendaScreen(
             val firstLancamentoKey = timeline.flatMap { it.second }.firstOrNull { it is AgendaEntry.Lancamento }?.key
             timeline.forEach { (date, entries) ->
                 item(key = "dia-" + (date?.toString() ?: "sem-dia")) {
-                    DayHeader(date, entries, today, Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard)))
+                    DayHeader(date, entries, today)
                 }
+                // Sem animateItemPlacement (como em Objetivos): a camada por item deixava
+                // pedaços da tela sem redesenhar.
                 item(key = "lista-" + (date?.toString() ?: "sem-dia")) {
                     Column(
                         modifier = Modifier
-                            .animateItemPlacement(finaiTween(FinaiMotion.Standard))
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
                             .background(FinaiColors.Surface),

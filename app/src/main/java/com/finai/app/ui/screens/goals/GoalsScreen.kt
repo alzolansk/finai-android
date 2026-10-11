@@ -186,8 +186,9 @@ fun GoalsScreen(
                 onInsightAction = onInsightAction,
                 onDismissInsight = onDismissInsight,
                 history = contributions[goal.id.toLongOrNull()].orEmpty(),
-                modifier = Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard))
-                    .then(if (first) Modifier.tipTarget("goals.card") else Modifier),
+                // Sem animateItemPlacement: a camada por item deixava a tela sem redesenhar
+                // (cartões sobrepostos). A expansão já anima a descida dos cartões de baixo.
+                modifier = if (first) Modifier.tipTarget("goals.card") else Modifier,
                 detailsModifier = if (first) Modifier.tipTarget("goals.details") else Modifier,
             )
         }
@@ -202,7 +203,6 @@ fun GoalsScreen(
             items(completedGoals, key = { "done-" + it.id }) { goal ->
                 CompletedGoalCard(
                     goal, onContribute = { onContribute(goal) }, onEdit = { onEdit(goal) }, onDelete = { pendingDelete = goal },
-                    modifier = Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard)),
                 )
             }
         }

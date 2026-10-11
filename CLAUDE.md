@@ -46,6 +46,12 @@ Segunda etapa (esta sessão, sem commit):
   novos (`TransactionEntryFlowTest`, `CardPurchaseFlowTest`, `EntryKeypadLayoutTest`,
   `ContributionRepositoryTest`, `Migration12To13Test`) **escritos, não executados**. Rodar
   `./gradlew assembleDebug testDebugUnitTest connectedDebugAndroidTest` antes de gerar APK.
+- **Bug de desenho em Objetivos e Agenda corrigido (11/10):** cartões sobrepostos, cortados e
+  buracos na lista, vistos no celular. Eram as duas únicas telas com `animateItemPlacement`
+  (cada item vira uma camada e se move sem regravar a tela) e, desde a barra de vidro, a tela
+  era desenhada a partir da cópia que o `glassSource` grava para o blur. Agora a tela é
+  desenhada direto (a cópia só alimenta o vidro) e as duas listas não usam mais
+  `animateItemPlacement`. Diagnóstico pelos prints; não reproduzido em emulador nesta sessão.
 
 **Fase 0 (Fundamentos), Fase 1 (MVP sem IA), Fase 2 (camada de IA com um
 provedor), Fase 3 (multi-provedor e resiliência), Fase 4 (importação de

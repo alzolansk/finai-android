@@ -41,11 +41,17 @@ import kotlin.math.roundToInt
  * Vidro de verdade para a barra de baixo (playbook 3a): o conteúdo que rola por trás
  * aparece desfocado e mais saturado dentro da pílula, não só um fundo semitransparente.
  *
- * Como funciona: [glassSource] grava o conteúdo das telas num [RenderNode] a cada
- * quadro em que ele é desenhado, e desenha esse nó na tela. A barra ([drawGlass])
- * desenha o mesmo nó outra vez, deslocado para a posição dela, dentro de um segundo nó
- * com `RenderEffect` (blur + saturação). O nó é desenhado por referência: quando a
- * lista rola, o vidro acompanha no mesmo quadro sem a barra precisar se redesenhar.
+ * Como funciona: [glassSource] desenha as telas direto na tela e grava uma cópia delas
+ * num [RenderNode] a cada quadro em que é desenhado. A barra ([drawGlass]) desenha essa
+ * cópia, deslocada para a posição dela, dentro de um segundo nó com `RenderEffect`
+ * (blur + saturação). O nó é desenhado por referência: quando a lista rola, o vidro
+ * acompanha no mesmo quadro sem a barra precisar se redesenhar.
+ *
+ * A tela nunca é desenhada a partir da cópia. Antes era: o conteúdo ia para a tela pelo
+ * mesmo nó que os efeitos de blur também desenhavam, e um item que só mexia a própria
+ * camada (lista com `animateItemPlacement`) deixava pedaços da tela sem redesenhar —
+ * cartões sobrepostos e buracos em Objetivos e na Agenda. Desenhando direto, o pior caso
+ * passa a ser o vidro atrasar um quadro, nunca a tela.
  *
  * Por que não a biblioteca Haze: a única versão compatível com o Compose 1.6 deste
  * projeto (0.7.x) não tem saturação, só desfoca a partir da API 32 e puxaria o Compose
@@ -78,11 +84,10 @@ fun Modifier.glassSource(backdrop: GlassBackdrop): Modifier {
     return this
         .onGloballyPositioned { backdrop.sourceInWindow = it.positionInWindow() }
         .drawWithContent {
+            // Na tela, sempre o caminho normal do Compose.
+            drawContent()
             val canvas = drawContext.canvas.nativeCanvas
-            if (!canvas.isHardwareAccelerated || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                drawContent()
-                return@drawWithContent
-            }
+            if (!canvas.isHardwareAccelerated || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@drawWithContent
             val node = backdrop.contentNode as RenderNode? ?: RenderNode("finaiGlassSource").also { backdrop.contentNode = it }
             node.setPosition(0, 0, size.width.roundToInt(), size.height.roundToInt())
             val recording = node.beginRecording()
@@ -93,7 +98,6 @@ fun Modifier.glassSource(backdrop: GlassBackdrop): Modifier {
             } finally {
                 node.endRecording()
             }
-            canvas.drawRenderNode(node)
             // Um nó com RenderEffect vira uma camada em cache no HWUI, e ela não é refeita
             // só porque o nó de conteúdo que ela desenha mudou. Regravar o efeito aqui, no
             // mesmo quadro em que o conteúdo mudou (rolagem), mantém o vidro em dia sem
