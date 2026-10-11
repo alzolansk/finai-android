@@ -229,13 +229,12 @@ data class PayCycle(
                 .takeWhile { it <= YearMonth.from(proximo) }.toList()
 
             val lancamentos = months.flatMap { m ->
-                transacoes.filter { it.faturaId == null && it.tipo != TransactionType.Transferencia.name }
+                transacoes.filter { it.faturaId == null && it.freeCashSign != 0 }
                     .transactionsInMonth(m.atDay(1))
             }.mapNotNull { t ->
                 val d = t.data.toLocalDate()
                 if (!inCycle(d)) return@mapNotNull null
-                val sign = if (t.tipo == TransactionType.Receita.name) 1 else -1
-                CycleEntry(d, t.descricao, sign * t.valorCentavos, done = !d.isAfter(today), CycleSource.Lancamento(t))
+                CycleEntry(d, t.descricao, t.freeCashSign * t.valorCentavos, done = !d.isAfter(today), CycleSource.Lancamento(t))
             }
 
             val contasEntries = contas.mapNotNull { c ->

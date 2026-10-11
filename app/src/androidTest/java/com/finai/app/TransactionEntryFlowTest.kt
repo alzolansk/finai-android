@@ -6,8 +6,11 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
 import com.finai.app.data.local.FinaiDatabase
+import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.repository.FinanceRepository
+import com.finai.app.domain.EntryReceipt
 import com.finai.app.domain.TransactionType
+import com.finai.app.domain.toEpochMillis
 import com.finai.app.domain.toLocalDate
 import com.finai.app.ui.components.TransactionEntryScreen
 import com.finai.app.ui.screens.agenda.AgendaScreen
@@ -17,6 +20,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
+import java.time.LocalDate
 
 class TransactionEntryFlowTest {
     @get:Rule val compose = createComposeRule()
@@ -25,13 +29,21 @@ class TransactionEntryFlowTest {
     @Test fun incomeRoomAndAgenda() = flow(TransactionType.Receita)
     @Test fun transferRoomAndAgenda() = flow(TransactionType.Transferencia)
 
+    /** A faixa de categorias é horizontal e preguiçosa: rola até o item antes de tocar. */
+    private fun pickCategory(name: String) {
+        compose.onNode(hasContentDescription("Categoria") and hasScrollAction()).performScrollToNode(hasText(name))
+        compose.onNodeWithText(name).performClick()
+    }
+
+    private fun noSave(): suspend (com.finai.app.data.local.entity.TransacaoEntity) -> EntryReceipt = { error("não deveria salvar") }
+
     private fun flow(type: TransactionType) {
-        val saveLabel = "Salvar ${type.label.lowercase(java.util.Locale("pt", "BR"))}"
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val name = "entry-test-${type.name}.db"
         context.deleteDatabase(name)
         var db = Room.databaseBuilder(context, FinaiDatabase::class.java, name).build()
         val repository = FinanceRepository(db)
+        val saveLabel = "Salvar ${type.label.lowercase(java.util.Locale("pt", "BR"))}"
         try {
             compose.setContent {
                 val entries by repository.transacoes.collectAsState(emptyList())
@@ -52,8 +64,8 @@ class TransactionEntryFlowTest {
                         )
                     }
                     TransactionEntryScreen(
-                        visible = visible, accounts = listOf("Nubank"),
-                        onDismiss = {}, onSave = { repository.salvarTransacao(it) }, onViewEntry = { visible = false },
+                        visible = visible, accounts = listOf("Nubank", "Inter"),
+                        onDismiss = {}, onSave = { repository.salvarLancamento(it) }, onViewEntry = { visible = false },
                     )
                 }
             }
@@ -62,28 +74,40 @@ class TransactionEntryFlowTest {
             compose.onNodeWithText("4").performClick()
             compose.onNodeWithText("3").performClick()
             compose.onNodeWithText("00").performClick()
-            compose.onNodeWithContentDescription("Valor: R$ 43,00").assertExists()
+            compose.onNodeWithContentDescription("Valor: Quarenta e três reais").assertExists()
             compose.onNodeWithContentDescription("Apagar dígito").performClick()
-            compose.onNodeWithContentDescription("Valor: R$ 4,30").assertExists()
-            compose.onNodeWithText(saveLabel).assertIsNotEnabled()
-            compose.onNodeWithText("Selecionar categoria").performScrollTo().performClick()
-            compose.onNodeWithText("Alimentação").performClick()
-            compose.onNodeWithText("Alimentação").performClick()
-            compose.onAllNodesWithText("Alimentação").filter(hasClickAction()).onLast().assertIsSelected()
-            compose.onNodeWithContentDescription("Fechar").performClick()
-            compose.onNodeWithContentDescription("Recorrente").performScrollTo().performClick()
+            compose.onNodeWithContentDescription("Valor: Quatro reais e trinta centavos").assertExists()
+            when (type) {
+                TransactionType.Gasto -> {
+                    // Valor > 0 sozinho não basta: falta a categoria.
+                    compose.onNodeWithText(saveLabel).assertIsNotEnabled()
+                    pickCategory("Alimentação"); compose.onNodeWithText("Alimentação").assertIsSelected()
+                    compose.onNodeWithContentDescription("Repetição: Todo mês").performScrollTo().performClick()
+                    compose.onAllNodesWithText("Todo mês").onLast().performClick()
+                }
+                TransactionType.Receita -> compose.onNodeWithText("Recorrente").performScrollTo().performClick().assertIsSelected()
+                TransactionType.Transferencia -> {
+                    // Entre contas: o destino é obrigatório e diferente da origem.
+                    compose.onNodeWithText("Outra conta").performClick()
+                    compose.onNodeWithText(saveLabel).assertIsNotEnabled()
+                    compose.onNodeWithText("Escolher conta").performScrollTo().performClick()
+                    compose.onNodeWithText("Inter").performClick()
+                }
+            }
             compose.onNodeWithText(saveLabel).assertIsDisplayed().assertIsEnabled().performClick()
-            compose.waitUntil(10000) { compose.onAllNodesWithText(type.confirmation).fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Ver lançamento").performClick()
+            compose.waitUntil(10000) { compose.onAllNodesWithText("Ver na agenda").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Desfazer").assertIsDisplayed()
+            compose.onNodeWithText("Ver na agenda").performClick()
             compose.onNodeWithText("Agenda").assertExists()
-            compose.onNode(hasScrollAction()).performScrollToNode(hasText("Alimentação"))
-            compose.onAllNodesWithText("Alimentação").onFirst().assertIsDisplayed()
             compose.runOnIdle {
                 val saved = runBlocking { repository.transacoes.first() }.single()
                 assertEquals(430L, saved.valorCentavos)
                 assertEquals(type.name, saved.tipo)
-                assertEquals(if (type == TransactionType.Receita) "" else "Nubank", saved.contaOrigem)
-                assertTrue(saved.recorrente)
+                when (type) {
+                    TransactionType.Gasto -> { assertEquals("Nubank", saved.contaOrigem); assertTrue(saved.recorrente); assertEquals("Alimentação", saved.categoria) }
+                    TransactionType.Receita -> { assertEquals("", saved.contaOrigem); assertTrue(saved.recorrente); assertFalse(saved.rendaPrincipal || saved.extra) }
+                    TransactionType.Transferencia -> { assertEquals("Nubank", saved.contaOrigem); assertEquals("Inter", saved.contaDestino); assertFalse(saved.recorrente); assertNull(saved.objetivoId) }
+                }
             }
             db.close()
             db = Room.databaseBuilder(context, FinaiDatabase::class.java, name).build()
@@ -93,44 +117,148 @@ class TransactionEntryFlowTest {
         } finally { db.close(); context.deleteDatabase(name) }
     }
 
+    /** Checklist: gasto comum em 3 toques (valor, categoria, salvar) e "Lançar outro" mantém o tipo. */
+    @Test fun commonExpenseInThreeTapsAndLaunchAnotherKeepsType() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val db = Room.inMemoryDatabaseBuilder(context, FinaiDatabase::class.java).build()
+        val repository = FinanceRepository(db)
+        try {
+            compose.setContent { FinaiTheme {
+                TransactionEntryScreen(visible = true, accounts = listOf("Nubank"), onDismiss = {},
+                    onSave = { repository.salvarLancamento(it) }, onViewEntry = {})
+            } }
+            compose.onNodeWithText("9").performClick()
+            pickCategory("Alimentação")
+            compose.onNodeWithText("Salvar gasto").performClick()
+            compose.waitUntil(10000) { compose.onAllNodesWithText("Lançar outro").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Lançar outro").performClick()
+            compose.onNodeWithText("Salvar gasto").assertIsDisplayed().assertIsNotEnabled()
+            compose.onNodeWithContentDescription("Valor: Zero reais").assertExists()
+            compose.onNodeWithText("7").assertIsDisplayed()
+            runBlocking { assertEquals(9L, repository.transacoes.first().single().valorCentavos) }
+        } finally { db.close() }
+    }
+
     @Test fun backPreservesDraftAndZeroWithCategoryCannotSave() {
         var visible by mutableStateOf(true)
         compose.setContent { FinaiTheme {
             TransactionEntryScreen(
                 visible = visible, accounts = listOf("Carteira"),
-                onDismiss = { visible = false }, onSave = {}, onViewEntry = {},
+                onDismiss = { visible = false }, onSave = noSave(), onViewEntry = {},
             )
         } }
-        compose.onNodeWithText("Selecionar categoria").performScrollTo().performClick()
-        compose.onNodeWithText("Saúde").performClick()
+        pickCategory("Saúde")
         compose.onNodeWithText("Salvar gasto").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Valor: R$ 0,00").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Valor: Zero reais").performScrollTo().performClick()
         compose.onNodeWithText("7").performClick()
         compose.onNodeWithContentDescription("Fechar lançamento").performClick()
         compose.runOnIdle { visible = true }
-        compose.onNodeWithContentDescription("Valor: R$ 0,07").assertExists()
-        compose.onNodeWithText("Saúde").assertExists()
+        compose.onNodeWithContentDescription("Valor: Sete centavos").assertExists()
+        compose.onNodeWithText("Saúde").assertIsSelected()
     }
 
     @Test fun keypadReturnsWhenTappingAmountAfterOtherFields() {
         compose.setContent { FinaiTheme {
-            TransactionEntryScreen(visible = true, accounts = listOf("Carteira"), onDismiss = {}, onSave = {}, onViewEntry = {})
+            TransactionEntryScreen(visible = true, accounts = listOf("Carteira"), onDismiss = {}, onSave = noSave(), onViewEntry = {})
         } }
         compose.onNodeWithText("4").performClick()
-        // Descrição focada (o caso do bug): o teclado próprio some...
-        compose.onNodeWithContentDescription("Descrição").performClick().performTextInput("Mercado")
+        // Categoria recolhe o teclado; tocar no valor o traz de volta.
+        pickCategory("Saúde")
         compose.waitUntil(3000) { compose.onAllNodesWithText("7").fetchSemanticsNodes().isEmpty() }
-        // ...e tocar no valor precisa trazê-lo de volta, e continuar digitando.
-        compose.onNodeWithContentDescription("Valor: R$ 0,04").performScrollTo().performClick()
+        compose.onNodeWithText("Toque para editar o valor").assertExists()
+        compose.onNodeWithContentDescription("Valor: Quatro centavos").performScrollTo().performClick()
         compose.waitUntil(3000) { compose.onAllNodesWithText("7").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("7").performClick()
-        compose.onNodeWithContentDescription("Valor: R$ 0,47").assertExists()
-        // Mesmo caminho depois de ir para outro campo (categoria).
-        compose.onNodeWithText("Selecionar categoria").performScrollTo().performClick()
-        compose.onNodeWithText("Saúde").performClick()
-        compose.waitUntil(3000) { compose.onAllNodesWithText("7").fetchSemanticsNodes().isEmpty() }
-        compose.onNodeWithContentDescription("Valor: R$ 0,47").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Valor: Quarenta e sete centavos").assertExists()
+        // Descrição abre num painel; ao voltar, o teclado volta no toque do valor.
+        compose.onNodeWithContentDescription("Descrição: Descrição").performScrollTo().performClick()
+        compose.onNode(hasSetTextAction() and hasContentDescription("Descrição")).performTextInput("Mercado")
+        compose.onNodeWithText("Pronto").performClick()
+        compose.onNodeWithContentDescription("Descrição: Mercado").assertExists()
+        compose.onNodeWithContentDescription("Valor: Quarenta e sete centavos").performScrollTo().performClick()
         compose.waitUntil(3000) { compose.onAllNodesWithText("7").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    /** Uma reserva: vem escolhida. Guardar grava transferência + aporte juntos; Desfazer reverte os dois. */
+    @Test fun singleReserveIsPreselectedAndUndoRevertsTransferAndContribution() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val db = Room.inMemoryDatabaseBuilder(context, FinaiDatabase::class.java).build()
+        val repository = FinanceRepository(db)
+        val goalId = runBlocking {
+            repository.salvarObjetivo(ObjetivoEntity(tipo = "Reserva", nome = "Reserva de emergência", valorAlvoCentavos = 0,
+                valorGuardadoCentavos = 1_000_00, prazo = LocalDate.now().plusYears(1).toEpochMillis(), prioridade = 1))
+        }
+        try {
+            compose.setContent {
+                val goals by repository.objetivos.collectAsState(emptyList())
+                FinaiTheme {
+                    TransactionEntryScreen(visible = true, accounts = listOf("Itaú"), onDismiss = {},
+                        onSave = noSave(), onViewEntry = {}, objetivos = goals, dailySpendingCents = 50_00,
+                        onSaveContribution = { repository.registrarAporte(it) }, onUndo = { repository.desfazer(it) })
+                }
+            }
+            compose.onNodeWithText("Transferência").performClick()
+            compose.onNodeWithText("Vai direto para").assertExists()
+            compose.onNodeWithText("5").performClick()
+            compose.onNodeWithText("00").performClick()
+            compose.onNodeWithText("00").performClick()
+            // Reserva contínua: saldo e cobertura, sem percentual.
+            compose.onNodeWithText("R$ 1.000,00 → R$ 1.500,00").assertExists()
+            compose.onAllNodesWithText("%", substring = true).assertCountEquals(0)
+            compose.onNodeWithText("Guardar na reserva").assertIsEnabled().performClick()
+            compose.waitUntil(10000) { compose.onAllNodesWithText("Desfazer").fetchSemanticsNodes().isNotEmpty() }
+            runBlocking {
+                val t = repository.transacoes.first().single()
+                assertEquals(goalId, t.objetivoId); assertEquals("Transferencia", t.tipo); assertEquals(500_00L, t.valorCentavos)
+                assertEquals(1_500_00L, repository.objetivos.first().single().valorGuardadoCentavos)
+            }
+            compose.onNodeWithText("Desfazer").performClick()
+            compose.waitUntil(10000) { compose.onAllNodesWithText("Guardar na reserva").fetchSemanticsNodes().isNotEmpty() }
+            // Volta ao formulário preenchido.
+            compose.onNodeWithContentDescription("Valor: Quinhentos reais").assertExists()
+            runBlocking {
+                assertTrue(repository.transacoes.first().isEmpty())
+                assertEquals(1_000_00L, repository.objetivos.first().single().valorGuardadoCentavos)
+            }
+        } finally { db.close() }
+    }
+
+    @Test fun twoReservesBlockSaveUntilChosenAndNoneOffersCreation() {
+        var goals by mutableStateOf(emptyList<ObjetivoEntity>())
+        var createAsked = false
+        compose.setContent { FinaiTheme {
+            TransactionEntryScreen(visible = true, accounts = listOf("Itaú"), onDismiss = {}, onSave = noSave(), onViewEntry = {},
+                objetivos = goals, onSaveContribution = { error("não deveria salvar") }, onCreateGoal = { createAsked = it })
+        } }
+        compose.onNodeWithText("Transferência").performClick()
+        compose.onNodeWithText("3").performClick()
+        compose.onNodeWithText("Criar reserva").performScrollTo().performClick()
+        compose.runOnIdle { assertTrue(createAsked) }
+        val prazo = LocalDate.now().plusYears(1).toEpochMillis()
+        compose.runOnIdle {
+            goals = listOf(
+                ObjetivoEntity(id = 1, tipo = "Reserva", nome = "Emergência", valorAlvoCentavos = 20_000_00, valorGuardadoCentavos = 12_400_00, prazo = prazo, prioridade = 1),
+                ObjetivoEntity(id = 2, tipo = "Reserva", nome = "Chile", valorAlvoCentavos = 10_000_00, valorGuardadoCentavos = 3_800_00, prazo = prazo, prioridade = 2),
+            )
+        }
+        compose.onNodeWithText("Qual reserva?").assertExists()
+        compose.onNodeWithText("Guardar na reserva").assertIsNotEnabled()
+        compose.onNodeWithText("Emergência").performClick()
+        compose.onNodeWithText("Guardar na reserva").assertIsEnabled()
+    }
+
+    @Test fun incomeKindsAreExclusive() {
+        compose.setContent { FinaiTheme {
+            TransactionEntryScreen(visible = true, accounts = listOf("Carteira"), onDismiss = {}, onSave = noSave(), onViewEntry = {})
+        } }
+        compose.onNodeWithText("Receita").performClick()
+        compose.onNodeWithText("Avulsa").assertIsSelected()
+        compose.onNodeWithText("Salário").performClick().assertIsSelected()
+        compose.onNodeWithText("Avulsa").assertIsNotSelected()
+        compose.onNodeWithText("Extra").performClick().assertIsSelected()
+        compose.onNodeWithText("Salário").assertIsNotSelected()
+        // "Todo mês" só existe no gasto no débito.
+        compose.onAllNodesWithContentDescription("Repetição: Todo mês").assertCountEquals(0)
     }
 
     @Test fun migrationPreservesExistingExpense() {
@@ -154,6 +282,7 @@ class TransactionEntryFlowTest {
             assertEquals("Preservar", entry.descricao)
             assertEquals("Gasto", entry.tipo)
             assertEquals(null, entry.faturaId)
+            assertEquals(null, entry.objetivoId)
         } finally { migrated.close(); context.deleteDatabase(name) }
     }
 
@@ -162,11 +291,10 @@ class TransactionEntryFlowTest {
         var saves = 0
         compose.setContent { FinaiTheme {
             TransactionEntryScreen(visible = true, accounts = listOf("Carteira"), onDismiss = {},
-                onSave = { saves++; completion.await() }, onViewEntry = {})
+                onSave = { saves++; completion.await(); EntryReceipt(TransactionType.Gasto, listOf(1L), LocalDate.now()) }, onViewEntry = {})
         } }
         compose.onNodeWithText("5").performClick()
-        compose.onNodeWithText("Selecionar categoria").performScrollTo().performClick()
-        compose.onNodeWithText("Saúde").performClick()
+        pickCategory("Saúde")
         val action = compose.onNodeWithText("Salvar gasto").fetchSemanticsNode()
             .config[androidx.compose.ui.semantics.SemanticsActions.OnClick].action!!
         compose.runOnIdle { action(); action() }

@@ -15,9 +15,11 @@ import java.time.YearMonth
  * - Sai: contas a pagar que vencem no mês (a fatura do cartão entra aqui, pelo
  *   vencimento), gastos lançados no mês (recorrentes pela ocorrência do mês) e as
  *   parcelas de dívida ainda em aberto que vencem no mês.
+ * - Aportes (transferência para objetivo/reserva) também saem do balanço, mas à parte:
+ *   [toPayCents] continua sendo "contas a pagar" e o gasto médio da reserva não os conta.
  * - Entra: contas a receber do mês e receitas lançadas no mês.
  * - Itens de fatura (`faturaId`) ficam de fora — já estão dentro do valor da fatura.
- *   Transferência é neutra.
+ *   Transferência entre contas é neutra ([freeCashSign]).
  *
  * Parcela paga some da projeção ([DebtSchedule.afterPayment]) e passa a contar pelo
  * gasto que o pagamento grava, então pagar não mexe no saldo — só confirma a saída.
@@ -32,12 +34,15 @@ data class MonthCashFlow(
     private val lancamentos get() = recorrentes + avulsas
     private val gastos get() = lancamentos.filter { it.tipo == TransactionType.Gasto.name }
     private val receitas get() = lancamentos.filter { it.tipo == TransactionType.Receita.name }
+    private val aportes get() = lancamentos.filter { it.isGoalContribution }
 
     val toPayCents: Long get() = payable.sumOf { it.valorCentavos } + gastos.sumOf { it.valorCentavos } + debtsDue.sumOf { it.valorCentavos }
     val toPayCount: Int get() = payable.size + gastos.size + debtsDue.size
     val toGetCents: Long get() = receivable.sumOf { it.valorCentavos } + receitas.sumOf { it.valorCentavos }
     val toGetCount: Int get() = receivable.size + receitas.size
-    val saldoCents: Long get() = toGetCents - toPayCents
+    /** Guardado em objetivos e reservas no mês: saiu do livre sem ser gasto. */
+    val aportesCents: Long get() = aportes.sumOf { it.valorCentavos }
+    val saldoCents: Long get() = toGetCents - toPayCents - aportesCents
 
     companion object {
         fun of(

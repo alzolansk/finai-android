@@ -62,6 +62,8 @@ import com.finai.app.domain.MONTH_ABBREV_PT
 import com.finai.app.domain.MONTH_NAMES_PT
 import com.finai.app.domain.DebtSchedule
 import com.finai.app.domain.PayCycle
+import com.finai.app.domain.freeCashSign
+import androidx.compose.foundation.gestures.scrollBy
 import com.finai.app.ui.components.EntryGlyph
 import com.finai.app.domain.toLocalDate
 import com.finai.app.ui.components.ConfirmDeleteDialog
@@ -113,6 +115,9 @@ fun AgendaScreen(
     onSequentialChange: (Boolean) -> Unit = {},
     cashFlow: com.finai.app.domain.CashFlowTimeline? = null,
     onAddMainIncome: () -> Unit = {},
+    /** Item recém-lançado ("Ver na agenda" do lançamento): a lista rola até ele e o destaca. */
+    highlight: com.finai.app.domain.AgendaHighlight? = null,
+    onHighlightShown: () -> Unit = {},
 ) {
     var pendingDeleteTransaction by remember { mutableStateOf<TransacaoEntity?>(null) }
     var pendingDeleteBill by remember { mutableStateOf<Bill?>(null) }
@@ -241,6 +246,26 @@ fun AgendaScreen(
                     }
                 }
             }
+            val highlightKeys = highlight?.keys.orEmpty()
+            val highlightDay = timeline.firstOrNull { (_, entries) -> entries.any { it.key in highlightKeys } }
+                ?.let { "lista-" + (it.first?.toString() ?: "sem-dia") }
+            if (highlightDay != null) item(key = "destaque-efeito") {
+                // Rola até o dia do item: as linhas fora da tela ainda não existem, então anda
+                // de tela em tela até ele aparecer.
+                androidx.compose.runtime.LaunchedEffect(highlightDay) {
+                    for (step in 0 until 40) {
+                        val found = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == highlightDay }
+                        if (found != null) {
+                            if (reducedMotion) listState.scrollToItem(found.index, -80) else listState.animateScrollToItem(found.index, -80)
+                            break
+                        }
+                        if (!listState.canScrollForward) break
+                        listState.scrollBy(listState.layoutInfo.viewportSize.height * .8f)
+                    }
+                    kotlinx.coroutines.delay(2600)
+                    onHighlightShown()
+                }
+            }
             val firstBillKey = timeline.flatMap { it.second }.firstOrNull { it is AgendaEntry.Conta }?.key
             val firstLancamentoKey = timeline.flatMap { it.second }.firstOrNull { it is AgendaEntry.Lancamento }?.key
             timeline.forEach { (date, entries) ->
@@ -261,7 +286,7 @@ fun AgendaScreen(
                                 firstBillKey -> Modifier.tipTarget("agenda.bill")
                                 firstLancamentoKey -> Modifier.tipTarget("agenda.transactions")
                                 else -> Modifier
-                            }
+                            }.then(if (entry.key in highlightKeys) Modifier.highlightFlash(reducedMotion) else Modifier)
                             when (entry) {
                                 is AgendaEntry.Conta -> BillRow(
                                     entry.bill, onToggleContaPaga,
@@ -372,11 +397,8 @@ private sealed interface AgendaEntry {
             transacao.recorrente -> 2
             else -> 3
         }
-        override val signedCents get() = when (transacao.tipo) {
-            "Receita" -> transacao.valorCentavos
-            "Transferencia" -> 0L
-            else -> -transacao.valorCentavos
-        }
+        // Mesma regra do livre: aporte sai, transferência entre contas é neutra.
+        override val signedCents get() = transacao.freeCashSign * transacao.valorCentavos
     }
 }
 
@@ -675,7 +697,8 @@ private fun TransacaoRow(
                     if (transacao.extra) Tag.Extra else null,
                     if (transacao.origem == "importado") Tag.Importado else null,
                 ),
-                transacao.categoria.takeIf { transacao.tipo == "Gasto" },
+                transacao.categoria.takeIf { transacao.tipo == "Gasto" }
+                    ?: transacao.contaDestino?.takeIf { transacao.tipo == "Transferencia" }?.let { "para $it" },
             )
         },
         trailing = {
@@ -703,4 +726,17 @@ private fun TransacaoRow(
             OverflowAction(if (transacao.origem == DebtSchedule.PAYMENT_ORIGIN) "Desfazer pagamento" else "Excluir", destructive = true) { onDelete(transacao) },
         ),
     )
+}
+
+/** Fundo verde que aparece e se desfaz em ~2,4 s no item recém-lançado. Sem animação: fica fixo. */
+@Composable
+private fun Modifier.highlightFlash(reduced: Boolean): Modifier {
+    val alpha = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(if (reduced) 1f else 0f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (reduced) return@LaunchedEffect
+        alpha.animateTo(1f, tween(300))
+        kotlinx.coroutines.delay(1400)
+        alpha.animateTo(0f, tween(700))
+    }
+    return this.background(FinaiColors.EmeraldSoftBg.copy(alpha = alpha.value))
 }

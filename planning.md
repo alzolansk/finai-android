@@ -297,6 +297,23 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
   vencimento quando os dados não permitirem determinar a fatura com segurança.
   Essas decisões não significam que a refatoração já foi implementada.
 
+- **Lançamento de transações, decisões tomadas em 11/10/2026 na implementação (aguardando
+  confirmação do usuário):**
+  - **Aporte tira do livre, uma vez.** Toda transferência para objetivo/reserva grava a
+    transferência e soma no objetivo juntas; o livre (ciclo, balanço do mês, Agenda) desconta o
+    valor, e nada lê o valor guardado como livre. Vale também para "Registrar aporte" em Objetivos
+    (pedido de 29/09), com a origem = conta usada por último. O balanço do mês da Início passa a
+    descontar aportes do mês. Transferência entre contas continua neutra.
+  - **Destino "Reserva"** lista objetivos do tipo Reserva (com ou sem alvo) e reservas contínuas;
+    **"Objetivo"** lista as demais metas em andamento. O playbook fala só de reserva contínua, mas o
+    exemplo dele tem alvo e percentual.
+  - **Receita não tem faixa de categoria:** o tipo (Salário, Recorrente, Avulsa, Extra) é a escolha,
+    e é ele que vai na categoria gravada. As nove categorias são de gasto.
+  - **"Todo mês" só no gasto no débito/Pix.** Transferência não repete; receita repete pelo tipo.
+  - **Fatura "segura"** só quando o cartão tem fatura em aberto com fechamento informado e a compra
+    cai entre o fechamento anterior (projetado, com 3 dias de folga) e o dela. Fora disso o app
+    sugere pelo dia da última fatura e pede confirmação; primeira compra no cartão pede a data.
+
 - **Plano financeiro central, respondida em 28/09/2026:** o plano **não aloca** a sobra
   automaticamente. Ele decide qual destino é recomendado (dívida cara, depois metas por
   prioridade) e impede recomendações contraditórias entre telas, mas recomendação não é

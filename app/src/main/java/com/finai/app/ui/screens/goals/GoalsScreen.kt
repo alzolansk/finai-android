@@ -110,6 +110,8 @@ fun GoalsScreen(
     dismissedCount: Int = 0,
     onDismissInsight: (GoalInsight) -> Unit = {},
     onRestoreDismissed: () -> Unit = {},
+    /** Aportes gravados por objetivo (transferências vinculadas), para o histórico nos detalhes. */
+    contributions: Map<Long, List<com.finai.app.domain.ContributionRecord>> = emptyMap(),
 ) {
     var pendingDelete by remember { mutableStateOf<Goal?>(null) }
     var expanded by remember { mutableStateOf(setOf<String>()) }
@@ -183,6 +185,7 @@ fun GoalsScreen(
                 onAnalyze = { onAnalyzeGoal(goal) },
                 onInsightAction = onInsightAction,
                 onDismissInsight = onDismissInsight,
+                history = contributions[goal.id.toLongOrNull()].orEmpty(),
                 modifier = Modifier.animateItemPlacement(finaiTween(FinaiMotion.Standard))
                     .then(if (first) Modifier.tipTarget("goals.card") else Modifier),
                 detailsModifier = if (first) Modifier.tipTarget("goals.details") else Modifier,
@@ -558,6 +561,7 @@ private fun GoalCard(
     onAnalyze: () -> Unit,
     onInsightAction: (GoalInsight) -> Unit,
     onDismissInsight: (GoalInsight) -> Unit,
+    history: List<com.finai.app.domain.ContributionRecord> = emptyList(),
     modifier: Modifier = Modifier,
     detailsModifier: Modifier = Modifier,
 ) {
@@ -647,7 +651,7 @@ private fun GoalCard(
             enter = fadeIn(finaiTween(FinaiMotion.Standard)) + expandVertically(finaiTween(FinaiMotion.Standard)),
             exit = fadeOut(finaiTween(FinaiMotion.Quick)) + shrinkVertically(finaiTween(FinaiMotion.Standard)),
         ) {
-            GoalDetails(goal, insights, analysis, onSimulate, onAnalyze, onInsightAction, onDismissInsight, onEdit, onDelete)
+            GoalDetails(goal, insights, analysis, onSimulate, onAnalyze, onInsightAction, onDismissInsight, onEdit, onDelete, history)
         }
     }
 }
@@ -667,6 +671,7 @@ private fun GoalDetails(
     onDismissInsight: (GoalInsight) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    history: List<com.finai.app.domain.ContributionRecord>,
 ) {
     var analysisOpen by remember(goal.id) { mutableStateOf(analysis != null) }
     Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
@@ -690,6 +695,16 @@ private fun GoalDetails(
         }
         if (insights.isNotEmpty()) {
             Column(modifier = Modifier.padding(top = 6.dp)) { insights.forEach { InsightRow(it, onInsightAction, onDismissInsight) } }
+        }
+        // Histórico: cada aporte é a transferência que o gravou (excluí-la na Agenda tira o valor).
+        if (history.isNotEmpty()) {
+            Text("Aportes", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary, modifier = Modifier.padding(top = 12.dp))
+            Column(modifier = Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                history.take(5).forEach { a ->
+                    DetailRow("${com.finai.app.domain.EntryOptions.dayMonth(a.date)} · ${a.originLabel}", "+ " + com.finai.app.util.formatBrl(a.cents / 100.0), FinaiColors.EmeraldDark)
+                }
+                if (history.size > 5) Text("e mais ${history.size - 5} na Agenda", fontSize = 12.sp, color = FinaiColors.TextTertiary)
+            }
         }
         Row(modifier = Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton("Simular aporte", onSimulate, modifier = Modifier.weight(1f))

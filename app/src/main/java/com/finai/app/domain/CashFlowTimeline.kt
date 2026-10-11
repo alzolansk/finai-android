@@ -294,10 +294,9 @@ data class CashFlowTimeline(
                         val sign = if (conta.tipo == "a_receber") 1 else -1
                         add(CycleEntry(conta.vencimento.toLocalDate(), conta.nome, sign * conta.valorCentavos, conta.status == "pago", CycleSource.Conta(conta)))
                     }
-                    (flow.recorrentes + flow.avulsas).filter { it.tipo != TransactionType.Transferencia.name }.forEach { t ->
+                    (flow.recorrentes + flow.avulsas).filter { it.freeCashSign != 0 }.forEach { t ->
                         val d = t.data.toLocalDate()
-                        val sign = if (t.tipo == TransactionType.Receita.name) 1 else -1
-                        add(CycleEntry(d, t.descricao, sign * t.valorCentavos, !d.isAfter(today), CycleSource.Lancamento(t)))
+                        add(CycleEntry(d, t.descricao, t.freeCashSign * t.valorCentavos, !d.isAfter(today), CycleSource.Lancamento(t)))
                     }
                     flow.debtsDue.forEach { p ->
                         add(CycleEntry(p.vencimento ?: maxOf(m.atDay(1), today), p.divida.nome, -p.valorCentavos, false, CycleSource.Parcela(p)))

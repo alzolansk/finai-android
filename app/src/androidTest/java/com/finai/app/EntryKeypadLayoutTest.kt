@@ -46,7 +46,7 @@ class EntryKeypadLayoutTest {
                 FinaiTheme(darkTheme = dark) {
                     Box(Modifier.requiredSize(width.dp, height.dp)) {
                         TransactionEntryScreen(visible = true, accounts = listOf("Carteira"),
-                            onDismiss = {}, onSave = {}, onViewEntry = {})
+                            onDismiss = {}, onSave = { error("não salva") }, onViewEntry = {})
                     }
                 }
             }
@@ -70,11 +70,11 @@ class EntryKeypadLayoutTest {
         val topKey = compose.onNodeWithContentDescription("1").fetchSemanticsNode().boundsInRoot
         if (width > height) assertTrue("Save must sit beside the keypad", save.right <= topKey.left)
         else assertTrue("Save must sit above the keypad", save.bottom <= topKey.top)
-        compose.onNodeWithText("Selecionar categoria").performScrollTo()
+        compose.onNodeWithText("Alimentação").performScrollTo()
         compose.onNodeWithText("Transferência").assertIsDisplayed().performClick().assertIsSelected()
-        compose.onNodeWithText("Salvar transferência").assertIsDisplayed()
+        compose.onNodeWithText("Guardar na reserva").assertIsDisplayed()
         compose.onNodeWithText("Gasto").performClick()
-        compose.onNodeWithContentDescription("Valor: R$ 0,00").performScrollTo()
+        compose.onNodeWithContentDescription("Valor: Zero reais").performScrollTo()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val file = File(context.getExternalFilesDir(null), "entry-${width}-${height}-${fontScale}-${dark}.png")
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()

@@ -245,6 +245,11 @@ fun FinaiApp(
     /** "Informar renda" da Início: abre a receita já marcada como renda principal (Fase 7, item 5). */
     var transactionEntryInitialMain by rememberSaveable { mutableStateOf(false) }
     var showAddGoal by remember { mutableStateOf(false) }
+    /** Criação de objetivo pedida pelo destino da transferência (volta ao lançamento ao terminar). */
+    var goalCreateFromEntry by rememberSaveable { mutableStateOf(false) }
+    var goalCreateKind by rememberSaveable { mutableStateOf<String?>(null) }
+    /** Item recém-lançado que a Agenda destaca ao abrir pelo "Ver na agenda". */
+    var agendaHighlight by remember { mutableStateOf<com.finai.app.domain.AgendaHighlight?>(null) }
     var showAddDivida by remember { mutableStateOf(false) }
     var contributionTarget by remember { mutableStateOf<Goal?>(null) }
     var budgetLimitTarget by remember { mutableStateOf<String?>(null) }
@@ -364,6 +369,8 @@ fun FinaiApp(
                             onSequentialChange = viewModel::setAgendaSequential,
                             cashFlow = financeState.cashFlow,
                             onAddMainIncome = { transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name; transactionEntryInitialMain = true; showAddTransaction = true },
+                            highlight = agendaHighlight,
+                            onHighlightShown = { agendaHighlight = null },
                         )
                     }
                     composable(FinaiDestination.Goals.route) {
@@ -411,6 +418,9 @@ fun FinaiApp(
                             dismissedCount = financeState.dismissedInsightCount,
                             onDismissInsight = { insight -> financeViewModel.dismissInsight(insight.dismissKey) },
                             onRestoreDismissed = { financeViewModel.restoreDismissedInsights() },
+                            contributions = remember(financeState.rawTransacoes) {
+                                com.finai.app.domain.ContributionRecord.byGoal(financeState.rawTransacoes)
+                            },
                         )
                     }
                     composable(FinaiDestination.Debts.route) {
@@ -748,27 +758,51 @@ fun FinaiApp(
             )
         }
 
+        // Listas do lançamento: o usado por último primeiro, lido do Room (nada fixo).
+        val entryCards = remember(financeState.rawFaturasCartao, financeState.rawTransacoes) {
+            com.finai.app.domain.EntryOptions.knownCards(financeState.rawFaturasCartao, financeState.rawTransacoes)
+        }
+        val entryAccounts = remember(financeState.rawTransacoes, entryCards, knownAccounts) {
+            com.finai.app.domain.EntryOptions.recentAccounts(financeState.rawTransacoes, entryCards, knownAccounts)
+        }
+        val entryCategories = remember(financeState.rawTransacoes) {
+            com.finai.app.domain.EntryOptions.categoriesByRecentUse(financeState.rawTransacoes)
+        }
+        val closeEntry = {
+            showAddTransaction = false
+            transactionEntryInitialType = com.finai.app.domain.TransactionType.Gasto.name
+            transactionEntryInitialExtra = false; transactionEntryInitialMain = false
+        }
         TransactionEntryScreen(
             visible = showAddTransaction,
             // Only gasto/transferência origins feed the "conta/cartão" picker — a receita's
             // origem (ex.: nome da empresa) não é uma conta e não deve virar opção permanente
             // aqui (ver nota em TransactionEntryScreen sobre incomeSources).
-            accounts = (financeState.rawTransacoes.filter { it.tipo != com.finai.app.domain.TransactionType.Receita.name }
-                .map { it.contaOrigem } + knownAccounts).distinct(),
-            incomeSources = financeState.rawTransacoes.filter { it.tipo == com.finai.app.domain.TransactionType.Receita.name }
-                .map { it.contaOrigem }.distinct(),
+            accounts = entryAccounts,
+            incomeSources = remember(financeState.rawTransacoes) {
+                com.finai.app.domain.EntryOptions.recentIncomeSources(financeState.rawTransacoes)
+            },
             initialType = com.finai.app.domain.TransactionType.valueOf(transactionEntryInitialType),
             initialExtra = transactionEntryInitialExtra,
             initialMainIncome = transactionEntryInitialMain,
-            onDismiss = { showAddTransaction = false; transactionEntryInitialType = com.finai.app.domain.TransactionType.Gasto.name; transactionEntryInitialExtra = false; transactionEntryInitialMain = false },
+            onDismiss = closeEntry,
             onSave = financeViewModel::saveTransactionEntry,
             onSaveCard = financeViewModel::saveCardPurchase,
-            cards = financeState.rawFaturasCartao.map { it.referencia }.distinct(),
-            onViewEntry = { date ->
-                viewModel.showAgendaDate(date)
-                showAddTransaction = false
-                transactionEntryInitialType = com.finai.app.domain.TransactionType.Gasto.name
-                transactionEntryInitialExtra = false; transactionEntryInitialMain = false
+            cards = entryCards,
+            categories = entryCategories,
+            objetivos = financeState.rawObjetivos,
+            faturas = financeState.rawFaturasCartao,
+            contas = financeState.rawContas,
+            dailySpendingCents = financeState.averageDailySpendingCents,
+            onSaveContribution = financeViewModel::saveContribution,
+            onUndo = financeViewModel::undoEntry,
+            // Sem reserva/objetivo de destino: abre a criação por cima e volta ao lançamento.
+            onCreateGoal = { reserve -> goalCreateKind = if (reserve) "Reserva" else null; goalCreateFromEntry = true; showAddGoal = true },
+            onFinished = financeViewModel::releaseContributionCelebration,
+            onViewEntry = { receipt ->
+                agendaHighlight = com.finai.app.domain.AgendaHighlight.of(receipt)
+                viewModel.showAgendaDate(receipt.agendaDate)
+                closeEntry()
                 navigateTo(FinaiDestination.Agenda)
             },
         )
@@ -779,8 +813,14 @@ fun FinaiApp(
             averageSurplusCents = financeState.goalsOverview?.averageSurplusCents,
             otherGoalsMonthlyCents = financeState.goalsOverview?.totalMonthlyCents ?: 0,
             onCreate = financeViewModel::saveObjetivo,
-            onViewGoals = { showAddGoal = false; navigateTo(FinaiDestination.Goals) },
-            onDismiss = { showAddGoal = false },
+            // Aberta pelo lançamento: "ver objetivos" volta para o lançamento, que já mostra o novo destino.
+            onViewGoals = {
+                showAddGoal = false
+                if (goalCreateFromEntry) goalCreateFromEntry = false else navigateTo(FinaiDestination.Goals)
+                goalCreateKind = null
+            },
+            onDismiss = { showAddGoal = false; goalCreateFromEntry = false; goalCreateKind = null },
+            initialTipo = goalCreateKind,
         )
 
         GoalEditScreen(

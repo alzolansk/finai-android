@@ -3,10 +3,10 @@ package com.finai.app.domain.scenario
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
+import com.finai.app.domain.freeCashSign
 import com.finai.app.domain.DebtSchedule
 import com.finai.app.domain.MonthCashFlow
 import com.finai.app.domain.PayCycle
-import com.finai.app.domain.TransactionType
 import com.finai.app.domain.toEpochMillis
 import com.finai.app.domain.toLocalDate
 import java.time.LocalDate
@@ -140,8 +140,8 @@ object PeriodProjection {
                 val entries = buildList {
                     flow.payable.forEach { add(it.vencimento.toLocalDate() to -it.valorCentavos) }
                     flow.receivable.forEach { add(it.vencimento.toLocalDate() to it.valorCentavos) }
-                    (flow.recorrentes + flow.avulsas).filter { it.tipo != TransactionType.Transferencia.name }.forEach {
-                        add(it.data.toLocalDate() to if (it.tipo == TransactionType.Receita.name) it.valorCentavos else -it.valorCentavos)
+                    (flow.recorrentes + flow.avulsas).filter { it.freeCashSign != 0 }.forEach {
+                        add(it.data.toLocalDate() to it.freeCashSign * it.valorCentavos)
                     }
                     flow.debtsDue.forEach { add(maxOf(it.vencimento ?: from, from) to -it.valorCentavos) }
                 }
