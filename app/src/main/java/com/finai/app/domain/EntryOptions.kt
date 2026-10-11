@@ -85,7 +85,7 @@ object EntryOptions {
      * Contas de débito/Pix já usadas, a mais recente primeiro, sem os cartões; Carteira no fim
      * quando não aparece. É o que já vem preenchido na pílula de conta.
      */
-    fun recentAccounts(transacoes: List<TransacaoEntity>, cards: List<String>, extra: List<String> = emptyList()): List<String> {
+    fun recentAccounts(transacoes: List<TransacaoEntity>, cards: Collection<String>, extra: Collection<String> = emptyList()): List<String> {
         val cardKeys = cards.map { it.trim().lowercase() }.toSet()
         val used = transacoes
             .filter { it.tipo != TransactionType.Receita.name && it.faturaId == null && it.compraId == null }
