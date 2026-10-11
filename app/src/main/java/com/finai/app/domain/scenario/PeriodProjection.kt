@@ -180,7 +180,9 @@ object PeriodProjection {
         } else {
             var x = d
             var guard = 0
-            while (x.parcelasRestantes > 0 && x.proximoVencimento?.toLocalDate()?.isBefore(start) == true && guard++ < 600) {
+            // Pela data em que a parcela vence de fato: uma parcela adiada para o dia do salário
+            // ("Editar parcela", 30/10 → 31/10) é do ciclo que começa nele, não foi paga antes.
+            while (x.parcelasRestantes > 0 && DebtSchedule.nextDue(x)?.isBefore(start) == true && guard++ < 600) {
                 x = DebtSchedule.afterPayment(x, start)
             }
             x

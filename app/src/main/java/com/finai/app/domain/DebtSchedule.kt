@@ -131,6 +131,14 @@ object DebtSchedule {
     fun scheduledDue(divida: DividaEntity, anchor: LocalDate, month: YearMonth): LocalDate =
         adjustmentsOf(divida)[month] ?: dueFor(divida, anchor, month)
 
+    /**
+     * Vencimento da parcela mais antiga em aberto, já com a data alterada só nela, se houver.
+     * [DividaEntity.proximoVencimento] guarda a data da regra; quem decide se essa parcela já
+     * passou (a projeção dos ciclos seguintes) precisa da data em que ela vence de fato.
+     */
+    fun nextDue(divida: DividaEntity): LocalDate? =
+        divida.proximoVencimento?.toLocalDate()?.let { adjustmentsOf(divida)[YearMonth.from(it)] ?: it }
+
     // ── vencimento de uma parcela específica ("Editar parcela") ──────────
 
     /** Vencimentos alterados por mês de referência, lidos de [DividaEntity.ajustesVencimento]. */

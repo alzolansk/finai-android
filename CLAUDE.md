@@ -88,6 +88,13 @@ Mensal/Sequencial abre o lançamento no mês da tela. Decisões em planning.md �
   folhas, Agenda). `FinanceViewModel` e `FinaiApp` revisados à mão. `AgendaEditRepositoryTest` e
   `Migration13To14Test` **escritos, não executados**. Rodar `./gradlew assembleDebug testDebugUnitTest
   connectedDebugAndroidTest` e conferir no aparelho.
+- **Correção (11/10, relato com print):** parcela movida só ela para o dia do salário ("Editar
+  parcela", Picpay 30/10 → 31/10) sumia da Agenda sequencial. O ciclo atual termina na véspera do
+  salário e `PeriodProjection.rollDebts` dava a parcela como paga antes do ciclo seguinte, porque
+  olhava `proximoVencimento` (a data da regra). Agora usa `DebtSchedule.nextDue` (com o ajuste).
+  Vale também para o simulador de compra. Teste `DebtDueEditCycleTest`. Primeira vez que o Gradle
+  Android rodou nesta branch: `assemblePessoal` e 338 testes JVM verdes (o SDK foi instalado em
+  `/opt/android-sdk`, com dl.google.com liberado no ambiente).
 
 **Fase 0 (Fundamentos), Fase 1 (MVP sem IA), Fase 2 (camada de IA com um
 provedor), Fase 3 (multi-provedor e resiliência), Fase 4 (importação de
