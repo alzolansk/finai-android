@@ -7,6 +7,60 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 ## Status atual
 
+**Novo lançamento (10/10/2026): refatoração parcial, ainda NÃO concluída.**
+O playbook `uploads/design-gasto/finai-gasto-playbook.pdf` foi lido e inspecionado
+visualmente nas 14 páginas. As duas decisões confirmadas pelo usuário estão em
+`planning.md` §11: reserva contínua permanece sem alvo; contas/cartões permanecem
+no modelo atual, exigindo vencimento confirmado quando não for possível inferir
+a fatura com segurança. A geração do novo estado do formulário foi interrompida
+por um filtro automático da ferramenta. A continuação trabalhou somente em partes
+independentes desse bloqueio: teclado, rodapé, proteção do clique de salvar,
+apresentação do topo/valor e validações. `handoff.md` reúne o estado atual completo
+e preserva o handoff histórico de setembro ao final.
+
+Foram reparadas referências antigas nos testes instrumentados:
+`TransactionEntryFlowTest` agora fornece `listState` à Agenda;
+`CardPurchaseFlowTest` usa `InstallmentsAgendaCard`/`InstallmentsScreen` e o texto
+atual de parcelas restantes.
+
+Implementado: `ui/components/EntryKeypad.kt` substitui o teclado antes embutido em
+`TransactionEntryScreen.kt`, mantendo a assinatura compartilhada com a entrada de
+dívidas. Grade 3×4, teclas de 52 dp, altura 240 dp, transição de 350 ms, escala 0,97
+ao pressionar, rótulos acessíveis e estados diretos com animações desativadas.
+O botão de salvar fica fora da rolagem, com 56 dp e rótulo por modalidade. Uma
+trava no callback impede uma segunda gravação antes da recomposição ou após sucesso.
+O topo agora tem X, modalidades fora da rolagem, indicador branco com mola e
+rótulos que ajustam o tamanho para evitar corte. O valor começa em 54 sp (42 sp
+para mais de nove caracteres), mantendo redução adicional por overflow. A tela
+e o modo horizontal respeitam animações desativadas. O formulário e as regras
+financeiras existentes não foram substituídos pelo estado unificado proposto.
+
+Validação executada: `assembleDebug` aprovado; 297 testes JVM aprovados. Foram
+aprovados 14 testes instrumentados juntos no Pixel 6 API 34: lançamento (7),
+cartão (1), repositório de cartão (2) e layout (4), após o novo topo/valor.
+Uma primeira execução falhou no cenário horizontal porque o teste não girava
+a atividade; o cenário foi corrigido e a execução de 14 testes passou.
+Depois de aumentar em 6 dp a altura externa das abas para garantir toque de 48 dp,
+`assembleDebug` e os quatro testes de layout foram repetidos: 4/4 aprovados na
+revisão final. Os 297 testes JVM não foram repetidos depois desse ajuste visual.
+Capturas de 320×640 dp nos temas claro/escuro e fonte 150%, e de 640×360 dp com
+a atividade em paisagem, foram inspecionadas: rótulos completos, salvar e as
+12 teclas visíveis, sem sobreposição. São capturas anteriores ao aumento de 6 dp
+nas abas; a revisão final foi conferida pelos quatro testes de layout. Isso não valida
+o redesenho completo, TalkBack em uso real ou desempenho a 60 fps.
+`git diff --check` limpo. Nenhum commit criado.
+
+Testes acrescentados/alterados: `EntryKeypadLayoutTest.kt`,
+`TransactionEntryFlowTest.kt`, `CardPurchaseFlowTest.kt`,
+`data/repository/CardPurchaseRepositoryTest.kt` (rollback quando uma fatura
+posterior já está paga) e `domain/CardPurchaseTest.kt` (soma exata e resíduos
+nas primeiras parcelas para todas as quantidades de 2 a 24). Documentação alterada:
+este arquivo, `planning.md` e `handoff.md`.
+
+O restante do fluxo novo, o vínculo transacional transferência/aporte, desfazer e histórico
+de aportes continuam pendentes. Atualmente `registrarAporte` apenas atualiza o
+valor guardado, sem gravar a movimentação financeira correspondente.
+
 **Fase 0 (Fundamentos), Fase 1 (MVP sem IA), Fase 2 (camada de IA com um
 provedor), Fase 3 (multi-provedor e resiliência), Fase 4 (importação de
 fatura), Fase 5 (notificações proativas e coach comportamental) e Fase 6

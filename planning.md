@@ -289,6 +289,14 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
 
 ## 11. Perguntas em aberto
 
+- **Lançamento de transações, decisões confirmadas em 10/10/2026:** seguir
+  `uploads/design-gasto/finai-gasto-playbook.pdf`. A reserva contínua mantém a regra
+  atual, sem valor-alvo: mostrar saldo antes/depois e cobertura em dias, sem inventar
+  percentual ou valor faltante. Preservar o modelo de contas e cartões baseado em
+  nomes de origem e faturas; reutilizar cartões conhecidos e pedir confirmação do
+  vencimento quando os dados não permitirem determinar a fatura com segurança.
+  Essas decisões não significam que a refatoração já foi implementada.
+
 - **Plano financeiro central, respondida em 28/09/2026:** o plano **não aloca** a sobra
   automaticamente. Ele decide qual destino é recomendado (dívida cara, depois metas por
   prioridade) e impede recomendações contraditórias entre telas, mas recomendação não é

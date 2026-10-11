@@ -4,6 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -18,6 +21,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -62,6 +66,7 @@ import com.finai.app.domain.toEpochMillis
 import com.finai.app.ui.theme.FinaiColors
 import com.finai.app.ui.theme.FinaiMotion
 import com.finai.app.ui.theme.finaiTween
+import com.finai.app.ui.theme.rememberReducedMotion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
@@ -173,7 +178,7 @@ private fun TransactionEntryContent(
     // o contrário.
     LaunchedEffect(typeName) { account = "" }
     var amountFont by remember(cents, LocalConfiguration.current.screenWidthDp, LocalDensity.current.fontScale) {
-        mutableFloatStateOf(46f)
+        mutableFloatStateOf(if (amountText(cents).length > 9) 42f else 54f)
     }
     val isCard = type == TransactionType.Gasto && credit
     val count = installments.toIntOrNull() ?: 0
@@ -187,10 +192,11 @@ private fun TransactionEntryContent(
     // usuário segue para outro campo (categoria, conta, data, recorrente, ou rola a tela) ele
     // deixa de ajudar e só ocupa espaço olhando pro usuário. Reabre se ele tocar no valor de novo.
     var amountEditing by rememberSaveable { mutableStateOf(true) }
+    val reducedMotion = rememberReducedMotion()
     val showKeypad = amountEditing && !descriptionFocused && !imeVisible
     fun close() { focus.clearFocus(); sheet = null; if (!saving && !success) onDismiss() }
     BackHandler(visible) { close() }
-    AnimatedVisibility(visible, enter = fadeIn(tween(260)) + slideInVertically(tween(260)) { it / 12 }, exit = fadeOut(tween(160))) {
+    AnimatedVisibility(visible, enter = fadeIn(tween(if (reducedMotion) 0 else 260)) + slideInVertically(tween(if (reducedMotion) 0 else 260)) { it / 12 }, exit = fadeOut(tween(if (reducedMotion) 0 else 160))) {
         BoxWithConstraints(Modifier.fillMaxSize().background(EntryPaper).pointerInput(Unit) {
             // The dedicated layer also owns empty-space taps, so the app behind it cannot react.
             detectTapGestures(onTap = { focus.clearFocus() })
@@ -203,32 +209,19 @@ private fun TransactionEntryContent(
             Column(Modifier.fillMaxSize().then(if (sheet != null) Modifier.blur(4.dp) else Modifier)) {
                 Box(Modifier.fillMaxWidth().height(62.dp).background(FinaiColors.Surface)) {
                     IconButton(onClick = { close() }, enabled = !saving, modifier = Modifier.align(Alignment.CenterStart)) {
-                        EntryGlyph("back", EntryInk, "Voltar")
+                        EntryGlyph("close", EntryInk, "Fechar lançamento")
                     }
                     Text("Novo lançamento", color = EntryInk, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
                     Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(FinaiColors.BorderFaint))
                 }
+                EntryTypeTabs(type, enabled = !saving, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { typeName = it.name }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Row(Modifier.fillMaxWidth().height(48.dp).clip(CircleShape).background(FinaiColors.SurfaceMuted).padding(3.dp)) {
-                        TransactionType.values().forEach { item ->
-                            val selected = type == item
-                            val tabBg by animateColorAsState(if (selected) FinaiColors.InkStrong else Color.Transparent, finaiTween(FinaiMotion.Quick), label = "typeTabBg")
-                            val tabFg by animateColorAsState(if (selected) FinaiColors.OnInkStrong else FinaiColors.TextTertiary, finaiTween(FinaiMotion.Quick), label = "typeTabFg")
-                            Box(Modifier.weight(1f).fillMaxHeight()
-                                .then(if (selected) Modifier.shadow(3.dp, CircleShape) else Modifier)
-                                .clip(CircleShape).background(tabBg)
-                                .selectable(selected, enabled = !saving, role = Role.Tab, onClick = { typeName = item.name }),
-                                contentAlignment = Alignment.Center) {
-                                Text(item.label, color = tabFg, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            }
-                        }
-                    }
                     // clearFocus é o que traz o teclado de volta: sem ele a Descrição continuava
                     // focada (mesmo depois de fechar o teclado do sistema com "voltar") e
                     // showKeypad ficava falso, então tocar no valor não fazia nada.
                     Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp).clickable(enabled = !saving) { focus.clearFocus(); amountEditing = true }, horizontalAlignment = Alignment.CenterHorizontally) {
                         val amountColor = if (cents.isEmpty()) FinaiColors.TextDisabled else when (type) {
-                            TransactionType.Gasto -> EntryInk
+                            TransactionType.Gasto -> if (FinaiColors.isDark) Color(0xFFFAFAFA) else EntryInk
                             TransactionType.Receita -> FinaiColors.EmeraldDark
                             TransactionType.Transferencia -> FinaiColors.Indigo
                         }
@@ -304,7 +297,10 @@ private fun TransactionEntryContent(
                         amountEditing = false; recurring = !recurring; if (recurring) extra = false
                     }
                     if (error != null) Text(error!!, color = FinaiColors.RoseDark, fontSize = 13.sp)
+                }
+                // Fixed footer: neither the form scroll nor the keypad can hide Save.
                     Button(onClick = {
+                        if (saving || success) return@Button
                         focus.clearFocus()
                         saving = true; error = null
                         val entry = TransacaoEntity(data = date.toEpochMillis(), descricao = description.trim().ifEmpty { category },
@@ -325,10 +321,9 @@ private fun TransactionEntryContent(
                     }, enabled = valid, shape = EntryShape,
                         colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong, disabledContainerColor = EntryLine, disabledContentColor = EntryMuted),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, disabledElevation = 0.dp),
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp).height(52.dp)) {
-                        Text(if (saving) "Salvando…" else "Salvar lançamento", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).height(56.dp)) {
+                        Text(if (saving) "Salvando…" else "Salvar ${type.label.lowercase(Locale("pt", "BR"))}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
-                }
             }
             }
             val keypad: @Composable () -> Unit = {
@@ -337,7 +332,7 @@ private fun TransactionEntryContent(
             if (maxWidth > maxHeight) {
                 // The keypad panel's width also eases out so hiding it (e.g. to type the
                 // description) doesn't leave a dead gutter next to a form stuck at 60% width.
-                val formWeight by animateFloatAsState(if (showKeypad) .6f else 1f, tween(220), label = "formWeight")
+                val formWeight by animateFloatAsState(if (showKeypad) .6f else 1f, finaiTween(350), label = "formWeight")
                 Row(Modifier.fillMaxSize().imePadding(), verticalAlignment = Alignment.Bottom) {
                     Box(Modifier.weight(formWeight).fillMaxHeight()) { form() }
                     Box(Modifier.weight((1f - formWeight).coerceAtLeast(0.0001f))) { keypad() }
@@ -433,6 +428,34 @@ private fun TransactionEntryContent(
     }
 }
 
+/** Visual selector only; the screen continues to own its existing transaction draft. */
+@Composable
+private fun EntryTypeTabs(type: TransactionType, enabled: Boolean, modifier: Modifier = Modifier, onSelect: (TransactionType) -> Unit) {
+    val reducedMotion = rememberReducedMotion()
+    BoxWithConstraints(modifier.fillMaxWidth().height(54.dp).clip(CircleShape)
+        .background(FinaiColors.SurfaceMuted).padding(3.dp).selectableGroup()) {
+        val tabWidth = maxWidth / TransactionType.values().size
+        val offset by animateDpAsState(tabWidth * type.ordinal,
+            if (reducedMotion) snap() else spring(dampingRatio = .85f, stiffness = 400f), label = "typeIndicator")
+        Box(Modifier.offset(x = offset).width(tabWidth).fillMaxHeight()
+            .shadow(3.dp, CircleShape).clip(CircleShape).background(Color.White))
+        Row(Modifier.fillMaxSize()) {
+            TransactionType.values().forEach { item ->
+                val selected = type == item
+                val tabFg by animateColorAsState(if (selected) Color(0xFF18181B) else FinaiColors.TextTertiary,
+                    finaiTween(FinaiMotion.Quick), label = "typeTabFg")
+                Box(Modifier.weight(1f).fillMaxHeight().clip(CircleShape)
+                    .selectable(selected, enabled = enabled, role = Role.Tab, onClick = { onSelect(item) }),
+                    contentAlignment = Alignment.Center) {
+                    var fontSize by remember(tabWidth, LocalDensity.current.fontScale) { mutableFloatStateOf(13f) }
+                    Text(item.label, color = tabFg, fontSize = fontSize.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                        onTextLayout = { if (it.hasVisualOverflow && fontSize > 8f) fontSize = (fontSize - .5f).coerceAtLeast(8f) })
+                }
+            }
+        }
+    }
+}
+
 @Composable
 internal fun EntryField(icon: String, label: String, value: String, placeholder: Boolean = false, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(EntryShape).background(FinaiColors.Surface).border(1.dp, EntryLine.copy(alpha = .65f), EntryShape).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -457,30 +480,6 @@ private fun EntrySwitchRow(icon: String, text: String, checked: Boolean, enabled
             val thumbOffset by androidx.compose.animation.core.animateDpAsState(if (checked) 20.dp else 0.dp, finaiTween(FinaiMotion.Quick), label = "switchThumb")
             Box(Modifier.size(46.dp, 26.dp).clip(CircleShape).background(trackColor).padding(3.dp)) {
                 Box(Modifier.offset(x = thumbOffset).size(20.dp).shadow(1.dp, CircleShape).background(Color.White, CircleShape))
-            }
-        }
-    }
-}
-
-@Composable
-internal fun EntryKeypad(visible: Boolean, enabled: Boolean, onKey: (String) -> Unit) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(180)) + expandVertically(tween(220)),
-        exit = fadeOut(tween(140)) + shrinkVertically(tween(200)),
-    ) {
-        Column(Modifier.fillMaxWidth().height(240.dp).background(Brush.linearGradient(listOf(FinaiColors.Surface.copy(alpha = .9f), FinaiColors.Surface.copy(alpha = .78f)))).padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("00", "0", "erase")).forEach { row ->
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    row.forEach { key ->
-                        Box(Modifier.weight(1f).fillMaxHeight().clip(EntryShape).background(if (key == "00" || key == "erase") FinaiColors.SurfaceSunken else FinaiColors.Surface)
-                            .border(1.dp, FinaiColors.BorderFaint, EntryShape).clickable(enabled = enabled, role = Role.Button, onClick = { onKey(key) }),
-                            contentAlignment = Alignment.Center) {
-                            if (key == "erase") EntryGlyph("erase", FinaiColors.TextSecondary, "Apagar")
-                            else Text(key, color = if (key == "00") FinaiColors.TextSecondary else EntryInk, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
             }
         }
     }

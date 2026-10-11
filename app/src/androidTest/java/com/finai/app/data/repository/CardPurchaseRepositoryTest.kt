@@ -13,6 +13,33 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 class CardPurchaseRepositoryTest {
+    @Test fun paidLaterInvoiceRollsBackEarlierInstallmentsAndNewInvoices() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val db = Room.inMemoryDatabaseBuilder(context, FinaiDatabase::class.java).build()
+        try {
+            val repository = FinanceRepository(db)
+            val day = LocalDate.of(2026, 1, 15)
+            val firstDue = LocalDate.of(2026, 1, 31)
+            val paidDue = firstDue.plusMonths(1).toEpochMillis()
+            val item = TransacaoEntity(data = day.toEpochMillis(), descricao = "Compra anterior",
+                valorCentavos = 500, categoria = "Compras", contaOrigem = "Nubank",
+                recorrente = false, origem = "manual")
+            repository.salvarFatura(
+                ContaEntity(nome = "Fatura Nubank", valorCentavos = 500, vencimento = paidDue,
+                    status = "pago", tipo = "a_pagar", recorrente = false),
+                FaturaCartaoEntity(contaId = 0, referencia = "Nubank", fechamento = null, vencimento = paidDue),
+                listOf(item),
+            )
+            val before = repository.exportar(com.finai.app.data.local.FINAI_DB_VERSION, 0)
+            try {
+                // January is inserted first; February then fails. January must be rolled back too.
+                repository.salvarCompraCartao(item.copy(valorCentavos = 10001), CardPayment("Nubank", firstDue, 3))
+                fail("A paid later invoice must reject the whole purchase")
+            } catch (_: IllegalArgumentException) { }
+            assertEquals(before, repository.exportar(com.finai.app.data.local.FINAI_DB_VERSION, 0))
+        } finally { db.close() }
+    }
+
     @Test fun purchasesJoinImportedInvoiceAndPersistWithExactTotals() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val name = "card-purchase-test.db"
