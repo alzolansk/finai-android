@@ -11,6 +11,13 @@ import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
 import kotlinx.coroutines.flow.Flow
 import com.finai.app.domain.CardPayment
+import com.finai.app.domain.DebtSchedule
+import com.finai.app.domain.EditScope
+import com.finai.app.domain.EntryChange
+import com.finai.app.domain.RecurringSeries
+import com.finai.app.domain.SeriesEdit
+import com.finai.app.domain.isRecurringSeries
+import java.time.YearMonth
 import com.finai.app.domain.CardPurchase
 import com.finai.app.domain.Completion
 import com.finai.app.domain.EntryReceipt
@@ -62,6 +69,71 @@ class FinanceRepository(private val db: FinaiDatabase) {
             contaDao.update(account.copy(valorCentavos = transacaoDao.getAll().filter { it.faturaId == id }.sumOf { it.valorCentavos }))
         }
         stored.objetivoId?.let { retirarDoObjetivo(it, stored.valorCentavos, now) }
+    }
+
+    /**
+     * Edição pela Agenda, numa transação. Avulso: grava no próprio registro (item de fatura
+     * recalcula o total da fatura e fica no mesmo cartão; fatura paga bloqueia mudar o valor).
+     * Recorrente: [scope] decide entre a exceção do mês e "deste mês em diante"
+     * ([RecurringSeries.edit]), que segmenta a série sem tocar nos meses anteriores. Aporte e
+     * pagamento de parcela não são editáveis: mudar o valor deles desalinharia o objetivo ou a
+     * dívida. Devolve o id da linha que a Agenda destaca.
+     */
+    suspend fun editarLancamento(id: Long, month: YearMonth, change: EntryChange, scope: EditScope?): Long = db.withTransaction {
+        val all = transacaoDao.getAll()
+        val stored = all.firstOrNull { it.id == id } ?: throw IllegalArgumentException("Esse lançamento não existe mais.")
+        require(stored.objetivoId == null) { "Aporte não é editado aqui: exclua e registre de novo." }
+        require(stored.origem != DebtSchedule.PAYMENT_ORIGIN) { "Para corrigir um pagamento de parcela, exclua e pague de novo." }
+        if (stored.isRecurringSeries) {
+            val edit = RecurringSeries.edit(
+                stored, month, change, requireNotNull(scope) { "Escolha se a mudança vale só para este mês." },
+                RecurringSeries.laterSegments(stored, month, all),
+            )
+            aplicar(edit)
+        } else {
+            val updated = RecurringSeries.editSingle(stored, change).let { e ->
+                // O item continua na fatura do cartão em que foi lançado.
+                if (stored.faturaId != null) e.copy(contaOrigem = stored.contaOrigem) else e
+            }
+            val faturaId = stored.faturaId
+            if (faturaId != null && updated.valorCentavos != stored.valorCentavos) {
+                val invoice = faturaCartaoDao.getAll().firstOrNull { it.id == faturaId }
+                val account = invoice?.let { f -> contaDao.getAll().firstOrNull { it.id == f.contaId } }
+                require(account?.status != "pago") {
+                    "A fatura desta compra já foi paga. Desmarque o pagamento dela na Agenda para mudar o valor."
+                }
+                transacaoDao.upsert(updated)
+                account?.let { a ->
+                    contaDao.update(a.copy(valorCentavos = transacaoDao.getAll().filter { it.faturaId == faturaId }.sumOf { it.valorCentavos }))
+                }
+            } else {
+                transacaoDao.upsert(updated)
+            }
+            id
+        }
+    }
+
+    /**
+     * Excluir uma ocorrência de recorrente: só a do mês ([EditScope.OnlyThis], a série continua)
+     * ou dela em diante ([EditScope.ThisAndFollowing], os meses anteriores ficam).
+     */
+    suspend fun excluirOcorrencia(id: Long, month: YearMonth, scope: EditScope) = db.withTransaction {
+        val all = transacaoDao.getAll()
+        val stored = all.firstOrNull { it.id == id } ?: return@withTransaction
+        require(stored.isRecurringSeries) { "Esse lançamento não se repete." }
+        when (scope) {
+            EditScope.OnlyThis -> transacaoDao.upsert(RecurringSeries.deleteOnly(stored, month))
+            EditScope.ThisAndFollowing -> aplicar(RecurringSeries.deleteFrom(stored, month, RecurringSeries.laterSegments(stored, month, all)))
+        }
+        Unit
+    }
+
+    /** Grava uma [SeriesEdit]; devolve o id do trecho que passa a valer no mês editado. */
+    private suspend fun aplicar(edit: SeriesEdit): Long {
+        edit.delete.forEach { transacaoDao.delete(it) }
+        edit.update?.let { transacaoDao.upsert(it) }
+        val inserted = edit.insert?.let { transacaoDao.upsert(it) }
+        return inserted ?: edit.update?.id ?: 0L
     }
 
     /** Lançamento comum do "+" (gasto no débito, receita, transferência entre contas). */

@@ -11,8 +11,9 @@ import org.junit.Test
 /**
  * `MIGRATION_12_13` acrescenta `transacoes.objetivoId` e `transacoes.contaDestino` (destino da
  * transferência e vínculo do aporte). Lançamentos existentes ficam como estavam, com os dois
- * campos nulos: transferências antigas continuam neutras. O `13.json` é gerado pelo Room no
- * primeiro build depois desta mudança.
+ * campos nulos: transferências antigas continuam neutras. O `13.json` foi derivado do `12.json`
+ * com as duas colunas (o banco passou para a v14 antes de um build na v13), com o hash de
+ * identidade calculado pelo mesmo algoritmo do Room.
  */
 class Migration12To13Test {
     @get:Rule val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), FinaiDatabase::class.java)

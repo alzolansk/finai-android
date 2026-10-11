@@ -63,6 +63,8 @@ object BackupCodec {
                 .put("origem", t.origem).putOpt("faturaId", t.faturaId).put("extra", t.extra).put("rendaPrincipal", t.rendaPrincipal)
                 .putOpt("compraId", t.compraId).putOpt("parcelaNumero", t.parcelaNumero).putOpt("parcelasTotal", t.parcelasTotal)
                 .putOpt("objetivoId", t.objetivoId).putOpt("contaDestino", t.contaDestino)
+                .putOpt("recorrenteAte", t.recorrenteAte).putOpt("diaRecorrencia", t.diaRecorrencia)
+                .put("excecoes", t.excecoes).putOpt("serieId", t.serieId)
         }))
         put("faturas", JSONArray(b.faturas.map { f ->
             JSONObject().put("id", f.id).put("contaId", f.contaId).put("referencia", f.referencia)
@@ -84,6 +86,7 @@ object BackupCodec {
                 .put("parcelasRestantes", d.parcelasRestantes).put("valorParcelaCentavos", d.valorParcelaCentavos)
                 .put("parcelasTotais", d.parcelasTotais).putOpt("proximoVencimento", d.proximoVencimento)
                 .putOpt("diaVencimento", d.diaVencimento).putOpt("quitadaEm", d.quitadaEm)
+                .put("ajustesVencimento", d.ajustesVencimento)
         }))
         put("orcamentos", JSONArray(b.orcamentos.map { o ->
             JSONObject().put("categoria", o.categoria).put("limiteMensalCentavos", o.limiteMensalCentavos).put("mesReferencia", o.mesReferencia)
@@ -120,6 +123,9 @@ object BackupCodec {
                         compraId = o.optString("compraId").takeIf { it.isNotBlank() },
                         parcelaNumero = o.longOrNull("parcelaNumero")?.toInt(), parcelasTotal = o.longOrNull("parcelasTotal")?.toInt(),
                         objetivoId = o.longOrNull("objetivoId"), contaDestino = o.optString("contaDestino").takeIf { it.isNotBlank() },
+                        recorrenteAte = o.optString("recorrenteAte").takeIf { it.isNotBlank() },
+                        diaRecorrencia = o.longOrNull("diaRecorrencia")?.toInt(), excecoes = o.optString("excecoes"),
+                        serieId = o.longOrNull("serieId"),
                     )
                 },
                 faturas = root.list("faturas") { o ->
@@ -151,6 +157,7 @@ object BackupCodec {
                         parcelasRestantes = o.optInt("parcelasRestantes"), valorParcelaCentavos = o.optLong("valorParcelaCentavos"),
                         parcelasTotais = o.optInt("parcelasTotais"), proximoVencimento = o.longOrNull("proximoVencimento"),
                         diaVencimento = o.longOrNull("diaVencimento")?.toInt(), quitadaEm = o.longOrNull("quitadaEm"),
+                        ajustesVencimento = o.optString("ajustesVencimento"),
                     )
                 },
                 orcamentos = root.list("orcamentos") { o ->

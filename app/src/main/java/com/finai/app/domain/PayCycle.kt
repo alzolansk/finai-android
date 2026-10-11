@@ -185,19 +185,23 @@ data class PayCycle(
             if (marked.isNotEmpty()) return marked
             val byName = transacoes.filter(::isSalary)
             if (byName.isNotEmpty()) return byName
+            // Trecho de série que já terminou (a renda mudou "deste mês em diante") perde para o que continua.
             return listOfNotNull(transacoes
                 .filter { it.recorrente && it.tipo == TransactionType.Receita.name && it.faturaId == null && !it.extra && it.valorCentavos > 0 }
-                .maxWithOrNull(compareBy<TransacaoEntity> { it.valorCentavos }.thenByDescending { it.data }))
+                .maxWithOrNull(compareBy<TransacaoEntity> { it.recorrenteAte == null }.thenBy { it.valorCentavos }.thenByDescending { it.data }))
         }
 
-        /** Dias de pagamento perto de hoje: a data do avulso, ou a ocorrência mensal do recorrente. */
-        private fun payDates(t: TransacaoEntity, today: LocalDate): List<LocalDate> {
-            val first = t.data.toLocalDate()
-            if (!t.recorrente) return listOf(first)
+        /**
+         * Dias de pagamento perto de hoje: o avulso na data dele; o recorrente nas ocorrências do
+         * mês passado, deste e do próximo (e do mês inicial, se começa depois), já com a exceção
+         * de cada mês e só enquanto a série dura.
+         */
+        private fun payDates(t: TransacaoEntity, today: LocalDate): List<Pair<LocalDate, TransacaoEntity>> {
+            if (!t.isRecurringSeries) return listOf(t.data.toLocalDate() to t)
             val cur = YearMonth.from(today)
-            return (-1L..1L).map { cur.plusMonths(it) }
-                .filter { it >= YearMonth.from(first) }
-                .map { monthlyOccurrence(first, it) } + first
+            return ((-1L..1L).map { cur.plusMonths(it) } + t.startMonth).distinct()
+                .mapNotNull { t.occurrenceFor(it) }
+                .map { it.data.toLocalDate() to it }
         }
 
         /**
@@ -212,7 +216,7 @@ data class PayCycle(
             today: LocalDate,
             asOf: LocalDate = today,
         ): PayCycle? {
-            val paydays = salariesOf(transacoes).flatMap { t -> payDates(t, today).map { it to t } }
+            val paydays = salariesOf(transacoes).flatMap { t -> payDates(t, today) }
             val last = paydays.filter { !it.first.isAfter(today) }.maxByOrNull { it.first }
             val next = paydays.filter { it.first.isAfter(today) }.minByOrNull { it.first }
             if (last == null && next == null) return null

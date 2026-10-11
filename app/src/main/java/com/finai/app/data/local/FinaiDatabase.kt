@@ -32,7 +32,7 @@ import com.finai.app.data.local.entity.UsoProvedorIaEntity
  * per planning.md §4's privacy-first requirement.
  */
 /** Versão do schema do Room — também é a que o backup exportado carrega (Fase 7, item 12). */
-const val FINAI_DB_VERSION = 13
+const val FINAI_DB_VERSION = 14
 
 @Database(
     entities = [
@@ -223,7 +223,25 @@ abstract class FinaiDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+        /**
+         * Edição na Agenda (11/10/2026): `transacoes.recorrenteAte` e `transacoes.diaRecorrencia`
+         * segmentam a série quando um recorrente muda "deste mês em diante" (o histórico fica com
+         * os valores de antes) e `transacoes.serieId` liga os trechos da mesma série;
+         * `transacoes.excecoes` guarda as alterações (ou a exclusão) de um mês só, e
+         * `dividas.ajustesVencimento` as datas alteradas de parcelas específicas. Só acrescenta
+         * colunas: nada existente muda (vazio/nulo = comportamento de antes).
+         */
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transacoes ADD COLUMN recorrenteAte TEXT")
+                db.execSQL("ALTER TABLE transacoes ADD COLUMN diaRecorrencia INTEGER")
+                db.execSQL("ALTER TABLE transacoes ADD COLUMN excecoes TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE transacoes ADD COLUMN serieId INTEGER")
+                db.execSQL("ALTER TABLE dividas ADD COLUMN ajustesVencimento TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
 
         @Volatile private var instance: FinaiDatabase? = null
 

@@ -49,15 +49,18 @@ fun monthlyOccurrence(start: LocalDate, month: YearMonth): LocalDate =
     if (start.dayOfMonth == start.lengthOfMonth()) month.atEndOfMonth()
     else month.atDay(start.dayOfMonth.coerceAtMost(month.lengthOfMonth()))
 
-/** Recurring entries retain their Room id: the monthly occurrence is a projection, not a duplicate insert. */
+/**
+ * Lançamentos do mês de [date]. Recorrente mantém o id do Room: a ocorrência do mês é uma
+ * projeção ([occurrenceFor]), não uma cópia gravada. A projeção respeita o fim da série
+ * ([TransacaoEntity.recorrenteAte]) e a exceção do mês ("Somente este mês"), que nunca é
+ * sobrescrita pela regra geral.
+ */
 fun List<TransacaoEntity>.transactionsInMonth(date: LocalDate): List<TransacaoEntity> {
     val month = YearMonth.from(date)
     return mapNotNull { entry ->
-        val start = entry.data.toLocalDate()
         when {
-            YearMonth.from(start) == month -> entry
-            entry.recorrente && entry.faturaId == null && YearMonth.from(start) < month -> entry.copy(
-                data = monthlyOccurrence(start, month).toEpochMillis())
+            entry.isRecurringSeries -> entry.occurrenceFor(month)
+            YearMonth.from(entry.data.toLocalDate()) == month -> entry
             else -> null
         }
     }

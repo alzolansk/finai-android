@@ -50,6 +50,34 @@ data class TransacaoEntity(
      * objetivo no momento do aporte, para o histórico continuar legível se ele for apagado.
      */
     val contaDestino: String? = null,
+    /**
+     * Último mês (inclusive, "yyyy-MM") de um lançamento recorrente. Nulo = sem fim. É o que
+     * segmenta a série quando o usuário muda um recorrente "deste mês em diante": o registro
+     * antigo termina no mês anterior (o histórico fica com os valores de antes) e um novo
+     * registro começa no mês editado ([com.finai.app.domain.RecurringSeries.editFrom]).
+     */
+    val recorrenteAte: String? = null,
+    /**
+     * Dia-base da recorrência (1–31; 31 = fim de mês). Nulo em dado antigo: o dia vem da data
+     * inicial ([com.finai.app.domain.recurrenceDay]). Gravado quando a série é segmentada, para
+     * o novo trecho não herdar o dia de um mês curto (série do dia 31 que recomeça em 30/11
+     * continua no dia 31, e não no 30).
+     */
+    val diaRecorrencia: Int? = null,
+    /**
+     * Exceções por ocorrência ("Somente este mês"), identificadas pelo mês de referência:
+     * data, valor, descrição, categoria ou conta diferentes só naquele mês. Texto codificado
+     * por [com.finai.app.domain.OccurrenceCodec]; vazio = nenhuma. Ficam no próprio registro da
+     * série para toda projeção ([com.finai.app.domain.transactionsInMonth]) aplicá-las sem
+     * consultar outra tabela, e somem junto com a série se ela for excluída.
+     */
+    @androidx.room.ColumnInfo(defaultValue = "''") val excecoes: String = "",
+    /**
+     * Primeiro registro da série a que este trecho pertence. Nulo no primeiro (ele mesmo é a
+     * série). É o que permite a uma mudança "deste mês em diante" alcançar também os trechos
+     * criados por mudanças anteriores, em vez de só o trecho tocado.
+     */
+    val serieId: Long? = null,
 )
 
 /** Uma fatura de cartão, exibida como um único compromisso na Agenda. */
@@ -124,6 +152,13 @@ data class DividaEntity(
     val diaVencimento: Int? = null,
     /** Quando a dívida foi quitada (epoch millis) — ela sai da lista ativa e fica no histórico. */
     val quitadaEm: Long? = null,
+    /**
+     * Vencimentos alterados de parcelas específicas ("Editar parcela"), por mês de referência:
+     * "2026-05=2026-05-31". A regra geral ([diaVencimento]) não muda; a parcela daquele mês
+     * aparece na nova data e as outras continuam iguais. Codificado por
+     * [com.finai.app.domain.DebtSchedule.encodeAdjustments]; vazio = nenhum.
+     */
+    @androidx.room.ColumnInfo(defaultValue = "''") val ajustesVencimento: String = "",
 )
 
 @Entity(tableName = "orcamento_categorias", primaryKeys = ["categoria", "mesReferencia"])

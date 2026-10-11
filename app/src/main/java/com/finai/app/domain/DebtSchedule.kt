@@ -43,7 +43,8 @@ object DebtSchedule {
         val anchorMonth = anchor?.let(YearMonth::from) ?: YearMonth.from(today)
         val offset = ChronoUnit.MONTHS.between(anchorMonth, month).toInt()
         if (offset < 0 || offset >= divida.parcelasRestantes) return null
-        val vencimento = anchor?.let { dueFor(divida, it, month) }
+        // Parcela com vencimento alterado só nela ("Editar parcela") aparece na data nova.
+        val vencimento = adjustmentsOf(divida)[month] ?: anchor?.let { dueFor(divida, it, month) }
         val total = divida.parcelasTotais.takeIf { it >= divida.parcelasRestantes && it > 0 }
         // A última parcela não passa do que ainda está em aberto (evita somar centavos a mais).
         val isLast = offset == divida.parcelasRestantes - 1
@@ -122,6 +123,66 @@ object DebtSchedule {
      */
     fun dueFor(divida: DividaEntity, anchor: LocalDate, month: YearMonth): LocalDate =
         divida.diaVencimento?.let { dueDateIn(month, it) } ?: monthlyOccurrence(anchor, month)
+
+    /**
+     * Vencimento previsto da parcela de [month]: o alterado só nela, se houver, ou o da regra.
+     * Usado por quem não passa por [installmentInMonth] (data de quitação, por exemplo).
+     */
+    fun scheduledDue(divida: DividaEntity, anchor: LocalDate, month: YearMonth): LocalDate =
+        adjustmentsOf(divida)[month] ?: dueFor(divida, anchor, month)
+
+    // ── vencimento de uma parcela específica ("Editar parcela") ──────────
+
+    /** Vencimentos alterados por mês de referência, lidos de [DividaEntity.ajustesVencimento]. */
+    fun adjustmentsOf(divida: DividaEntity): Map<YearMonth, LocalDate> = decodeAdjustments(divida.ajustesVencimento)
+
+    fun encodeAdjustments(map: Map<YearMonth, LocalDate>): String =
+        map.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }
+
+    /** Entrada ilegível ou com a data fora do próprio mês é ignorada (a parcela fica na data da regra). */
+    fun decodeAdjustments(text: String): Map<YearMonth, LocalDate> {
+        if (text.isBlank()) return emptyMap()
+        return text.split(',').mapNotNull { part ->
+            val month = runCatching { YearMonth.parse(part.substringBefore('=').trim()) }.getOrNull() ?: return@mapNotNull null
+            val date = runCatching { LocalDate.parse(part.substringAfter('=', "").trim()) }.getOrNull() ?: return@mapNotNull null
+            if (YearMonth.from(date) != month) null else month to date
+        }.toMap()
+    }
+
+    /**
+     * Muda o vencimento só da parcela de [month]. As outras parcelas, o dia combinado e o valor
+     * não mudam; nada é gravado por parcela além da data nova. Voltar para a data da regra apaga
+     * o ajuste. A nova data fica no mesmo mês, para nenhum mês ficar com duas parcelas.
+     */
+    fun withInstallmentDate(divida: DividaEntity, month: YearMonth, date: LocalDate, today: LocalDate): DividaEntity {
+        require(YearMonth.from(date) == month) { "A nova data precisa ficar no mesmo mês da parcela." }
+        requireNotNull(installmentInMonth(divida, month, today)) { "Essa parcela não está em aberto." }
+        val regular = divida.proximoVencimento?.toLocalDate()?.let { dueFor(divida, it, month) }
+        val map = adjustmentsOf(divida).toMutableMap()
+        if (date == regular) map.remove(month) else map[month] = date
+        return divida.copy(ajustesVencimento = encodeAdjustments(map))
+    }
+
+    /**
+     * "Mudar o dia desta e das próximas": o dia combinado passa a ser [day] a partir da parcela
+     * de [month]. As parcelas em aberto antes dela ficam com a data que tinham (viram ajustes) e
+     * as já alteradas uma a uma continuam como estão. Só para dívida com vencimento cadastrado.
+     */
+    fun withDueDayFrom(divida: DividaEntity, month: YearMonth, day: Int, today: LocalDate): DividaEntity {
+        require(day in 1..31) { "Dia inválido." }
+        val anchor = requireNotNull(divida.proximoVencimento?.toLocalDate()) { "Cadastre o vencimento da dívida primeiro." }
+        requireNotNull(installmentInMonth(divida, month, today)) { "Essa parcela não está em aberto." }
+        val map = adjustmentsOf(divida).toMutableMap()
+        generateSequence(YearMonth.from(anchor)) { it.plusMonths(1) }.takeWhile { it < month }
+            .forEach { m -> map.putIfAbsent(m, dueFor(divida, anchor, m)) }
+        map.remove(month)
+        val first = dueDateIn(month, day)
+        return divida.copy(
+            diaVencimento = day,
+            proximoVencimento = if (month == YearMonth.from(anchor)) first.toEpochMillis() else divida.proximoVencimento,
+            ajustesVencimento = encodeAdjustments(map),
+        )
+    }
 
     /** Dia combinado deduzido de uma data: o último dia do mês vale como 31 (fim de mês). */
     fun contractDayOf(date: LocalDate): Int = if (date.dayOfMonth == date.lengthOfMonth()) 31 else date.dayOfMonth
