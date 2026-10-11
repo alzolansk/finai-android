@@ -20,7 +20,7 @@ Segunda etapa (esta sessão, sem commit):
   (`GoalMove`: % só com alvo; reserva contínua = saldo antes → depois e cobertura em dias), valor
   por extenso para o TalkBack, `EntryReceipt`/`GoalReceipt`, `AgendaHighlight`, `ContributionRecord`.
 - **Room 12→13** (`MIGRATION_12_13`, `Migration12To13Test`): `transacoes.objetivoId` e
-  `transacoes.contaDestino`, anuláveis. **O `13.json` é gerado no primeiro build e precisa ser commitado.**
+  `transacoes.contaDestino`, anuláveis. O `13.json` foi gerado à mão em 11/10 (ver "Edição na Agenda").
 - **Aporte = transferência ligada ao objetivo** (`FinanceRepository.registrarAporte`, numa transação):
   `freeCashSign` é a regra única do livre (aporte −1, transferência entre contas 0) usada por
   `PayCycle`, `MonthCashFlow` (`aportesCents` sai do saldo, fora de `toPayCents`), `CashFlowTimeline`,
@@ -52,6 +52,42 @@ Segunda etapa (esta sessão, sem commit):
   era desenhada a partir da cópia que o `glassSource` grava para o blur. Agora a tela é
   desenhada direto (a cópia só alimenta o vidro) e as duas listas não usam mais
   `animateItemPlacement`. Diagnóstico pelos prints; não reproduzido em emulador nesta sessão.
+
+**Edição na Agenda (11/10/2026, branch `ccr-b624b561-61c00g`):** tocar num lançamento ou parcela abre
+uma folha inferior com informações e ações (`ui/screens/agenda/AgendaSheets.kt`); "+" ao lado de
+Mensal/Sequencial abre o lançamento no mês da tela. Decisões em planning.md §11 ("Edição na Agenda").
+- **Recorrente** (`domain/RecurringSeries.kt`, Kotlin puro, `AgendaEditTest`): nada é gravado por mês.
+  "Somente este mês" vira uma exceção no próprio registro da série (`transacoes.excecoes`, texto
+  codificado por `OccurrenceCodec`, chave = mês de referência; também guarda "excluída só neste mês").
+  "Este mês e os próximos" segmenta: o registro termina no mês anterior (`recorrenteAte`), um novo
+  começa no mês editado (`serieId` aponta o primeiro trecho, `diaRecorrencia` guarda o dia-base) e os
+  trechos seguintes da mesma série são substituídos, levando as exceções deles. O dia-base só muda se a
+  data foi mudada na edição; dia 31 em mês curto cai no último dia sem mudar a regra. A data de uma
+  ocorrência fica no próprio mês (nunca duas cobranças no mesmo mês). **Toda projeção** passa por
+  `occurrenceFor` (`transactionsInMonth` e `PayCycle.payDates`), então Agenda, ciclo, balanço, plano,
+  simulador e IA veem as exceções. Excluir um recorrente também pergunta o alcance.
+- **Parcela de dívida** (`DebtSchedule.withInstallmentDate`/`withDueDayFrom`, `dividas.ajustesVencimento`
+  = "2026-05=2026-05-31"): "Editar parcela" muda só a data daquela parcela, no mesmo mês; valor, número e
+  dia combinado não mudam. À parte, "Mudar o dia desta e das próximas" troca `diaVencimento` e grava as
+  parcelas anteriores com a data que tinham. Parcela paga sai da projeção, então não é editável.
+- **Formulário**: o mesmo `TransactionEntryScreen`, com `edit = EntryEditTarget` (instância própria em
+  `FinaiApp`, o rascunho do "+" fica intacto): título "Editar gasto", sem troca de tipo, pagamento,
+  tipo de receita ou "Todo mês"; o primeiro número digitado substitui o valor; recorrente pergunta o
+  alcance num painel ao salvar; salvar fecha e a Agenda destaca a linha. Repositório:
+  `editarLancamento`/`excluirOcorrencia` numa transação. Item de fatura recalcula o total da fatura
+  (fatura paga bloqueia mudar o valor) e não troca de cartão; aporte e pagamento de parcela não editam.
+- **Room 13→14** (`MIGRATION_13_14`, só `ADD COLUMN`; `Migration13To14Test`): `transacoes.recorrenteAte`,
+  `diaRecorrencia`, `excecoes`, `serieId`, `dividas.ajustesVencimento`. Backup exporta/restaura os cinco.
+  **`13.json` e `14.json` gerados à mão** (o banco nunca foi compilado na v13): `12.json` + colunas, com o
+  `identityHash` calculado pelo algoritmo do Room (reimplementado e conferido contra 4, 11 e 12). O
+  primeiro build regrava o `14.json`; se mudar, commitar.
+- **Validação nesta sessão:** Gradle Android não roda aqui (dl.google.com bloqueado). 295 testes JVM
+  (`domain/` + backup) verdes com kotlinc avulso; repositório real contra DAOs em memória (scratchpad);
+  checagem de tipos com o plugin do Compose de Agenda, folhas, formulário, repositório, DAOs e banco;
+  telas renderizadas no Compose Desktop 1.5.12 nos dois temas (edição, alcance, calendário do mês,
+  folhas, Agenda). `FinanceViewModel` e `FinaiApp` revisados à mão. `AgendaEditRepositoryTest` e
+  `Migration13To14Test` **escritos, não executados**. Rodar `./gradlew assembleDebug testDebugUnitTest
+  connectedDebugAndroidTest` e conferir no aparelho.
 
 **Fase 0 (Fundamentos), Fase 1 (MVP sem IA), Fase 2 (camada de IA com um
 provedor), Fase 3 (multi-provedor e resiliência), Fase 4 (importação de

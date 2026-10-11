@@ -79,6 +79,7 @@ import com.finai.app.domain.InsightAction
 import com.finai.app.domain.AiPromptBuilder
 import com.finai.app.ui.components.TransactionEntryScreen
 import com.finai.app.domain.transactionsInMonth
+import com.finai.app.domain.occurrenceFor
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.finai.app.ui.components.SettingsScreen
 import com.finai.app.ui.components.rememberOnResume
@@ -234,6 +235,11 @@ fun FinaiApp(
     }
 
     var showAddTransaction by rememberSaveable { mutableStateOf(false) }
+    /** Lançamento aberto para edição pela Agenda: id gravado e mês da ocorrência tocada. */
+    var editEntryId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editEntryMonth by rememberSaveable { mutableStateOf<String?>(null) }
+    /** Data inicial do lançamento aberto pelo "+" da Agenda (o mês que está na tela). */
+    var transactionEntryInitialDate by rememberSaveable { mutableStateOf<String?>(null) }
     var bellCenterX by remember { mutableStateOf<Float?>(null) }
     // Único ponto de entrada pra lançar algo novo (planning.md §11: "Conta" deixou de ter
     // um "+" próprio — tudo que o usuário cadastra passa por aqui, e é isso que faz o
@@ -280,7 +286,7 @@ fun FinaiApp(
     Box(modifier = Modifier.fillMaxSize().background(FinaiColors.Background).onSizeChanged { rootHeightPx = it.height.toFloat() }) {
         Box(
             modifier = Modifier.fillMaxSize()
-                .then(if (showAddTransaction || contributionTarget != null) Modifier.clearAndSetSemantics {} else Modifier)
+                .then(if (showAddTransaction || editEntryId != null || contributionTarget != null) Modifier.clearAndSetSemantics {} else Modifier)
                 // Fundo da folha de aporte desfocado, como na referência (Android 12+; antes disso só o escurecido).
                 .then(if (contributionTarget != null) Modifier.blur(8.dp) else Modifier),
         ) {
@@ -363,7 +369,13 @@ fun FinaiApp(
                             onToggleExtra = financeViewModel::setTransacaoExtra,
                             onToggleMainIncome = financeViewModel::setTransacaoRendaPrincipal,
                             onEditDebt = { id -> editingDividaId = id },
-                            onNewEntry = { showAddTransaction = true },
+                            onNewEntry = {
+                                // Abre no mês que está na tela: hoje, se for o mês atual; senão o dia 1º.
+                                val shown = java.time.YearMonth.of(uiState.agendaYear, uiState.monthIndex + 1)
+                                val now = java.time.LocalDate.now()
+                                transactionEntryInitialDate = (if (shown == java.time.YearMonth.from(now)) now else shown.atDay(1)).toString()
+                                showAddTransaction = true
+                            },
                             onImport = { navigateTo(FinaiDestination.Import) },
                             sequential = uiState.agendaSequential,
                             onSequentialChange = viewModel::setAgendaSequential,
@@ -371,6 +383,14 @@ fun FinaiApp(
                             onAddMainIncome = { transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name; transactionEntryInitialMain = true; showAddTransaction = true },
                             highlight = agendaHighlight,
                             onHighlightShown = { agendaHighlight = null },
+                            seriesOf = { id -> financeState.rawTransacoes.firstOrNull { it.id == id } },
+                            onEditTransaction = { t ->
+                                editEntryId = t.id
+                                editEntryMonth = com.finai.app.domain.RecurringSeries.referenceMonth(t).toString()
+                            },
+                            onDeleteOccurrence = financeViewModel::deleteOccurrence,
+                            onAdjustInstallmentDate = financeViewModel::adjustInstallmentDate,
+                            onChangeInstallmentDay = financeViewModel::changeInstallmentDayFrom,
                         )
                     }
                     composable(FinaiDestination.Goals.route) {
@@ -570,7 +590,7 @@ fun FinaiApp(
             enter = fadeIn(finaiTween(FinaiMotion.Standard)) + slideInVertically(finaiTween(FinaiMotion.Standard)) { it / 2 },
             exit = fadeOut(finaiTween(FinaiMotion.Quick)) + slideOutVertically(finaiTween(FinaiMotion.Quick)) { it / 2 },
             modifier = Modifier
-                .then(if (showAddTransaction) Modifier.clearAndSetSemantics {} else Modifier)
+                .then(if (showAddTransaction || editEntryId != null) Modifier.clearAndSetSemantics {} else Modifier)
                 .align(Alignment.BottomCenter),
         ) {
             FinaiBottomNav(
@@ -772,6 +792,7 @@ fun FinaiApp(
             showAddTransaction = false
             transactionEntryInitialType = com.finai.app.domain.TransactionType.Gasto.name
             transactionEntryInitialExtra = false; transactionEntryInitialMain = false
+            transactionEntryInitialDate = null
         }
         TransactionEntryScreen(
             visible = showAddTransaction,
@@ -785,6 +806,7 @@ fun FinaiApp(
             initialType = com.finai.app.domain.TransactionType.valueOf(transactionEntryInitialType),
             initialExtra = transactionEntryInitialExtra,
             initialMainIncome = transactionEntryInitialMain,
+            initialDate = transactionEntryInitialDate?.let(java.time.LocalDate::parse),
             onDismiss = closeEntry,
             onSave = financeViewModel::saveTransactionEntry,
             onSaveCard = financeViewModel::saveCardPurchase,
@@ -806,6 +828,47 @@ fun FinaiApp(
                 navigateTo(FinaiDestination.Agenda)
             },
         )
+
+        // Edição pela Agenda: o mesmo formulário do "+", numa instância própria (o rascunho do "+"
+        // continua intacto), montada só enquanto há um item aberto. O alvo é lido uma vez, ao
+        // abrir: a gravação muda o registro e a tela não pode trocar de item no meio.
+        val editTarget = remember(editEntryId, editEntryMonth) {
+            financeState.rawTransacoes.firstOrNull { it.id == editEntryId }?.let { raw ->
+                if (raw.recorrente && raw.faturaId == null) {
+                    val month = editEntryMonth?.let(java.time.YearMonth::parse)
+                    month?.let { m -> raw.occurrenceFor(m)?.let { com.finai.app.ui.components.EntryEditTarget(it, m, accountLocked = false) } }
+                } else {
+                    com.finai.app.ui.components.EntryEditTarget(raw, null, accountLocked = raw.faturaId != null)
+                }
+            }
+        }
+        val closeEdit = { editEntryId = null; editEntryMonth = null }
+        LaunchedEffect(editEntryId, editTarget) { if (editEntryId != null && editTarget == null) closeEdit() }
+        editTarget?.let { target ->
+            androidx.compose.runtime.key(target.occurrence.id, target.month) {
+                TransactionEntryScreen(
+                    visible = true,
+                    accounts = entryAccounts,
+                    incomeSources = remember(financeState.rawTransacoes) {
+                        com.finai.app.domain.EntryOptions.recentIncomeSources(financeState.rawTransacoes)
+                    },
+                    onDismiss = closeEdit,
+                    onSave = financeViewModel::saveTransactionEntry,
+                    onViewEntry = {},
+                    cards = entryCards,
+                    categories = entryCategories,
+                    edit = target,
+                    onSaveEdit = { change, scope ->
+                        val month = target.month ?: java.time.YearMonth.from(change.data)
+                        val id = financeViewModel.editTransaction(target.occurrence.id, month, change, scope)
+                        // Mostra o resultado: a Agenda abre no mês do lançamento com a linha destacada.
+                        agendaHighlight = com.finai.app.domain.AgendaHighlight(setOf(id), null)
+                        // Na sequencial fica onde está; na mensal, vai ao mês da nova data.
+                        if (!uiState.agendaSequential) viewModel.showAgendaDate(change.data)
+                    },
+                )
+            }
+        }
 
         // Novo objetivo em três passos e edição (referências 1b e 1c em uploads/design-metas).
         GoalCreateScreen(
@@ -933,7 +996,7 @@ fun FinaiApp(
             else -> null
         }
         val tipsBlocked = uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen ||
-            celebration != null || showAddTransaction || openedInvoiceContaId != null || showInstallments || showAddDivida ||
+            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showAddDivida ||
             editingDivida != null || showAddGoal || editingObjetivo != null || editingConta != null ||
             contributionTarget != null || budgetLimitTarget != null || initialSetupComplete != true
         LaunchedEffect(tipScreen, tipsBlocked, tipsSeen, activeTips == null) {
@@ -952,7 +1015,7 @@ fun FinaiApp(
         // Segunda trava, independente da ordem em que os tratadores foram
         // registrados: com qualquer camada aberta por cima, a navegação entre
         // telas não reage ao voltar.
-        val anyLayerOpen = overlayOpen || celebration != null || showAddTransaction || openedInvoiceContaId != null || showInstallments ||
+        val anyLayerOpen = overlayOpen || celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments ||
             showAddDivida || editingDivida != null || activeTips != null || initialSetupComplete == false ||
             showAddGoal || editingObjetivo != null || contributionTarget != null
         SideEffect { navController.enableOnBackPressed(!anyLayerOpen) }

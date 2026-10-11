@@ -351,6 +351,25 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
   - "Gastar R$ X hoje" sem forma de pagamento é simulado como Pix/débito hoje (a resposta diz
     isso); "comprar" sem forma continua perguntando.
 
+- **Edição na Agenda, decisões tomadas em 11/10/2026 (aguardando confirmação do usuário):**
+  - **Tocar na parcela de dívida abre a folha dela**, com "Paguei a parcela" em primeiro. Antes
+    (28/09) o toque pagava direto; o pedido de 11/10 ("ao tocar, informações e ações") e as ações
+    novas (editar a parcela, mudar o dia) não cabiam sem botões fixos. É um toque a mais para pagar.
+    O ⋮ continua com "Marcar parcela como paga". Contas e faturas (tocar alterna paga) não mudaram.
+  - **A data de uma ocorrência editada fica no próprio mês** (recorrente e parcela). Mudar a
+    parcela de 30/04 para 01/05 juntaria duas cobranças em maio e nenhuma em abril; o calendário
+    só oferece os dias do mês. Avulso pode ir para qualquer data.
+  - **Excluir um recorrente pergunta o alcance** ("Somente este mês" / "Este mês e os próximos").
+    Antes excluía a série inteira, histórico incluído. Excluir a partir do primeiro mês ainda
+    apaga tudo.
+  - "Este mês e os próximos" também substitui os trechos criados por mudanças anteriores (a
+    internet que passou a R$ 135 em novembro passa a R$ 140 a partir de agosto, novembro
+    incluído). Exceções de um mês só ("Somente este mês") continuam valendo.
+  - Não editáveis pela Agenda: aporte em objetivo (o objetivo ficaria com outro valor) e pagamento
+    de parcela (a dívida ficaria com outro saldo). Os dois continuam com "Excluir"/"Desfazer".
+    Item de fatura edita valor (o total da fatura acompanha; fatura paga bloqueia), mas não troca
+    de cartão. O tipo do lançamento (gasto/receita/transferência) não muda na edição.
+
 - O usuário final é só você (single-user, sem conta/login) ou o app deve prever múltiplos perfis no mesmo aparelho?
 - Existe hoje algum dado real (lançamentos, dívidas, faturas) do site atual que precisa ser migrado para o app, ou o app Android começa do zero?
 - Backup dos dados locais (export/import manual de um arquivo, por exemplo) é necessário já no MVP, ou pode ficar para uma fase posterior?

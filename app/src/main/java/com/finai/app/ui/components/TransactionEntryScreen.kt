@@ -74,6 +74,9 @@ import com.finai.app.data.local.entity.FaturaCartaoEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.domain.CardPayment
+import com.finai.app.domain.EditScope
+import com.finai.app.domain.EntryChange
+import com.finai.app.domain.toLocalDate
 import com.finai.app.domain.EntryOptions
 import com.finai.app.domain.EntryReceipt
 import com.finai.app.domain.GoalReceipt
@@ -156,6 +159,14 @@ fun TransactionEntryScreen(
     onCreateGoal: ((reserve: Boolean) -> Unit)? = null,
     /** A confirmação fechou (Lançar outro, Ver na agenda ou X): solta a comemoração guardada. */
     onFinished: () -> Unit = {},
+    /** Data inicial de um lançamento novo (o "+" da Agenda abre no mês que está aberto). */
+    initialDate: LocalDate? = null,
+    /**
+     * Edição de um lançamento já gravado (Agenda): o mesmo formulário, preenchido. Recorrente
+     * pergunta o alcance ao salvar; [onSaveEdit] grava e a tela fecha.
+     */
+    edit: EntryEditTarget? = null,
+    onSaveEdit: (suspend (EntryChange, EditScope?) -> Unit)? = null,
 ) {
     val typography = MaterialTheme.typography
     MaterialTheme(typography = typography.copy(
@@ -168,9 +179,9 @@ fun TransactionEntryScreen(
     )) {
         ProvideTextStyle(TextStyle(fontFamily = EntryFont, fontSize = 14.sp)) {
             TransactionEntryContent(
-                EntryInputs(visible, accounts, incomeSources, cards, categories, objetivos, faturas, contas, dailySpendingCents),
-                initialType, initialExtra, initialMainIncome, onDismiss, onSave, onViewEntry, onSaveCard,
-                onSaveContribution, onUndo, onCreateGoal, onFinished,
+                EntryInputs(visible, accounts, incomeSources, cards, categories, objetivos, faturas, contas, dailySpendingCents, edit, initialDate),
+                initialType, initialExtra, initialMainIncome, onDismiss, onSave, onViewEntry, onSaveCard.takeIf { edit == null },
+                onSaveContribution, onUndo, onCreateGoal, onFinished, onSaveEdit,
             )
         }
     }
@@ -187,7 +198,22 @@ private class EntryInputs(
     val faturas: List<FaturaCartaoEntity>,
     val contas: List<ContaEntity>,
     val dailySpendingCents: Long?,
+    val edit: EntryEditTarget?,
+    val initialDate: LocalDate?,
 )
+
+/**
+ * Lançamento aberto para edição. [month] existe na ocorrência de um recorrente: a data fica
+ * nesse mês e, ao salvar, a tela pergunta se vale só para ele ou dele em diante.
+ */
+data class EntryEditTarget(
+    val occurrence: TransacaoEntity,
+    val month: YearMonth?,
+    /** Item de fatura: continua no cartão em que foi lançado. */
+    val accountLocked: Boolean,
+) {
+    val recurring: Boolean get() = month != null
+}
 
 private fun amountText(cents: String): String = NumberFormat.getNumberInstance(Locale("pt", "BR")).apply {
     minimumFractionDigits = 2; maximumFractionDigits = 2
@@ -239,17 +265,21 @@ private fun TransactionEntryContent(
     onUndo: suspend (EntryReceipt) -> Unit,
     onCreateGoal: ((Boolean) -> Unit)?,
     onFinished: () -> Unit,
+    onSaveEdit: (suspend (EntryChange, EditScope?) -> Unit)?,
 ) {
     val visible = inputs.visible
+    val edit = inputs.edit
+    val original = edit?.occurrence
     val today = LocalDate.now()
     // Rascunho: os mesmos campos de antes, mais pagamento, parcelas, tipo de receita e destino.
-    var cents by rememberSaveable { mutableStateOf("") }
-    var category by rememberSaveable { mutableStateOf("") }
-    var description by rememberSaveable { mutableStateOf("") }
-    var account by rememberSaveable { mutableStateOf("") }
-    var dateString by rememberSaveable { mutableStateOf(today.toString()) }
+    // Na edição, o rascunho nasce do lançamento gravado (a tela de edição é montada por item).
+    var cents by rememberSaveable { mutableStateOf(original?.valorCentavos?.toString() ?: "") }
+    var category by rememberSaveable { mutableStateOf(original?.categoria ?: "") }
+    var description by rememberSaveable { mutableStateOf(original?.descricao ?: "") }
+    var account by rememberSaveable { mutableStateOf(original?.contaOrigem ?: "") }
+    var dateString by rememberSaveable { mutableStateOf((original?.data?.toLocalDate() ?: today).toString()) }
     var recurring by rememberSaveable { mutableStateOf(false) }
-    var typeName by rememberSaveable { mutableStateOf(TransactionType.Gasto.name) }
+    var typeName by rememberSaveable { mutableStateOf(original?.tipo?.takeIf { t -> TransactionType.values().any { it.name == t } } ?: TransactionType.Gasto.name) }
     var payName by rememberSaveable { mutableStateOf(PaymentMethod.Debito.name) }
     var card by rememberSaveable { mutableStateOf("") }
     var installments by rememberSaveable { mutableIntStateOf(EntryOptions.MIN_INSTALLMENTS) }
@@ -257,10 +287,10 @@ private fun TransactionEntryContent(
     var dueString by rememberSaveable { mutableStateOf("") }
     var dueConfirmed by rememberSaveable { mutableStateOf(false) }
     var incomeName by rememberSaveable { mutableStateOf(IncomeKind.DEFAULT.name) }
-    var targetName by rememberSaveable { mutableStateOf(TransferTarget.Reserva.name) }
+    var targetName by rememberSaveable { mutableStateOf(if (original != null) TransferTarget.Conta.name else TransferTarget.Reserva.name) }
     /** Objetivo escolhido; −1 = nenhum (com uma opção só, ela vale sem toque). */
     var goalId by rememberSaveable { mutableLongStateOf(-1L) }
-    var destAccount by rememberSaveable { mutableStateOf("") }
+    var destAccount by rememberSaveable { mutableStateOf(original?.contaDestino ?: "") }
     var receipt by rememberSaveable(stateSaver = ReceiptSaver) { mutableStateOf<EntryReceipt?>(null) }
     var undoing by remember { mutableStateOf(false) }
     var undoError by remember { mutableStateOf<String?>(null) }
@@ -281,8 +311,9 @@ private fun TransactionEntryContent(
     // rascunho está vazio — senão reabrir a tela com "Voltar preserva rascunho" trocaria o
     // tipo de um lançamento que o usuário já estava preenchendo.
     LaunchedEffect(visible) {
-        if (visible && receipt == null && cents.isEmpty() && category.isEmpty() && description.isBlank()) {
+        if (edit == null && visible && receipt == null && cents.isEmpty() && category.isEmpty() && description.isBlank()) {
             typeName = initialType.name
+            inputs.initialDate?.let { dateString = it.toString() }
             if (initialType == TransactionType.Receita) incomeName = when {
                 initialExtra -> IncomeKind.Extra.name
                 initialMainIncome -> IncomeKind.Salario.name
@@ -323,15 +354,30 @@ private fun TransactionEntryContent(
         ?: EntryOptions.autoSelected(goalOptions)?.let { id -> goalOptions.first { it.id == id } }
     val toGoal = isTransfer && target != TransferTarget.Conta
 
-    val valid = !saving && !success && valueCents > 0 && when (type) {
-        TransactionType.Gasto -> category in TransactionEntry.categories &&
+    // Edição: categoria importada fora das nove continua aceita; salvar só com algo mudado.
+    val editChange = original?.let { o ->
+        EntryChange(
+            data = date, valorCentavos = valueCents, descricao = description.trim().ifEmpty { o.descricao },
+            categoria = if (isGasto) category else o.categoria, contaOrigem = if (edit?.accountLocked == true) o.contaOrigem else selectedAccount,
+            contaDestino = if (isTransfer) destAccount.trim().ifEmpty { null } else null,
+        )
+    }
+    val editDirty = original != null && editChange != EntryChange(
+        original.data.toLocalDate(), original.valorCentavos, original.descricao, original.categoria, original.contaOrigem,
+        if (isTransfer) original.contaDestino else null,
+    )
+    val valid = !saving && !success && valueCents > 0 && (original == null || editDirty) && when (type) {
+        TransactionType.Gasto -> (category in TransactionEntry.categories || (original != null && category == original.categoria)) &&
             (!isCard || (card.isNotBlank() && dueOk && plan.valid))
         TransactionType.Receita -> true
         TransactionType.Transferencia -> if (toGoal) selectedGoal != null && onSaveContribution != null
-            else destAccount.isNotBlank() && !destAccount.trim().equals(selectedAccount.trim(), ignoreCase = true)
+            // Transferência antiga, de antes do destino existir, pode ser editada sem inventar um.
+            else (original != null && original.contaDestino == null && destAccount.isBlank()) ||
+                (destAccount.isNotBlank() && !destAccount.trim().equals(selectedAccount.trim(), ignoreCase = true))
     }
     val saveLabel = when {
         saving -> "Salvando…"
+        original != null -> if (editDirty || valueCents == 0L) "Salvar alterações" else "Nada alterado"
         isTransfer && target == TransferTarget.Reserva -> "Guardar na reserva"
         isTransfer && target == TransferTarget.Objetivo -> "Guardar no objetivo"
         else -> "Salvar ${type.label.lowercase(Locale("pt", "BR"))}"
@@ -343,7 +389,9 @@ private fun TransactionEntryContent(
     // Description uses the system IME; the custom keypad must yield to it instead of stacking on top.
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     // O teclado recolhe ao tocar em categoria, pagamento ou pílula e volta ao tocar no valor.
-    var amountEditing by rememberSaveable { mutableStateOf(true) }
+    var amountEditing by rememberSaveable { mutableStateOf(edit == null) }
+    /** Edição: o primeiro número digitado substitui o valor gravado, como um campo já selecionado. */
+    var replaceAmount by rememberSaveable { mutableStateOf(edit != null) }
     val showKeypad = amountEditing && !imeVisible && panel == null && !success
 
     fun openPanel(name: String) {
@@ -412,6 +460,22 @@ private fun TransactionEntryContent(
         }
     }
 
+    /** Edição: grava pelo [onSaveEdit] e fecha; erro de regra volta como mensagem na tela. */
+    fun saveEdit(editScope: EditScope?) {
+        val change = editChange ?: return
+        val save = onSaveEdit ?: return
+        if (saving || !valid) return
+        focus.clearFocus(); panel = null
+        saving = true; error = null
+        scope.launch {
+            try { save(change, editScope); onDismiss() }
+            catch (e: CancellationException) { throw e }
+            catch (e: IllegalArgumentException) { error = e.message ?: "Confira os dados do lançamento." }
+            catch (e: Exception) { error = "Não foi possível salvar. Tente novamente." }
+            finally { saving = false }
+        }
+    }
+
     fun undo() {
         val r = receipt ?: return
         if (undoing) return
@@ -447,7 +511,11 @@ private fun TransactionEntryContent(
                         IconButton(onClick = { close() }, enabled = !saving && !undoing) {
                             EntryGlyph("close", EntryInk, "Fechar lançamento")
                         }
-                        EntryTypeTabs(type, enabled = !saving && !success, modifier = Modifier.weight(1f)) { selectType(it) }
+                        if (edit == null) {
+                            EntryTypeTabs(type, enabled = !saving && !success, modifier = Modifier.weight(1f)) { selectType(it) }
+                        } else {
+                            EditHeader(type, edit, Modifier.weight(1f))
+                        }
                     }
                     Column(
                         Modifier.weight(1f).verticalScroll(rememberScrollState()).alpha(if (success) .45f else 1f)
@@ -492,11 +560,11 @@ private fun TransactionEntryContent(
                                         onLineClick = { openPanel(if (card.isBlank()) "card" else "due") })
                                 }
                             }
-                            TransactionType.Receita -> IncomeKindSelector(incomeKind, enabled = !saving && !success) {
+                            TransactionType.Receita -> if (edit == null) IncomeKindSelector(incomeKind, enabled = !saving && !success) {
                                 incomeName = it.name; amountEditing = false
                             }
                             TransactionType.Transferencia -> {
-                                DestinationStrip(target, enabled = !saving && !success) {
+                                if (edit == null) DestinationStrip(target, enabled = !saving && !success) {
                                     targetName = it.name; goalId = -1L; amountEditing = false
                                 }
                                 if (target == TransferTarget.Conta) {
@@ -518,18 +586,19 @@ private fun TransactionEntryContent(
                             when {
                                 isCard -> EntryPill("card", card.ifBlank { "Cartão" }, placeholder = card.isBlank(), contentLabel = "Cartão") { openPanel("card") }
                                 isReceita -> EntryPill("briefcase", selectedAccount.ifBlank { "De onde veio" }, placeholder = selectedAccount.isBlank(), contentLabel = "De onde veio") { openPanel("account") }
+                                edit?.accountLocked == true -> EntryPill("card", original!!.contaOrigem.ifBlank { "Cartão" }, contentLabel = "Cartão (a compra fica nesta fatura)") { }
                                 else -> EntryPill("wallet", if (isTransfer) "De $selectedAccount" else selectedAccount, contentLabel = if (isTransfer) "Conta de origem" else "Conta") { openPanel("account") }
                             }
                             EntryPill("description", description.ifBlank { "Descrição" }, placeholder = description.isBlank(), contentLabel = "Descrição") { openPanel("description") }
                             // "Todo mês" só existe no gasto no débito/Pix.
-                            if (isGasto && !isCard) EntryPill("repeat", "Todo mês", active = recurring, placeholder = !recurring, contentLabel = "Repetição") { openPanel("repeat") }
+                            if (isGasto && !isCard && edit == null) EntryPill("repeat", "Todo mês", active = recurring, placeholder = !recurring, contentLabel = "Repetição") { openPanel("repeat") }
                         }
                         error?.let { Text(it, color = FinaiColors.RoseDark, fontSize = 13.sp) }
                         Spacer(Modifier.height(4.dp))
                     }
                     // 04 · Base: salvar sempre visível; depois de salvar, a confirmação no lugar.
                     if (receipt == null) {
-                        Button(onClick = { save() }, enabled = valid, shape = EntryShape,
+                        Button(onClick = { if (edit == null) save() else if (edit.recurring) openPanel("scope") else saveEdit(null) }, enabled = valid, shape = EntryShape,
                             colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong, disabledContainerColor = EntryLine, disabledContentColor = EntryMuted),
                             elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, disabledElevation = 0.dp),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).height(56.dp)) {
@@ -548,7 +617,11 @@ private fun TransactionEntryContent(
                 }
             }
             val keypad: @Composable () -> Unit = {
-                EntryKeypad(visible = showKeypad, enabled = !saving && !success, onKey = { focus.clearFocus(); cents = TransactionEntry.key(cents, it) })
+                EntryKeypad(visible = showKeypad, enabled = !saving && !success, onKey = {
+                    focus.clearFocus()
+                    cents = TransactionEntry.key(if (replaceAmount && it != "erase") "" else cents, it)
+                    replaceAmount = false
+                })
             }
             if (landscape) {
                 // The keypad panel's width also eases out so hiding it (e.g. to type the
@@ -580,7 +653,11 @@ private fun TransactionEntryContent(
                 "date" -> EntryCalendar(date, onSelect = { picked ->
                     if (picked.toString() != dateString) { dueString = ""; dueConfirmed = false }
                     dateString = picked.toString(); panel = null
-                })
+                },
+                    // Ocorrência de recorrente: a data muda dentro do próprio mês.
+                    showShortcuts = edit?.month == null,
+                    minDate = edit?.month?.atDay(1), maxDate = edit?.month?.atEndOfMonth())
+                "scope" -> edit?.month?.let { month -> ScopeOptions(month) { saveEdit(it) } }
                 "account" -> OptionList(availableAccounts + selectedAccount, selectedAccount,
                     customLabel = if (isReceita) "De onde veio (empresa, cliente...)" else "Outra conta",
                     icon = if (isReceita) "briefcase" else "wallet") { account = it; panel = null }
@@ -628,7 +705,53 @@ private fun panelTitle(panel: String?, isReceita: Boolean): String = when (panel
     "due" -> "Vencimento da fatura"
     "description" -> "Descrição"
     "repeat" -> "Repetição"
+    "scope" -> "Aplicar a alteração em"
     else -> ""
+}
+
+/** Topo da edição: o tipo não muda (seria outro lançamento); recorrente mostra o mês editado. */
+@Composable
+private fun EditHeader(type: TransactionType, edit: EntryEditTarget, modifier: Modifier = Modifier) {
+    Column(modifier.padding(start = 4.dp).semantics(mergeDescendants = true) { heading() }) {
+        Text("Editar ${type.label.lowercase(Locale("pt", "BR"))}", color = EntryInk, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        val note = when {
+            edit.month != null -> "Recorrente · ${monthLabel(edit.month)}"
+            edit.accountLocked -> "Compra na fatura ${edit.occurrence.contaOrigem}".trim()
+            else -> null
+        }
+        note?.let { Text(it, color = EntryMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    }
+}
+
+private fun monthLabel(month: YearMonth): String = "${MONTH_NAMES_PT[month.monthValue - 1].lowercase(Locale("pt", "BR"))} de ${month.year}"
+
+/**
+ * Alcance da alteração num recorrente. Um toque grava: não há segundo "Confirmar".
+ * O histórico (meses anteriores) nunca muda por aqui.
+ */
+@Composable
+private fun ScopeOptions(month: YearMonth, onPick: (EditScope) -> Unit) {
+    val nome = monthLabel(month)
+    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(
+            Triple(EditScope.OnlyThis, "Somente este mês", "Só $nome. Os outros meses continuam como estão."),
+            Triple(EditScope.ThisAndFollowing, "Este mês e os próximos", "De $nome em diante. Os meses anteriores não mudam."),
+        ).forEach { (scope, title, detail) ->
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(EntryShape)
+                    // No escuro o painel já é da cor do bloco: um tom acima separa as duas opções.
+                    .background(if (FinaiColors.isDark) TileIconBg else TileBg).border(1.dp, TileBorder, EntryShape)
+                    .clickable(role = Role.Button, onClick = { onPick(scope) }).padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                EntryGlyph(if (scope == EditScope.OnlyThis) "calendar" else "repeat", EntryInk, size = 20)
+                Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                    Text(title, color = EntryInk, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(detail, color = EntryMuted, fontSize = 13.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 2.dp))
+                }
+            }
+        }
+    }
 }
 
 // ── 02 · valor ──────────────────────────────────────────────────────────
@@ -1279,11 +1402,14 @@ internal fun EntryCalendarSheet(selected: LocalDate, onSelect: (LocalDate) -> Un
 }
 
 @Composable
-private fun EntryCalendar(
+internal fun EntryCalendar(
     selected: LocalDate, onSelect: (LocalDate) -> Unit, showYesterday: Boolean = true, showShortcuts: Boolean = true,
     minDate: LocalDate? = null,
+    /** Com [minDate] e [maxDate] no mesmo mês, as setas somem: a escolha é só dentro dele. */
+    maxDate: LocalDate? = null,
 ) {
     var viewedMonth by remember { mutableStateOf(YearMonth.from(selected)) }
+    val singleMonth = minDate != null && maxDate != null && YearMonth.from(minDate) == YearMonth.from(maxDate)
     Column {
         if (showShortcuts) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 14.dp)) {
@@ -1292,12 +1418,12 @@ private fun EntryCalendar(
             }
         }
         Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { viewedMonth = viewedMonth.minusMonths(1) }) { EntryGlyph("back", EntryInk, "Mês anterior") }
+            if (singleMonth) Box(Modifier.size(48.dp)) else IconButton(onClick = { viewedMonth = viewedMonth.minusMonths(1) }) { EntryGlyph("back", EntryInk, "Mês anterior") }
             Text(
                 "${MONTH_NAMES_PT[viewedMonth.monthValue - 1].replaceFirstChar { it.uppercase() }} de ${viewedMonth.year}",
                 color = EntryInk, fontSize = 14.sp, fontWeight = FontWeight.Bold,
             )
-            IconButton(onClick = { viewedMonth = viewedMonth.plusMonths(1) }) {
+            if (singleMonth) Box(Modifier.size(48.dp)) else IconButton(onClick = { viewedMonth = viewedMonth.plusMonths(1) }) {
                 Box(Modifier.graphicsLayer { rotationZ = 180f }) { EntryGlyph("back", EntryInk, "Próximo mês") }
             }
         }
@@ -1322,7 +1448,7 @@ private fun EntryCalendar(
                             val date = viewedMonth.atDay(day)
                             val isSelected = date == selected
                             val isToday = date == LocalDate.now()
-                            val allowed = minDate == null || !date.isBefore(minDate)
+                            val allowed = (minDate == null || !date.isBefore(minDate)) && (maxDate == null || !date.isAfter(maxDate))
                             Box(
                                 Modifier.size(40.dp).clip(CircleShape)
                                     .background(if (isSelected) FinaiColors.InkStrong else Color.Transparent)
@@ -1370,6 +1496,9 @@ internal fun EntryGlyph(name: String, color: Color, description: String? = null,
         "wallet" -> "M4 6h14q2 0 2 2v10q0 2-2 2H5q-2 0-2-2V7q0-3 3-3h10 M16 13h.1"
         "target" -> "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M12 12h.1"
         "flag" -> "M5 21V4 M5 4h11l-2 4 2 4H5"
+        "edit" -> "M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z M13.5 6.5l4 4"
+        "trash" -> "M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v6 M14 11v6"
+        "star" -> "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"
         "Alimentação" -> "M5 3v6q0 3 3 3t3-3V3 M8 3v18 M19 21V3q-4 0-4 7h4"
         "Transporte" -> "M5 17V9q0-5 7-5t7 5v8Z M5 10h14 M7 17v3 M17 17v3 M8 14h1 M15 14h1 M9 4V2h6v2"
         "Moradia" -> "M3 10l9-7 9 7v11H3Z M9 21V13h6v8 M6 10h.1"

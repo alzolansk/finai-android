@@ -35,6 +35,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.finai.app.ui.components.ActionButton
 import com.finai.app.ui.components.EmptyStateCard
 import com.finai.app.ui.components.TextAction
@@ -118,8 +120,19 @@ fun AgendaScreen(
     /** Item recém-lançado ("Ver na agenda" do lançamento): a lista rola até ele e o destaca. */
     highlight: com.finai.app.domain.AgendaHighlight? = null,
     onHighlightShown: () -> Unit = {},
+    /** Registro gravado de uma série recorrente, pelo id (a linha mostra a ocorrência do mês). */
+    seriesOf: (Long) -> TransacaoEntity? = { null },
+    /** Abre o formulário do lançamento preenchido com a ocorrência tocada. */
+    onEditTransaction: (TransacaoEntity) -> Unit = {},
+    onDeleteOccurrence: (TransacaoEntity, com.finai.app.domain.EditScope) -> Unit = { _, _ -> },
+    onAdjustInstallmentDate: suspend (dividaId: Long, month: java.time.YearMonth, date: LocalDate) -> Unit = { _, _, _ -> },
+    onChangeInstallmentDay: suspend (dividaId: Long, month: java.time.YearMonth, day: Int) -> Unit = { _, _, _ -> },
 ) {
     var pendingDeleteTransaction by remember { mutableStateOf<TransacaoEntity?>(null) }
+    /** Lançamento tocado: a folha com informações e ações (e se abriu já perguntando o que excluir). */
+    var sheetTransaction by remember { mutableStateOf<Pair<TransacaoEntity, Boolean>?>(null) }
+    /** Parcela tocada, o mês dela e se abriu direto na data. */
+    var sheetInstallment by remember { mutableStateOf<Triple<DebtInstallment, java.time.YearMonth, Boolean>?>(null) }
     var pendingDeleteBill by remember { mutableStateOf<Bill?>(null) }
     var pendingPayInstallment by remember { mutableStateOf<com.finai.app.domain.TimelineMovement?>(null) }
     var showPreviousCycle by rememberSaveable { mutableStateOf(false) }
@@ -151,7 +164,12 @@ fun AgendaScreen(
             )
         }
 
-        item(key = "agenda-modo") { AgendaModeTabs(sequential, onSequentialChange) }
+        item(key = "agenda-modo") {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AgendaModeTabs(sequential, onSequentialChange, Modifier.weight(1f))
+                AddEntryButton(onNewEntry)
+            }
+        }
 
         if (sequential) {
             sequentialAgendaItems(
@@ -164,6 +182,7 @@ fun AgendaScreen(
                 onToggleContaPaga = onToggleContaPaga,
                 onRequestPayInstallment = { pendingPayInstallment = it },
                 onAddMainIncome = onAddMainIncome,
+                onOpenTransaction = { sheetTransaction = it to false },
             )
         } else {
             item {
@@ -297,17 +316,49 @@ fun AgendaScreen(
                                 )
                                 is AgendaEntry.Parcela -> DebtInstallmentRow(
                                     entry.parcela, onPay = { onPayInstallment(entry.parcela.divida.id) },
-                                    onEdit = { onEditDebt(entry.parcela.divida.id) }, modifier = mod,
+                                    onEdit = { onEditDebt(entry.parcela.divida.id) },
+                                    onOpen = { editDate -> sheetInstallment = Triple(entry.parcela, agendaMonth, editDate) },
+                                    modifier = mod,
                                 )
                                 is AgendaEntry.Lancamento -> TransacaoRow(
-                                    entry.transacao, today, mod, onToggleExtra, onToggleMainIncome,
-                                ) { pendingDeleteTransaction = entry.transacao }
+                                    entry.transacao, today, mod,
+                                    onOpen = { sheetTransaction = entry.transacao to false },
+                                    onEdit = { onEditTransaction(entry.transacao) },
+                                    onDelete = {
+                                        if (entry.transacao.recorrente && entry.transacao.faturaId == null) sheetTransaction = entry.transacao to true
+                                        else pendingDeleteTransaction = entry.transacao
+                                    },
+                                )
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    sheetTransaction?.let { (t, delete) ->
+        TransactionSheet(
+            transacao = t, series = seriesOf(t.id), today = today,
+            onDismiss = { sheetTransaction = null },
+            onEdit = { sheetTransaction = null; onEditTransaction(t) },
+            onToggleMainIncome = onToggleMainIncome, onToggleExtra = onToggleExtra,
+            onDelete = { pendingDeleteTransaction = it },
+            onDeleteOccurrence = onDeleteOccurrence,
+            startInDelete = delete,
+        )
+    }
+
+    sheetInstallment?.let { (parcela, month, editDate) ->
+        InstallmentSheet(
+            parcela = parcela, month = month, today = today,
+            onDismiss = { sheetInstallment = null },
+            onPay = { onPayInstallment(parcela.divida.id) },
+            onEditDebt = { onEditDebt(parcela.divida.id) },
+            onSaveDate = { date -> onAdjustInstallmentDate(parcela.divida.id, month, date) },
+            onChangeDayFrom = { day -> onChangeInstallmentDay(parcela.divida.id, month, day) },
+            startEditingDate = editDate,
+        )
     }
 
     pendingPayInstallment?.let { m ->
@@ -584,11 +635,17 @@ private fun ListRow(
 /**
  * Parcela de dívida. Só a mais antiga em aberto é "pagável": marcar uma de um mês futuro
  * pagaria, na prática, a anterior a ela (o modelo guarda só a próxima em aberto). Tocar na
- * linha chama [onPay] direto — preferência do usuário (28/09/2026): "clicou na linha, pagou".
- * Para desfazer, basta excluir o gasto do pagamento, que a parcela volta.
+ * linha abre a folha da parcela (pagar, editar a data só dela, mudar o dia das próximas);
+ * antes (28/09) o toque pagava direto, e não havia onde pôr as outras ações sem botões fixos.
+ * Para desfazer um pagamento, basta excluir o gasto dele, que a parcela volta.
  */
 @Composable
-private fun DebtInstallmentRow(parcela: DebtInstallment, onPay: () -> Unit, onEdit: () -> Unit, modifier: Modifier = Modifier) {
+private fun DebtInstallmentRow(
+    parcela: DebtInstallment, onPay: () -> Unit, onEdit: () -> Unit,
+    /** Abre a folha da parcela; true = já no calendário de "Editar parcela". */
+    onOpen: (editDate: Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     ListRow(
         modifier = modifier,
         icon = DebtIcon,
@@ -598,13 +655,14 @@ private fun DebtInstallmentRow(parcela: DebtInstallment, onPay: () -> Unit, onEd
             Text(formatBrl0(parcela.valorCentavos / 100.0), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary)
             val status = if (parcela.atrasada) BillStatus.Overdue else BillStatus.Expected
             Box(Modifier.padding(top = 3.dp)) { Chip(if (parcela.atrasada) "Atrasada" else "Prevista", status.fg, status.bg) }
-            if (parcela.isNext) TapHint(if (parcela.atrasada) "Toque se já pagou" else "Toque para marcar paga")
         },
         menu = listOfNotNull(
             if (parcela.isNext) OverflowAction("Marcar parcela como paga", onClick = onPay) else null,
+            OverflowAction("Editar parcela") { onOpen(true) },
             OverflowAction("Editar dívida", onClick = onEdit),
         ),
-        onClick = if (parcela.isNext) onPay else null,
+        // Toque abre as informações e ações da parcela ("Paguei a parcela" fica em primeiro lá).
+        onClick = { onOpen(false) },
     )
 }
 
@@ -675,9 +733,10 @@ private fun TransacaoRow(
     transacao: TransacaoEntity,
     today: LocalDate,
     modifier: Modifier = Modifier,
-    onToggleExtra: (TransacaoEntity, Boolean) -> Unit,
-    onToggleMainIncome: (TransacaoEntity, Boolean) -> Unit,
-    onDelete: (TransacaoEntity) -> Unit,
+    /** Toque na linha: folha com informações e todas as ações. */
+    onOpen: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val receita = transacao.tipo == "Receita"
     val principal = receita && PayCycle.isMainIncome(transacao)
@@ -713,19 +772,13 @@ private fun TransacaoRow(
                 Box(Modifier.padding(top = 3.dp)) { Chip(BillStatus.Expected.label, BillStatus.Expected.fg, BillStatus.Expected.bg) }
             }
         },
+        // Renda principal, entrada extra e o resto ficam na folha que o toque abre; o ⋮ guarda
+        // só o atalho para editar e excluir.
         menu = listOfNotNull(
-            // Renda principal define o ciclo até o próximo salário (Fase 7, item 5).
-            if (receita && transacao.faturaId == null && !transacao.extra)
-                OverflowAction(if (transacao.rendaPrincipal) "Desmarcar renda principal" else "Marcar como renda principal") {
-                    onToggleMainIncome(transacao, !transacao.rendaPrincipal)
-                }
-            else null,
-            // Receita já lançada pode entrar/sair da Linha do tempo do ano sem relançar.
-            if (receita && transacao.faturaId == null)
-                OverflowAction(if (transacao.extra) "Desmarcar entrada extra" else "Marcar como entrada extra") { onToggleExtra(transacao, !transacao.extra) }
-            else null,
-            OverflowAction(if (transacao.origem == DebtSchedule.PAYMENT_ORIGIN) "Desfazer pagamento" else "Excluir", destructive = true) { onDelete(transacao) },
+            if (editBlockReason(transacao) == null) OverflowAction("Editar", onClick = onEdit) else null,
+            OverflowAction(if (transacao.origem == DebtSchedule.PAYMENT_ORIGIN) "Desfazer pagamento" else "Excluir", destructive = true, onClick = onDelete),
         ),
+        onClick = onOpen,
     )
 }
 
@@ -740,4 +793,20 @@ private fun Modifier.highlightFlash(reduced: Boolean): Modifier {
         alpha.animateTo(0f, tween(700))
     }
     return this.background(FinaiColors.EmeraldSoftBg.copy(alpha = alpha.value))
+}
+
+/** "+" da Agenda: abre o mesmo lançamento do "+" central, já no mês que está na tela. */
+@Composable
+private fun AddEntryButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(FinaiColors.InkStrong)
+            .clickable(onClickLabel = "Adicionar lançamento", role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .semantics { contentDescription = "Adicionar lançamento" },
+        contentAlignment = Alignment.Center,
+    ) {
+        EntryGlyph("plus", FinaiColors.OnInkStrong, size = 20)
+    }
 }

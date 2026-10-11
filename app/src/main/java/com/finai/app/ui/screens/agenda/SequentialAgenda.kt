@@ -86,6 +86,8 @@ internal fun LazyListScope.sequentialAgendaItems(
     onToggleContaPaga: (id: Long, pago: Boolean) -> Unit,
     onRequestPayInstallment: (TimelineMovement) -> Unit,
     onAddMainIncome: () -> Unit,
+    /** Toque num lançamento: a mesma folha de ações da Agenda mensal. */
+    onOpenTransaction: (com.finai.app.data.local.entity.TransacaoEntity) -> Unit = {},
 ) {
     val cycle = timeline?.cycle
     if (timeline == null || cycle == null) {
@@ -99,7 +101,7 @@ internal fun LazyListScope.sequentialAgendaItems(
         list.groupBy { YearMonth.from(it.date) }.forEach { (month, movements) ->
             item(key = "seq-sem-renda-$month") { MonthLabel(month) }
             item(key = "seq-sem-renda-lista-$month") {
-                MovementGroup(movements, allowPay = true, null, null, null, onToggleContaPaga, onRequestPayInstallment)
+                MovementGroup(movements, allowPay = true, null, null, null, onToggleContaPaga, onRequestPayInstallment, onOpenTransaction)
             }
         }
         return
@@ -132,7 +134,7 @@ internal fun LazyListScope.sequentialAgendaItems(
         segment.movements.groupBy { YearMonth.from(it.date) }.forEach { (month, movements) ->
             item(key = "$k-mes-$month") { MonthLabel(month) }
             item(key = "$k-lista-$month") {
-                MovementGroup(movements, allowPay = isCurrent, markerBefore, markerAfter, cycle.saldoHojeCents, onToggleContaPaga, onRequestPayInstallment)
+                MovementGroup(movements, allowPay = isCurrent, markerBefore, markerAfter, cycle.saldoHojeCents, onToggleContaPaga, onRequestPayInstallment, onOpenTransaction)
             }
         }
         item(key = "$k-rodape") { SegmentFooter(segment) }
@@ -233,6 +235,7 @@ private fun MovementGroup(
     todayBalanceCents: Long?,
     onToggleContaPaga: (id: Long, pago: Boolean) -> Unit,
     onRequestPayInstallment: (TimelineMovement) -> Unit,
+    onOpenTransaction: (com.finai.app.data.local.entity.TransacaoEntity) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(FinaiColors.Surface),
@@ -244,7 +247,7 @@ private fun MovementGroup(
             } else if (index > 0) {
                 HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp, modifier = Modifier.padding(start = 58.dp))
             }
-            MovementRow(m, allowPay, onToggleContaPaga, onRequestPayInstallment)
+            MovementRow(m, allowPay, onToggleContaPaga, onRequestPayInstallment, onOpenTransaction)
             if (m === todayMarkerAfter) TodayMarker(todayBalanceCents, first = false)
         }
     }
@@ -269,14 +272,18 @@ private fun MovementRow(
     allowPay: Boolean,
     onToggleContaPaga: (id: Long, pago: Boolean) -> Unit,
     onRequestPayInstallment: (TimelineMovement) -> Unit,
+    onOpenTransaction: (com.finai.app.data.local.entity.TransacaoEntity) -> Unit,
 ) {
     val conta = (m.source as? CycleSource.Conta)?.conta
     val parcela = (m.source as? CycleSource.Parcela)?.parcela
+    // Salário estimado de um ciclo futuro tem id negativo: não existe no banco para editar.
+    val lancamento = (m.source as? CycleSource.Lancamento)?.transacao?.takeIf { it.id > 0 }
     // Mesmas ações da Agenda mensal: tocar na conta alterna paga/pendente; na parcela mais antiga em
     // aberto, registra o pagamento (com confirmação). Projeção de ciclo futuro não é editável aqui.
     val onClick: (() -> Unit)? = when {
         conta != null -> { { onToggleContaPaga(conta.id, conta.status != "pago") } }
         parcela != null && parcela.isNext && allowPay -> { { onRequestPayInstallment(m) } }
+        lancamento != null -> { { onOpenTransaction(lancamento) } }
         else -> null
     }
     val entrada = m.cents > 0

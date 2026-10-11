@@ -446,6 +446,38 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         repository.salvarTransacao(original.copy(rendaPrincipal = principal, extra = if (principal) false else original.extra))
     }
 
+    // ── edição pela Agenda ─────────────────────────────────────
+    /**
+     * Salva a edição de um lançamento (o formulário do "+" reaberto preenchido). [month] é o mês
+     * da ocorrência; [scope] só existe para recorrente ("Somente este mês" / "Este mês e os
+     * próximos"). Lança [IllegalArgumentException] com a mensagem para a tela quando a edição
+     * não é permitida. Devolve o id da linha que a Agenda destaca.
+     */
+    suspend fun editTransaction(id: Long, month: java.time.YearMonth, change: com.finai.app.domain.EntryChange, scope: com.finai.app.domain.EditScope?): Long =
+        repository.editarLancamento(id, month, change, scope)
+
+    /** Excluir uma ocorrência de recorrente só neste mês, ou dela em diante. */
+    fun deleteOccurrence(transacao: TransacaoEntity, scope: com.finai.app.domain.EditScope) = launchSafely("excluir o lançamento") {
+        repository.excluirOcorrencia(transacao.id, com.finai.app.domain.RecurringSeries.referenceMonth(transacao), scope)
+    }
+
+    /**
+     * "Editar parcela": muda o vencimento só da parcela de [month]. As outras parcelas e o dia
+     * combinado da dívida não mudam.
+     */
+    suspend fun adjustInstallmentDate(dividaId: Long, month: java.time.YearMonth, date: LocalDate) {
+        val divida = uiState.value.rawDividas.firstOrNull { it.id == dividaId }
+            ?: throw IllegalArgumentException("Essa dívida não existe mais.")
+        repository.salvarDivida(com.finai.app.domain.DebtSchedule.withInstallmentDate(divida, month, date, LocalDate.now()))
+    }
+
+    /** "Mudar o dia desta e das próximas": as parcelas anteriores ficam na data que tinham. */
+    suspend fun changeInstallmentDayFrom(dividaId: Long, month: java.time.YearMonth, day: Int) {
+        val divida = uiState.value.rawDividas.firstOrNull { it.id == dividaId }
+            ?: throw IllegalArgumentException("Essa dívida não existe mais.")
+        repository.salvarDivida(com.finai.app.domain.DebtSchedule.withDueDayFrom(divida, month, day, LocalDate.now()))
+    }
+
     /**
      * A Agenda mostra a ocorrência do mês de um recorrente: mesmo id, mas com a data trocada
      * ([com.finai.app.domain.transactionsInMonth]). Gravar essa cópia moveria o início da
