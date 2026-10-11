@@ -7,6 +7,52 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 ## Status atual
 
+**Novo lançamento (11/10/2026): fluxo do playbook implementado; falta build Android e teste no aparelho.**
+Referência: `uploads/design-gasto/finai-gasto-playbook.pdf` (14 páginas; a pasta `uploads/` é
+ignorada pelo Git). Estado completo, decisões e o que falta: `handoff.md`. Primeira etapa (Codex,
+commit `267ea2a`): teclado `EntryKeypad`, salvar fixo com trava, X, abas e valor responsivo.
+Segunda etapa (esta sessão, sem commit):
+- **`domain/EntryOptions.kt`** (Kotlin puro, `EntryOptionsTest`): `PaymentMethod` (Débito/Pix,
+  Crédito, Parcelado), `IncomeKind` (Salário, Recorrente, Avulsa, Extra, exclusivos), `TransferTarget`,
+  categorias por uso recente, contas e cartões recentes, parcelas em centavos (sobra nas primeiras),
+  vencimento da fatura (`resolveCardDue`: só é "seguro" com fatura aberta do cartão, fechamento
+  informado e a compra antes dele; senão é sugestão e a tela pede confirmação), prévia do aporte
+  (`GoalMove`: % só com alvo; reserva contínua = saldo antes → depois e cobertura em dias), valor
+  por extenso para o TalkBack, `EntryReceipt`/`GoalReceipt`, `AgendaHighlight`, `ContributionRecord`.
+- **Room 12→13** (`MIGRATION_12_13`, `Migration12To13Test`): `transacoes.objetivoId` e
+  `transacoes.contaDestino`, anuláveis. **O `13.json` é gerado no primeiro build e precisa ser commitado.**
+- **Aporte = transferência ligada ao objetivo** (`FinanceRepository.registrarAporte`, numa transação):
+  `freeCashSign` é a regra única do livre (aporte −1, transferência entre contas 0) usada por
+  `PayCycle`, `MonthCashFlow` (`aportesCents` sai do saldo, fora de `toPayCents`), `CashFlowTimeline`,
+  `PeriodProjection`, `SafeToSpendCalculator` e a Agenda. Fora de orçamento/coach. O valor guardado
+  nunca é lido como livre, então conta uma vez. A folha "Registrar aporte" de Objetivos usa a mesma
+  operação (pedido de 29/09); excluir a transferência na Agenda tira o valor do objetivo.
+- **`desfazer(receipt)`** reverte tudo numa transação: itens e faturas criadas pela compra, total da
+  fatura reaproveitada, aporte. Fatura paga nesse meio-tempo bloqueia (e nada muda).
+- **Tela** (`TransactionEntryScreen.kt` reescrita, mesma API de rascunho em `rememberSaveable`; o
+  estado unificado do playbook não foi criado, ver handoff): topo X + tipo, valor 54/42 sp com linha
+  de ajuda, faixa de categorias 76 × 84 dp (cresce com a fonte), seletor de pagamento, cartão de
+  parcelas com slider 2–24 e linha da fatura, 4 tipos de receita, destino Reserva/Objetivo/Outra
+  conta (0 = criar, 1 = já escolhida, 2+ = "Qual reserva?"), pílulas de 38 dp com painéis de 380 ms,
+  "Todo mês" só no gasto no débito. Sem `Dialog`: confirmação na base (check por tipo ou cartão da
+  reserva com count-up 350 + 1000 ms, halo 600 ms, anúncio só do valor final), aviso de vidro no topo
+  com Desfazer (volta ao formulário preenchido), Lançar outro (mantém o tipo) e Ver na agenda (abre
+  no mês com o item destacado). Histórico de aportes nos detalhes do objetivo.
+- **Validação nesta sessão:** Gradle Android **não roda aqui** (dl.google.com bloqueado). 279 testes
+  JVM de `domain/`+backup verdes com kotlinc avulso; 8 cenários do repositório contra um banco falso
+  com rollback (no scratchpad, não versionado); checagem de tipos com o plugin do Compose contra o
+  Compose Desktop 1.6.0 de todas as telas alteradas; a tela foi dirigida e capturada no Compose
+  Desktop (412×892, 320×640 a 150%, 640×360, claro e escuro). Testes instrumentados atualizados e
+  novos (`TransactionEntryFlowTest`, `CardPurchaseFlowTest`, `EntryKeypadLayoutTest`,
+  `ContributionRepositoryTest`, `Migration12To13Test`) **escritos, não executados**. Rodar
+  `./gradlew assembleDebug testDebugUnitTest connectedDebugAndroidTest` antes de gerar APK.
+- **Bug de desenho em Objetivos e Agenda corrigido (11/10):** cartões sobrepostos, cortados e
+  buracos na lista, vistos no celular. Eram as duas únicas telas com `animateItemPlacement`
+  (cada item vira uma camada e se move sem regravar a tela) e, desde a barra de vidro, a tela
+  era desenhada a partir da cópia que o `glassSource` grava para o blur. Agora a tela é
+  desenhada direto (a cópia só alimenta o vidro) e as duas listas não usam mais
+  `animateItemPlacement`. Diagnóstico pelos prints; não reproduzido em emulador nesta sessão.
+
 **Fase 0 (Fundamentos), Fase 1 (MVP sem IA), Fase 2 (camada de IA com um
 provedor), Fase 3 (multi-provedor e resiliência), Fase 4 (importação de
 fatura), Fase 5 (notificações proativas e coach comportamental) e Fase 6

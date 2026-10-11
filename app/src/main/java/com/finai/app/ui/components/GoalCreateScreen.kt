@@ -60,12 +60,14 @@ fun GoalCreateScreen(
     onCreate: (ObjetivoEntity) -> Unit,
     onViewGoals: () -> Unit,
     onDismiss: () -> Unit,
+    /** Tipo já escolhido ao abrir (ex.: "Reserva", pedido pelo destino da transferência). */
+    initialTipo: String? = null,
 ) {
     AnimatedVisibility(visible, enter = fadeIn(tween(260)) + slideInVertically(tween(260)) { it / 12 }, exit = fadeOut(tween(160))) {
         // "Criar outro" recomeça do zero trocando a chave.
         var session by rememberSaveable { mutableIntStateOf(0) }
         key(session) {
-            GoalCreateContent(averageSurplusCents, otherGoalsMonthlyCents, onCreate, onViewGoals, onDismiss, onAnother = { session++ })
+            GoalCreateContent(averageSurplusCents, otherGoalsMonthlyCents, onCreate, onViewGoals, onDismiss, onAnother = { session++ }, initialTipo)
         }
     }
 }
@@ -78,12 +80,14 @@ private fun GoalCreateContent(
     onViewGoals: () -> Unit,
     onDismiss: () -> Unit,
     onAnother: () -> Unit,
+    initialTipo: String?,
 ) {
     val today = remember { LocalDate.now() }
     var step by rememberSaveable { mutableIntStateOf(1) }
-    var tipo by rememberSaveable { mutableStateOf<String?>(null) }
+    var tipo by rememberSaveable { mutableStateOf(initialTipo) }
     var nome by rememberSaveable { mutableStateOf("") }
-    var continua by rememberSaveable { mutableStateOf(false) }
+    // Reserva pedida pelo lançamento começa contínua (o destino "Reserva" do playbook).
+    var continua by rememberSaveable { mutableStateOf(initialTipo == "Reserva") }
     var target by rememberSaveable { mutableLongStateOf(5_000_00L) }
     var saved by rememberSaveable { mutableLongStateOf(0L) }
     var months by rememberSaveable { mutableIntStateOf(12) }

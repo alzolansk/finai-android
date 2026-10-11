@@ -52,7 +52,7 @@ object SafeToSpendCalculator {
         val gastosDoMes = transacoes.filter { it.faturaId == null }.transactionsInMonth(today)
             .sumOf { when (it.tipo) {
                 "Receita" -> -it.valorCentavos
-                "Transferencia" -> 0L
+                "Transferencia" -> if (it.objetivoId != null) it.valorCentavos else 0L
                 else -> it.valorCentavos
             } }
 

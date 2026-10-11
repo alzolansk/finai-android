@@ -386,14 +386,29 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         entries.forEach { repository.salvarTransacao(it) }
     }
 
-    suspend fun saveTransactionEntry(entry: TransacaoEntity) {
+    // ── lançamento do "+": cada gravação devolve o recibo que o "Desfazer" usa ──
+    suspend fun saveTransactionEntry(entry: TransacaoEntity): com.finai.app.domain.EntryReceipt {
         require(entry.valorCentavos > 0 && entry.categoria.isNotBlank())
-        repository.salvarTransacao(entry)
+        return repository.salvarLancamento(entry)
     }
 
-    suspend fun saveCardPurchase(entry: TransacaoEntity, payment: com.finai.app.domain.CardPayment) {
+    suspend fun saveCardPurchase(entry: TransacaoEntity, payment: com.finai.app.domain.CardPayment): com.finai.app.domain.EntryReceipt {
         require(entry.valorCentavos > 0 && entry.categoria.isNotBlank())
-        repository.salvarCompraCartao(entry, payment)
+        return repository.salvarCompraCartao(entry, payment)
+    }
+
+    /** Transferência para objetivo/reserva. A comemoração, se concluir a meta, espera a confirmação fechar. */
+    suspend fun saveContribution(entry: TransacaoEntity): com.finai.app.domain.EntryReceipt {
+        val receipt = repository.registrarAporte(entry)
+        deferredCelebration = receipt.goal?.takeIf { it.celebrate }
+            ?.let { g -> uiState.value.rawObjetivos.firstOrNull { it.id == g.goalId }?.copy(valorGuardadoCentavos = g.afterCents) }
+        return receipt
+    }
+
+    /** "Desfazer" da confirmação: reverte tudo o que o recibo gravou, numa transação. */
+    suspend fun undoEntry(receipt: com.finai.app.domain.EntryReceipt) {
+        deferredCelebration = null
+        repository.desfazer(receipt)
     }
 
     /** Marca/desmarca uma receita já lançada como entrada extra (Linha do tempo do ano). */
@@ -478,32 +493,43 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
      */
     private var deferredCelebration: ObjetivoEntity? = null
 
-    /** Registra um aporte (folha "Registrar aporte"). A comemoração, se houver, sai em [releaseContributionCelebration]. */
+    /** Recibo do último aporte feito pela folha "Registrar aporte", para o "Desfazer" dela. */
+    private var sheetContribution: com.finai.app.domain.EntryReceipt? = null
+    private var sheetContributionJob: Job? = null
+
+    /**
+     * Registra um aporte (folha "Registrar aporte"). É a mesma operação do "+" → Transferência:
+     * grava a transferência (origem: a conta usada por último) e soma no objetivo juntas, então
+     * o valor sai do livre uma vez e entra no histórico do objetivo. Antes só somava no objetivo
+     * e o dinheiro continuava contado como livre. A comemoração, se houver, sai em
+     * [releaseContributionCelebration].
+     */
     fun registrarAporte(objetivoId: Long, cents: Long) {
-        launchSafely("registrar o aporte") {
-            val objetivo = uiState.value.rawObjetivos.firstOrNull { it.id == objetivoId } ?: return@launchSafely
-            // Aporte continua valendo depois de concluída: o excedente fica visível no histórico.
-            val update = Completion.onGoalSaved(
-                objetivo,
-                objetivo.copy(valorGuardadoCentavos = objetivo.valorGuardadoCentavos + cents),
-                System.currentTimeMillis(),
+        sheetContributionJob = launchSafely("registrar o aporte") {
+            val state = uiState.value
+            val objetivo = state.rawObjetivos.firstOrNull { it.id == objetivoId } ?: return@launchSafely
+            val cards = com.finai.app.domain.EntryOptions.knownCards(state.rawFaturasCartao, state.rawTransacoes)
+            val origem = com.finai.app.domain.EntryOptions.recentAccounts(state.rawTransacoes, cards).first()
+            val receipt = saveContribution(
+                TransacaoEntity(
+                    data = LocalDate.now().toEpochMillis(), descricao = "Aporte · ${objetivo.nome}", valorCentavos = cents,
+                    categoria = TransactionType.Transferencia.label, contaOrigem = origem, recorrente = false,
+                    origem = "manual", tipo = TransactionType.Transferencia.name, objetivoId = objetivo.id, contaDestino = objetivo.nome,
+                ),
             )
-            repository.salvarObjetivo(update.objetivo)
-            deferredCelebration = update.objetivo.takeIf { update.celebrate }
+            sheetContribution = receipt
         }
     }
 
-    /** "Desfazer" na confirmação: tira o mesmo valor (a meta reabre se tinha sido concluída). */
+    /** "Desfazer" na confirmação: apaga a transferência e tira o valor do objetivo juntos. */
     fun desfazerAporte(objetivoId: Long, cents: Long) {
         deferredCelebration = null
         launchSafely("desfazer o aporte") {
-            val objetivo = uiState.value.rawObjetivos.firstOrNull { it.id == objetivoId } ?: return@launchSafely
-            val update = Completion.onGoalSaved(
-                objetivo,
-                objetivo.copy(valorGuardadoCentavos = (objetivo.valorGuardadoCentavos - cents).coerceAtLeast(0)),
-                System.currentTimeMillis(),
-            )
-            repository.salvarObjetivo(update.objetivo)
+            // "Desfazer" tocado antes de a gravação terminar: espera o recibo existir.
+            sheetContributionJob?.join()
+            val receipt = sheetContribution?.takeIf { it.goal?.goalId == objetivoId } ?: return@launchSafely
+            repository.desfazer(receipt)
+            sheetContribution = null
         }
     }
 

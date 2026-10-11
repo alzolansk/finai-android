@@ -62,6 +62,7 @@ object BackupCodec {
                 .put("categoria", t.categoria).put("contaOrigem", t.contaOrigem).put("recorrente", t.recorrente).put("tipo", t.tipo)
                 .put("origem", t.origem).putOpt("faturaId", t.faturaId).put("extra", t.extra).put("rendaPrincipal", t.rendaPrincipal)
                 .putOpt("compraId", t.compraId).putOpt("parcelaNumero", t.parcelaNumero).putOpt("parcelasTotal", t.parcelasTotal)
+                .putOpt("objetivoId", t.objetivoId).putOpt("contaDestino", t.contaDestino)
         }))
         put("faturas", JSONArray(b.faturas.map { f ->
             JSONObject().put("id", f.id).put("contaId", f.contaId).put("referencia", f.referencia)
@@ -118,6 +119,7 @@ object BackupCodec {
                         faturaId = o.longOrNull("faturaId"), extra = o.optBoolean("extra"), rendaPrincipal = o.optBoolean("rendaPrincipal"),
                         compraId = o.optString("compraId").takeIf { it.isNotBlank() },
                         parcelaNumero = o.longOrNull("parcelaNumero")?.toInt(), parcelasTotal = o.longOrNull("parcelasTotal")?.toInt(),
+                        objetivoId = o.longOrNull("objetivoId"), contaDestino = o.optString("contaDestino").takeIf { it.isNotBlank() },
                     )
                 },
                 faturas = root.list("faturas") { o ->

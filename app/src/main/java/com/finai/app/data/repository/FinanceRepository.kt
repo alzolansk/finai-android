@@ -12,6 +12,11 @@ import com.finai.app.data.local.entity.TransacaoEntity
 import kotlinx.coroutines.flow.Flow
 import com.finai.app.domain.CardPayment
 import com.finai.app.domain.CardPurchase
+import com.finai.app.domain.Completion
+import com.finai.app.domain.EntryReceipt
+import com.finai.app.domain.GoalReceipt
+import com.finai.app.domain.TransactionType
+import com.finai.app.domain.isOpenReserve
 import com.finai.app.domain.toEpochMillis
 import com.finai.app.domain.toLocalDate
 
@@ -42,7 +47,13 @@ class FinanceRepository(private val db: FinaiDatabase) {
         orcamentoDao.observeForMonth(mesReferencia)
 
     suspend fun salvarTransacao(transacao: TransacaoEntity) = transacaoDao.upsert(transacao)
-    suspend fun excluirTransacao(transacao: TransacaoEntity) = db.withTransaction {
+
+    /**
+     * Excluir um lançamento desfaz o que ele mexeu, na mesma transação: o item de fatura
+     * recalcula o total da fatura e o aporte tira o mesmo valor do objetivo (que reabre se
+     * deixar de alcançar o alvo).
+     */
+    suspend fun excluirTransacao(transacao: TransacaoEntity, now: Long = System.currentTimeMillis()) = db.withTransaction {
         val stored = transacaoDao.getAll().firstOrNull { it.id == transacao.id } ?: return@withTransaction
         transacaoDao.delete(stored)
         stored.faturaId?.let { id ->
@@ -50,10 +61,19 @@ class FinanceRepository(private val db: FinaiDatabase) {
             val account = contaDao.getAll().firstOrNull { it.id == invoice.contaId } ?: return@let
             contaDao.update(account.copy(valorCentavos = transacaoDao.getAll().filter { it.faturaId == id }.sumOf { it.valorCentavos }))
         }
+        stored.objetivoId?.let { retirarDoObjetivo(it, stored.valorCentavos, now) }
     }
 
-    suspend fun salvarCompraCartao(entry: TransacaoEntity, payment: CardPayment) = db.withTransaction {
-        CardPurchase.schedule(entry, payment).forEach { (due, item) ->
+    /** Lançamento comum do "+" (gasto no débito, receita, transferência entre contas). */
+    suspend fun salvarLancamento(entry: TransacaoEntity): EntryReceipt = db.withTransaction {
+        require(entry.id == 0L && entry.valorCentavos > 0 && entry.objetivoId == null)
+        val id = transacaoDao.upsert(entry)
+        EntryReceipt(TransactionType.valueOf(entry.tipo), listOf(id), entry.data.toLocalDate())
+    }
+
+    /** Compra no cartão: todas as parcelas e faturas entram juntas, ou nenhuma. */
+    suspend fun salvarCompraCartao(entry: TransacaoEntity, payment: CardPayment): EntryReceipt = db.withTransaction {
+        val gravadas = CardPurchase.schedule(entry, payment).map { (due, item) ->
             salvarFatura(
                 ContaEntity(nome = "Fatura ${payment.card.trim()}", valorCentavos = item.valorCentavos,
                     vencimento = due.toEpochMillis(), status = "pendente", tipo = "a_pagar", recorrente = false),
@@ -61,6 +81,77 @@ class FinanceRepository(private val db: FinaiDatabase) {
                 listOf(item),
             )
         }
+        EntryReceipt(
+            type = TransactionType.Gasto,
+            transactionIds = gravadas.flatMap { it.itemIds },
+            agendaDate = payment.firstDueDate,
+            createdInvoiceIds = gravadas.filter { it.criada }.map { it.faturaId },
+            touchedInvoiceIds = gravadas.filter { !it.criada }.map { it.faturaId },
+            invoiceContaId = gravadas.firstOrNull()?.contaId,
+        )
+    }
+
+    /**
+     * Aporte: a transferência e o novo valor guardado do objetivo numa transação só. O recibo
+     * leva o antes e o depois lidos do banco, que é o que a confirmação anima.
+     */
+    suspend fun registrarAporte(entry: TransacaoEntity, now: Long = System.currentTimeMillis()): EntryReceipt = db.withTransaction {
+        val goalId = requireNotNull(entry.objetivoId)
+        require(entry.id == 0L && entry.tipo == TransactionType.Transferencia.name && entry.valorCentavos > 0 && !entry.recorrente)
+        val goal = objetivoDao.getAll().firstOrNull { it.id == goalId }
+            ?: throw IllegalArgumentException("Esse objetivo não existe mais. Escolha outro destino.")
+        val id = transacaoDao.upsert(entry.copy(contaDestino = entry.contaDestino?.takeIf { it.isNotBlank() } ?: goal.nome))
+        val update = Completion.onGoalSaved(goal, goal.copy(valorGuardadoCentavos = goal.valorGuardadoCentavos + entry.valorCentavos), now)
+        objetivoDao.update(update.objetivo)
+        val stored = objetivoDao.getAll().first { it.id == goalId }
+        EntryReceipt(
+            type = TransactionType.Transferencia,
+            transactionIds = listOf(id),
+            agendaDate = entry.data.toLocalDate(),
+            goal = GoalReceipt(
+                goalId = goalId, name = stored.nome, beforeCents = goal.valorGuardadoCentavos,
+                afterCents = stored.valorGuardadoCentavos, targetCents = if (stored.isOpenReserve) 0 else stored.valorAlvoCentavos,
+                celebrate = update.celebrate,
+            ),
+        )
+    }
+
+    /**
+     * "Desfazer" da confirmação: apaga o que o recibo criou e reverte o que ele mexeu, tudo ou
+     * nada. Fatura criada pela compra some se ficou vazia; fatura que já existia volta ao total
+     * anterior. Uma fatura paga nesse meio-tempo bloqueia o desfazer (o valor dela já fechou).
+     */
+    suspend fun desfazer(receipt: EntryReceipt, now: Long = System.currentTimeMillis()) = db.withTransaction {
+        val ids = receipt.transactionIds.toSet()
+        val removed = transacaoDao.getAll().filter { it.id in ids }
+        val invoiceIds = (receipt.createdInvoiceIds + receipt.touchedInvoiceIds).toSet()
+        val invoices = faturaCartaoDao.getAll().filter { it.id in invoiceIds }
+        val contas = contaDao.getAll()
+        invoices.forEach { f ->
+            require(contas.firstOrNull { it.id == f.contaId }?.status != "pago") {
+                "Essa fatura já foi marcada como paga. Desmarque o pagamento na Agenda para desfazer."
+            }
+        }
+        removed.forEach { transacaoDao.delete(it) }
+        val remaining = transacaoDao.getAll()
+        invoices.forEach { f ->
+            val conta = contas.firstOrNull { it.id == f.contaId } ?: return@forEach
+            val items = remaining.filter { it.faturaId == f.id }
+            if (items.isEmpty() && f.id in receipt.createdInvoiceIds) {
+                faturaCartaoDao.delete(f)
+                contaDao.delete(conta)
+            } else {
+                contaDao.update(conta.copy(valorCentavos = items.sumOf { it.valorCentavos }))
+            }
+        }
+        removed.filter { it.objetivoId != null }.groupBy { it.objetivoId!! }
+            .forEach { (goalId, list) -> retirarDoObjetivo(goalId, list.sumOf { it.valorCentavos }, now) }
+    }
+
+    private suspend fun retirarDoObjetivo(goalId: Long, cents: Long, now: Long) {
+        val goal = objetivoDao.getAll().firstOrNull { it.id == goalId } ?: return
+        val update = Completion.onGoalSaved(goal, goal.copy(valorGuardadoCentavos = (goal.valorGuardadoCentavos - cents).coerceAtLeast(0)), now)
+        objetivoDao.update(update.objetivo)
     }
 
     /** Compra confirmada depois de uma simulação: todas as parcelas entram, ou nenhuma. */
@@ -78,8 +169,11 @@ class FinanceRepository(private val db: FinaiDatabase) {
         contaDao.delete(conta)
     }
 
+    /** O que [salvarFatura] gravou: a fatura (nova ou reaproveitada), a conta dela e os itens. */
+    data class FaturaGravada(val faturaId: Long, val contaId: Long, val criada: Boolean, val itemIds: List<Long>)
+
     /** Persiste a conta da Agenda, a fatura e seus itens numa transação SQLite atômica. */
-    suspend fun salvarFatura(conta: ContaEntity, fatura: FaturaCartaoEntity, itens: List<TransacaoEntity>) {
+    suspend fun salvarFatura(conta: ContaEntity, fatura: FaturaCartaoEntity, itens: List<TransacaoEntity>): FaturaGravada =
         db.withTransaction {
             val existing = faturaCartaoDao.getAll().firstOrNull {
                 it.referencia.trim().equals(fatura.referencia.trim(), ignoreCase = true) &&
@@ -88,15 +182,15 @@ class FinanceRepository(private val db: FinaiDatabase) {
             if (existing != null) {
                 val account = requireNotNull(contaDao.getAll().firstOrNull { it.id == existing.contaId })
                 require(account.status != "pago") { "Esta fatura já foi paga. Escolha uma fatura em aberto." }
-                itens.forEach { transacaoDao.upsert(it.copy(faturaId = existing.id)) }
+                val ids = itens.map { transacaoDao.upsert(it.copy(faturaId = existing.id)) }
                 contaDao.update(account.copy(valorCentavos = transacaoDao.getAll().filter { it.faturaId == existing.id }.sumOf { it.valorCentavos }))
-                return@withTransaction
+                return@withTransaction FaturaGravada(existing.id, account.id, criada = false, itemIds = ids)
             }
             val contaId = contaDao.upsert(conta)
             val faturaId = faturaCartaoDao.insert(fatura.copy(contaId = contaId))
-            itens.forEach { transacaoDao.upsert(it.copy(faturaId = faturaId)) }
+            val ids = itens.map { transacaoDao.upsert(it.copy(faturaId = faturaId)) }
+            FaturaGravada(faturaId, contaId, criada = true, itemIds = ids)
         }
-    }
 
     suspend fun salvarObjetivo(objetivo: ObjetivoEntity) =
         if (objetivo.id == 0L) objetivoDao.upsert(objetivo) else objetivoDao.update(objetivo).let { objetivo.id }

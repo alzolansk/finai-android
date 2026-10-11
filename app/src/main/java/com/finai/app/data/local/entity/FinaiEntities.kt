@@ -38,6 +38,18 @@ data class TransacaoEntity(
      * o app só reconhecia pela palavra "salário" na descrição (Fase 7, item 5).
      */
     @androidx.room.ColumnInfo(defaultValue = "0") val rendaPrincipal: Boolean = false,
+    /**
+     * Transferência para um objetivo ou reserva (aporte). É o vínculo que deixa o aporte
+     * rastreável: desfazer ou excluir a transferência tira o mesmo valor do objetivo, e o
+     * fluxo de caixa conta a saída uma vez só (o plano nunca lê o valor guardado). Nulo em
+     * qualquer outro lançamento e nas transferências entre contas.
+     */
+    val objetivoId: Long? = null,
+    /**
+     * Para onde a transferência foi: outra conta (nome, como [contaOrigem]) ou o nome do
+     * objetivo no momento do aporte, para o histórico continuar legível se ele for apagado.
+     */
+    val contaDestino: String? = null,
 )
 
 /** Uma fatura de cartão, exibida como um único compromisso na Agenda. */

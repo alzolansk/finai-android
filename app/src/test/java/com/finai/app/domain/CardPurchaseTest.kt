@@ -35,4 +35,20 @@ class CardPurchaseTest {
     @Test(expected = IllegalArgumentException::class) fun refusesZeroCentInstallments() {
         CardPurchase.schedule(entry.copy(valorCentavos = 2), CardPayment("Nubank", LocalDate.of(2026, 2, 10), 3))
     }
+
+    @Test fun everyInstallmentCountPreservesTotalAndPlacesRemainderFirst() {
+        for (count in 2..24) {
+            for (total in listOf(count.toLong(), 100L, 10001L, 289900L, 999999999L)) {
+                val schedule = CardPurchase.schedule(entry.copy(valorCentavos = total),
+                    CardPayment("Nubank", LocalDate.of(2026, 1, 31), count))
+                val amounts = schedule.map { it.second.valorCentavos }
+                assertEquals("$total cents / $count installments", total, amounts.sum())
+                assertEquals(count, amounts.size)
+                assertTrue(amounts.all { it > 0 })
+                assertTrue(amounts.zipWithNext().all { (first, second) -> first >= second && first - second <= 1 })
+                assertTrue(amounts.max() - amounts.min() <= 1)
+                assertEquals((total % count).toInt(), amounts.count { it > total / count })
+            }
+        }
+    }
 }
