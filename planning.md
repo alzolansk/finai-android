@@ -289,6 +289,19 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
 
 ## 11. Perguntas em aberto
 
+- **FinAI v2, respondidas em 08/11/2026** (plano em `planning-v2.md`):
+  - Reorganizar a navegação inteira; app só para uso pessoal; dados continuam no aparelho.
+  - **A sobra não zera no salário.** Revoga a decisão de 10/10 ("o saldo recomeça a cada salário"):
+    o saldo em conta conciliado vira a base, e o livre vai até a próxima entrada.
+  - Categorias: uma lista só. Cartão: só vencimento, sem limite. Dívidas, parcelamentos e faturas num
+    lugar só. Compra simulada só grava com pedido explícito e entra na fatura.
+  - Avisos: dispensado não volta (só se piorar) e o "visto" persiste.
+  - **O formulário de lançamento continua inteiro**; voz, frase, notificação e importar entram ao lado.
+  - **Agenda sem caixinha de seleção**; tocar paga e tocar de novo reabre, com selo "Pago"/"Recebido".
+  - Início: sai "Decisões para você" e a linha do tempo do ano; coach só com novidade.
+  - Pendentes (planning-v2.md §8): margem de segurança padrão, aportes planejados na projeção,
+    "+" direto ou com menu, fim da aba Dívidas, IA no fechamento do mês.
+
 - **Lançamento por notificações, decisões tomadas em 18/10/2026 na implementação (aguardando
   confirmação do usuário):** guia de uso em `LANCAMENTO-POR-NOTIFICACAO.md`.
   - **Pix enviado = gasto no débito/Pix** (pede conta e categoria). Se foi para uma conta

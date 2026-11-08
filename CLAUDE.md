@@ -7,6 +7,12 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 ## Status atual
 
+**FinAI v2 planejado (08/11/2026): ver `planning-v2.md`.** Auditoria + protótipo navegável em
+https://claude.ai/artifact/Tzb24N1BzGMR8buHwVAtL9 (página "Protótipo v2" = referência visual de cada fase;
+página "Auditoria" = fraquezas A/B/C e IA P1–P11). 12 fases (0–11), marcos de teste no celular M1–M4.
+Nada da v2 implementado ainda. Regras fixas: o formulário do "+" continua inteiro (jeitos novos entram
+ao lado), Agenda sem caixinha (selo "Pago"), saldo não zera no salário, avisos dispensados não voltam.
+
 **Saldo projetado contínuo + conciliação (08/11/2026, `main`, sem commit; telas 3a/3b do mesmo protótipo):**
 - **Ajuste de saldo** = `TransacaoEntity` com `tipo = "Ajuste"` (`ADJUSTMENT_TYPE`, não é `TransactionType`, não
   aparece no "+"), valor **com sinal**, origem `conciliacao`. Fora de gasto/receita/limites/coach/balanço do
