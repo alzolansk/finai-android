@@ -183,9 +183,9 @@ categoria da IA.
   conta paga adiantada conta hoje, aporte = saída, transferência entre contas neutra);
   `livre = min(saldoDia) − margem`; `porDia = livre ÷ dias`. Negativo vira
   `Shortfall(valor, data, causa)`. Devolve também a série diária (para o gráfico da fase 2).
-- **Margem de segurança:** `FinaiPreferences.safetyMarginCents` (DataStore). Sugestão =
-  4 × gasto médio diário (média das saídas variáveis dos 3 meses anteriores ÷ 30), arredondado
-  a R$ 50. Padrão: **decisão pendente** (§8), o código aceita 0.
+- **Margem de segurança:** `FinaiPreferences.safetyMarginCents` (DataStore), **padrão R$ 300
+  fixos** (decisão de 08/11). O usuário troca em "De onde vem o livre"; 0 = sem margem. Não é
+  recalculada sozinha.
 - Quem passa a ler o motor novo: `FinancialPlan.build` (o `livreCents` e a falta),
   `SafeToSpendCalculator`, `HomeSituation`, `ScenarioSimulator` (fase 8) e o bloco da IA
   (`FinanceUiState.aiCashFlowBlock`). `PayCycle` fica só como "janela até a próxima entrada" e
@@ -552,7 +552,7 @@ existente muda de significado, exceto a leitura do saldo (fase 1), que é cálcu
 
 | # | Pergunta | Resposta (08/11/2026) | Fase |
 | --- | --- | --- | --- |
-| 1 | Margem de segurança: quanto o app separa e não chama de livre? | **Pendente** (explicação enviada ao usuário) | 1 |
+| 1 | Margem de segurança: quanto o app separa e não chama de livre? | **R$ 300 fixos** como padrão, ajustável em "De onde vem o livre" (Sem / 150 / 300 / 500 / outro valor) | 1 |
 | 2 | Aportes planejados das metas contam como saída prevista? | **Não. Como hoje:** aporte só sai do saldo quando registrado | 7–8 |
 | 3 | "+" abre o formulário direto ou o menu? | **Menu atual**, com a linha "Falar ou escrever" | 5 |
 | 4 | Aba Dívidas some (vira Planos › Compromissos)? | **Sim** | 7 |

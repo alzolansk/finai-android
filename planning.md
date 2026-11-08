@@ -301,7 +301,7 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
   - Início: sai "Decisões para você" e a linha do tempo do ano; coach só com novidade.
   - "+" continua abrindo o menu atual; aportes planejados não entram na projeção (como hoje);
     aba Dívidas sai (vira Planos › Compromissos); fechamento do mês com IA.
-  - Pendente (planning-v2.md §8): margem de segurança padrão.
+  - Margem de segurança: R$ 300 fixos por padrão, ajustável; o livre = menor saldo previsto − margem.
 
 - **Lançamento por notificações, decisões tomadas em 18/10/2026 na implementação (aguardando
   confirmação do usuário):** guia de uso em `LANCAMENTO-POR-NOTIFICACAO.md`.
