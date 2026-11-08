@@ -41,6 +41,7 @@ import com.finai.app.domain.PayCycle
 import com.finai.app.domain.RecurringSeries
 import com.finai.app.domain.TransactionType
 import com.finai.app.domain.freeCashSign
+import com.finai.app.domain.isAdjustment
 import com.finai.app.domain.hasOverrideIn
 import com.finai.app.domain.isGoalContribution
 import com.finai.app.domain.isRecurringSeries
@@ -68,6 +69,7 @@ private fun monthName(m: YearMonth) = "${MONTH_NAMES_PT[m.monthValue - 1].lowerc
 
 /** O que impede editar um lançamento pela Agenda, ou nulo se pode. */
 internal fun editBlockReason(t: TransacaoEntity): String? = when {
+    t.isAdjustment -> "Ajuste de saldo da conciliação: para corrigir, exclua e concilie de novo."
     t.isGoalContribution -> "Aporte em objetivo: para corrigir, exclua e registre de novo, assim o objetivo acompanha."
     t.origem == DebtSchedule.PAYMENT_ORIGIN -> "Pagamento de parcela: para corrigir, desfaça o pagamento e pague de novo."
     else -> null
@@ -76,10 +78,12 @@ internal fun editBlockReason(t: TransacaoEntity): String? = when {
 /** Valor com sinal e cor, como na lista: entra em verde, sai neutro. */
 @Composable
 private fun SheetAmount(cents: Long, sign: Int) {
+    // O ajuste de saldo tem valor com sinal: negativo mostra "− R$ x" e fica neutro.
+    val negative = cents < 0
     Text(
-        (if (sign > 0) "+ " else "") + formatBrl(cents / 100.0),
+        (if (negative) "− " else if (sign > 0) "+ " else "") + formatBrl(kotlin.math.abs(cents) / 100.0),
         fontSize = 28.sp, fontWeight = FontWeight.ExtraBold,
-        color = if (sign > 0) FinaiColors.EmeraldDark else FinaiColors.TextPrimary,
+        color = if (sign > 0 && !negative) FinaiColors.EmeraldDark else FinaiColors.TextPrimary,
     )
 }
 
@@ -161,7 +165,7 @@ internal fun TransactionSheet(
     EntrySheet(transacao.descricao.ifBlank { transacao.categoria }, onDismiss) {
         Column(Modifier.fillMaxWidth()) {
             SheetAmount(transacao.valorCentavos, transacao.freeCashSign)
-            val tipo = TransactionType.values().firstOrNull { it.name == transacao.tipo }?.label ?: transacao.tipo
+            val tipo = if (transacao.isAdjustment) "Ajuste de saldo" else TransactionType.values().firstOrNull { it.name == transacao.tipo }?.label ?: transacao.tipo
             SheetLine(
                 listOfNotNull(
                     tipo,
@@ -177,6 +181,7 @@ internal fun TransactionSheet(
                 if (transacao.extra) SheetChip("Extra", accent = true)
                 if (transacao.faturaId != null) SheetChip("Na fatura")
                 if (transacao.origem == "importado") SheetChip("Importado")
+                if (transacao.origem == com.finai.app.domain.capture.NOTIFICATION_ORIGIN) SheetChip("Detectado por notificação")
             }
             if (recurring && transacao.hasOverrideIn(month)) {
                 SheetLine("Alterado só em ${monthName(month)}. Os outros meses seguem a recorrência.", FinaiColors.TextSecondary)

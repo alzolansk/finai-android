@@ -9,6 +9,18 @@ enum class TransactionType(val label: String, val confirmation: String) {
     Transferencia("Transferência", "Transferência salva!")
 }
 
+/**
+ * Ajuste de saldo da conciliação com o banco. Não é um [TransactionType] (não aparece no "+"):
+ * é um lançamento de tipo próprio, com valor COM SINAL (positivo = o banco tinha mais). Não conta
+ * como gasto nem receita em relatórios, categorias, limites e coach (todos filtram o tipo pelo
+ * nome), mas mexe no saldo da conta ([freeCashSign]).
+ */
+const val ADJUSTMENT_TYPE = "Ajuste"
+const val ADJUSTMENT_ORIGIN = "conciliacao"
+const val ADJUSTMENT_LABEL = "Ajuste de saldo"
+
+val TransacaoEntity.isAdjustment: Boolean get() = tipo == ADJUSTMENT_TYPE
+
 object TransactionEntry {
     val categories = listOf("Alimentação", "Transporte", "Moradia", "Saúde", "Lazer", "Educação", "Compras", "Serviços", "Outros")
     fun key(cents: String, key: String): String {
@@ -35,7 +47,7 @@ val TransacaoEntity.isGoalContribution: Boolean
  */
 val TransacaoEntity.freeCashSign: Int
     get() = when (tipo) {
-        TransactionType.Receita.name -> 1
+        TransactionType.Receita.name, ADJUSTMENT_TYPE -> 1
         TransactionType.Transferencia.name -> if (objetivoId != null) -1 else 0
         else -> -1
     }

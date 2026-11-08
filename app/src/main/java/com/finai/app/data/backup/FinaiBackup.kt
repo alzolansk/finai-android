@@ -7,6 +7,7 @@ import com.finai.app.data.local.entity.FaturaCartaoEntity
 import com.finai.app.data.local.entity.MensagemChatEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
+import com.finai.app.data.local.entity.SugestaoLancamentoEntity
 import com.finai.app.data.local.entity.TransacaoEntity
 import org.json.JSONArray
 import org.json.JSONObject
@@ -17,7 +18,12 @@ import org.json.JSONObject
  * limpa, menos o registro de deduplicação de notificações (é só controle interno).
  *
  * **Nunca** leva chave de IA (`AiKeyStore`), contagem de cota (`uso_provedor_ia`) nem
- * preferências: são configuração deste aparelho, não dado financeiro.
+ * preferências: são configuração deste aparelho, não dado financeiro. Exceção: os apps escolhidos
+ * no lançamento por notificações ([capturaApps]), para não ter de escolher de novo; a captura em
+ * si não é religada (o acesso às notificações é do Android do aparelho novo).
+ *
+ * Sugestões de lançamento por notificação ([sugestoes]) vão **sem** o texto original e sem as de
+ * teste: o vínculo com o lançamento salvo continua valendo porque os ids são os mesmos.
  */
 data class FinaiBackup(
     val schemaVersion: Int,
@@ -30,6 +36,8 @@ data class FinaiBackup(
     val orcamentos: List<OrcamentoCategoriaEntity>,
     val assinaturas: List<AssinaturaEntity>,
     val mensagens: List<MensagemChatEntity>,
+    val sugestoes: List<SugestaoLancamentoEntity> = emptyList(),
+    val capturaApps: Set<String> = emptySet(),
 ) {
     /** Resumo para a confirmação "substitui tudo": o que o arquivo traz. */
     fun summary(): String = listOf(
@@ -40,6 +48,7 @@ data class FinaiBackup(
         orcamentos.size to "limite(s)",
         assinaturas.size to "assinatura(s)",
         mensagens.size to "mensagem(ns) do chat",
+        sugestoes.count { it.estado == "pendente" } to "sugestão(ões) para confirmar",
     ).filter { it.first > 0 }.joinToString(", ") { "${it.first} ${it.second}" }.ifEmpty { "nenhum dado" }
 }
 
@@ -65,6 +74,8 @@ object BackupCodec {
                 .putOpt("objetivoId", t.objetivoId).putOpt("contaDestino", t.contaDestino)
                 .putOpt("recorrenteAte", t.recorrenteAte).putOpt("diaRecorrencia", t.diaRecorrencia)
                 .put("excecoes", t.excecoes).putOpt("serieId", t.serieId)
+                .put("competenciaDeslocamento", t.competenciaDeslocamento)
+                .putOpt("rendaGrupo", t.rendaGrupo).putOpt("rendaParte", t.rendaParte).putOpt("rendaDivisao", t.rendaDivisao)
         }))
         put("faturas", JSONArray(b.faturas.map { f ->
             JSONObject().put("id", f.id).put("contaId", f.contaId).put("referencia", f.referencia)
@@ -98,6 +109,18 @@ object BackupCodec {
             JSONObject().put("id", m.id).put("papel", m.papel).put("texto", m.texto).put("timestamp", m.timestamp)
                 .put("conversaId", m.conversaId).putOpt("contexto", m.contexto)
         }))
+        // Só as reais e sem o texto original (retenção limitada; nunca vai para arquivo).
+        put("sugestoes", JSONArray(b.sugestoes.filter { it.origem == "notificacao" }.map { s ->
+            JSONObject().put("id", s.id).put("origem", s.origem).put("pacote", s.pacote).put("appNome", s.appNome)
+                .put("capturadoEm", s.capturadoEm).put("atualizadoEm", s.atualizadoEm).put("chaveSistema", s.chaveSistema)
+                .put("assinatura", s.assinatura).put("tipo", s.tipo).putOpt("valorCentavos", s.valorCentavos)
+                .put("valoresEncontrados", s.valoresEncontrados).put("descricao", s.descricao).putOpt("categoria", s.categoria)
+                .put("data", s.data).put("dataExplicita", s.dataExplicita).putOpt("parcelas", s.parcelas)
+                .putOpt("valorParcelaCentavos", s.valorParcelaCentavos).putOpt("cartaoFinal", s.cartaoFinal)
+                .putOpt("contaSugerida", s.contaSugerida).put("estado", s.estado).put("possivelRepeticao", s.possivelRepeticao)
+                .putOpt("avisadaEm", s.avisadaEm).putOpt("resolvidaEm", s.resolvidaEm).put("lancamentoIds", s.lancamentoIds)
+        }))
+        put("capturaApps", JSONArray(b.capturaApps.sorted()))
     }.toString(2)
 
     /** Lê e valida; [currentSchema] é a versão do banco deste app. */
@@ -126,6 +149,9 @@ object BackupCodec {
                         recorrenteAte = o.optString("recorrenteAte").takeIf { it.isNotBlank() },
                         diaRecorrencia = o.longOrNull("diaRecorrencia")?.toInt(), excecoes = o.optString("excecoes"),
                         serieId = o.longOrNull("serieId"),
+                        competenciaDeslocamento = o.optInt("competenciaDeslocamento", 0),
+                        rendaGrupo = o.optString("rendaGrupo").takeIf { it.isNotBlank() }, rendaParte = o.optString("rendaParte").takeIf { it.isNotBlank() },
+                        rendaDivisao = o.optString("rendaDivisao").takeIf { it.isNotBlank() },
                     )
                 },
                 faturas = root.list("faturas") { o ->
@@ -175,6 +201,23 @@ object BackupCodec {
                         timestamp = o.getLong("timestamp"), conversaId = o.optLong("conversaId"), contexto = o.stringOrNull("contexto"),
                     )
                 },
+                // Backup de antes da versão 15 não tem estas chaves: lista vazia.
+                sugestoes = root.list("sugestoes") { o ->
+                    SugestaoLancamentoEntity(
+                        id = o.getLong("id"), origem = "notificacao", pacote = o.optString("pacote"), appNome = o.optString("appNome"),
+                        capturadoEm = o.getLong("capturadoEm"), atualizadoEm = o.optLong("atualizadoEm", o.getLong("capturadoEm")),
+                        chaveSistema = o.optString("chaveSistema"), assinatura = o.optString("assinatura"), tipo = o.getString("tipo"),
+                        valorCentavos = o.longOrNull("valorCentavos"), valoresEncontrados = o.optString("valoresEncontrados"),
+                        descricao = o.optString("descricao"), categoria = o.stringOrNull("categoria"), data = o.getLong("data"),
+                        dataExplicita = o.optBoolean("dataExplicita"), parcelas = o.longOrNull("parcelas")?.toInt(),
+                        valorParcelaCentavos = o.longOrNull("valorParcelaCentavos"), cartaoFinal = o.stringOrNull("cartaoFinal"),
+                        contaSugerida = o.stringOrNull("contaSugerida"), estado = o.optString("estado", "pendente"),
+                        possivelRepeticao = o.optBoolean("possivelRepeticao"), avisadaEm = o.longOrNull("avisadaEm"),
+                        resolvidaEm = o.longOrNull("resolvidaEm"), lancamentoIds = o.optString("lancamentoIds"),
+                        textoOriginal = null, testeId = null,
+                    )
+                },
+                capturaApps = root.optJSONArray("capturaApps")?.let { arr -> (0 until arr.length()).map { arr.getString(it) }.toSet() } ?: emptySet(),
             )
         } catch (e: BackupFormatException) {
             throw e

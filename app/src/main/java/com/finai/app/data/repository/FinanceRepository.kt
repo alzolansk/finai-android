@@ -10,6 +10,9 @@ import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
 import kotlinx.coroutines.flow.Flow
+import com.finai.app.domain.ADJUSTMENT_LABEL
+import com.finai.app.domain.ADJUSTMENT_ORIGIN
+import com.finai.app.domain.ADJUSTMENT_TYPE
 import com.finai.app.domain.CardPayment
 import com.finai.app.domain.DebtSchedule
 import com.finai.app.domain.EditScope
@@ -17,10 +20,13 @@ import com.finai.app.domain.EntryChange
 import com.finai.app.domain.RecurringSeries
 import com.finai.app.domain.SeriesEdit
 import com.finai.app.domain.isRecurringSeries
+import java.time.LocalDate
 import java.time.YearMonth
 import com.finai.app.domain.CardPurchase
 import com.finai.app.domain.Completion
 import com.finai.app.domain.EntryReceipt
+import com.finai.app.domain.IncomePlanner
+import com.finai.app.domain.IncomeSplit
 import com.finai.app.domain.GoalReceipt
 import com.finai.app.domain.TransactionType
 import com.finai.app.domain.isOpenReserve
@@ -42,6 +48,8 @@ class FinanceRepository(private val db: FinaiDatabase) {
     private val assinaturaDao = db.assinaturaDao()
     private val mensagemChatDao = db.mensagemChatDao()
     private val notificacaoEnviadaDao = db.notificacaoEnviadaDao()
+    private val sugestaoDao = db.sugestaoLancamentoDao()
+    private val testeNotificacaoDao = db.testeNotificacaoDao()
 
     val transacoes: Flow<List<TransacaoEntity>> = transacaoDao.observeAll()
     val contas: Flow<List<ContaEntity>> = contaDao.observeAll()
@@ -141,6 +149,44 @@ class FinanceRepository(private val db: FinaiDatabase) {
         require(entry.id == 0L && entry.valorCentavos > 0 && entry.objetivoId == null)
         val id = transacaoDao.upsert(entry)
         EntryReceipt(TransactionType.valueOf(entry.tipo), listOf(id), entry.data.toLocalDate())
+    }
+
+    /**
+     * Conciliação: lança o ajuste de saldo (valor com sinal, data de hoje, conta escolhida). É um
+     * lançamento comum no Room: aparece na Agenda, pode ser excluído e some das projeções junto.
+     */
+    suspend fun registrarAjuste(conta: String, diffCents: Long, today: LocalDate): Long {
+        require(diffCents != 0L) { "Não há diferença para ajustar." }
+        return transacaoDao.upsert(
+            TransacaoEntity(
+                data = today.toEpochMillis(), descricao = ADJUSTMENT_LABEL, valorCentavos = diffCents,
+                categoria = ADJUSTMENT_LABEL, contaOrigem = conta.trim(), recorrente = false,
+                tipo = ADJUSTMENT_TYPE, origem = ADJUSTMENT_ORIGIN,
+            ),
+        )
+    }
+
+    /** Receita recorrente recebida em duas partes: as duas séries entram juntas, ou nenhuma. */
+    suspend fun salvarRendaDividida(entry: TransacaoEntity, split: IncomeSplit): EntryReceipt = db.withTransaction {
+        require(entry.id == 0L && entry.valorCentavos > 0 && entry.tipo == TransactionType.Receita.name)
+        val date = entry.data.toLocalDate()
+        val rows = IncomePlanner.generate(
+            entry, entry.valorCentavos, split, YearMonth.from(date), date.dayOfMonth, "renda-${System.currentTimeMillis()}",
+        )
+        EntryReceipt(TransactionType.Receita, rows.map { transacaoDao.upsert(it) }, date)
+    }
+
+    /**
+     * Minha renda: troca a divisão do salário. Só as entradas ainda não efetivadas mudam; as
+     * pagas ficam como estão ([IncomePlanner.regenerate]).
+     */
+    suspend fun salvarDivisaoDaRenda(split: IncomeSplit?, today: LocalDate) = db.withTransaction {
+        val all = transacaoDao.getAll()
+        val config = requireNotNull(IncomePlanner.current(all, today)) { "Cadastre o salário antes de dividir." }
+        val plan = IncomePlanner.regenerate(IncomePlanner.familyOf(all), config.totalCents, split, today)
+        plan.delete.forEach { transacaoDao.delete(it) }
+        plan.update.forEach { transacaoDao.upsert(it) }
+        plan.insert.forEach { transacaoDao.upsert(it) }
     }
 
     /** Compra no cartão: todas as parcelas e faturas entram juntas, ou nenhuma. */
@@ -301,6 +347,8 @@ class FinanceRepository(private val db: FinaiDatabase) {
             orcamentos = orcamentoDao.getAll(),
             assinaturas = assinaturaDao.getAll(),
             mensagens = mensagemChatDao.getAll(),
+            // Só as reais; o texto original não sai do aparelho (o codec também o descarta).
+            sugestoes = sugestaoDao.getReal().map { it.copy(textoOriginal = null) },
         )
     }
 
@@ -320,6 +368,8 @@ class FinanceRepository(private val db: FinaiDatabase) {
             assinaturaDao.deleteAll()
             mensagemChatDao.deleteAll()
             notificacaoEnviadaDao.deleteAll()
+            sugestaoDao.deleteAll()
+            testeNotificacaoDao.deleteAll()
             backup.contas.forEach { contaDao.upsert(it) }
             backup.faturas.forEach { faturaCartaoDao.insert(it) }
             backup.transacoes.forEach { transacaoDao.upsert(it) }
@@ -328,6 +378,7 @@ class FinanceRepository(private val db: FinaiDatabase) {
             backup.orcamentos.forEach { orcamentoDao.upsert(it) }
             backup.assinaturas.forEach { assinaturaDao.upsert(it) }
             backup.mensagens.forEach { mensagemChatDao.insert(it) }
+            backup.sugestoes.forEach { sugestaoDao.insert(it.copy(textoOriginal = null, testeId = null)) }
         }
     }
 
@@ -342,6 +393,9 @@ class FinanceRepository(private val db: FinaiDatabase) {
             assinaturaDao.deleteAll()
             mensagemChatDao.deleteAll()
             notificacaoEnviadaDao.deleteAll()
+            // Lançamento por notificações: sugestões (e os vínculos que elas guardam) e testes.
+            sugestaoDao.deleteAll()
+            testeNotificacaoDao.deleteAll()
         }
     }
 }

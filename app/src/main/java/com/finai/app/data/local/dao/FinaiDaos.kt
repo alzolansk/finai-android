@@ -17,6 +17,8 @@ import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.data.local.entity.UsoProvedorIaEntity
+import com.finai.app.data.local.entity.SugestaoLancamentoEntity
+import com.finai.app.data.local.entity.TesteNotificacaoEntity
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -221,5 +223,76 @@ interface NotificacaoEnviadaDao {
     suspend fun removerExceto(chavesAtivas: List<String>)
 
     @Query("DELETE FROM notificacoes_enviadas")
+    suspend fun deleteAll()
+}
+
+/** Sugestões do lançamento por notificação — ver [SugestaoLancamentoEntity]. */
+@Dao
+interface SugestaoLancamentoDao {
+    @Query("SELECT * FROM sugestoes_lancamento ORDER BY capturadoEm DESC, id DESC")
+    fun observeAll(): Flow<List<SugestaoLancamentoEntity>>
+
+    @Query("SELECT * FROM sugestoes_lancamento WHERE id = :id")
+    suspend fun get(id: Long): SugestaoLancamentoEntity?
+
+    @Query("SELECT * FROM sugestoes_lancamento WHERE id = :id")
+    fun observe(id: Long): Flow<SugestaoLancamentoEntity?>
+
+    /** O que a decisão de repetição precisa: o mesmo app nas últimas horas ou a mesma chave. */
+    @Query("SELECT * FROM sugestoes_lancamento WHERE chaveSistema = :key OR (pacote = :pacote AND capturadoEm >= :since)")
+    suspend fun candidatesFor(key: String, pacote: String, since: Long): List<SugestaoLancamentoEntity>
+
+    @Query("SELECT * FROM sugestoes_lancamento WHERE origem = 'notificacao'")
+    suspend fun getReal(): List<SugestaoLancamentoEntity>
+
+    @Insert
+    suspend fun insert(s: SugestaoLancamentoEntity): Long
+
+    @Update
+    suspend fun update(s: SugestaoLancamentoEntity)
+
+    @Query("UPDATE sugestoes_lancamento SET avisadaEm = :at WHERE id = :id AND avisadaEm IS NULL")
+    suspend fun markShown(id: Long, at: Long)
+
+    /** Retenção: o texto original some quando passa do prazo ou a sugestão foi resolvida. */
+    @Query("UPDATE sugestoes_lancamento SET textoOriginal = NULL WHERE textoOriginal IS NOT NULL AND (estado != 'pendente' OR capturadoEm < :before)")
+    suspend fun clearOldText(before: Long)
+
+    /** Sugestões resolvidas antigas saem; a lembrança delas só serve para não repetir. */
+    @Query("DELETE FROM sugestoes_lancamento WHERE estado != 'pendente' AND resolvidaEm < :before")
+    suspend fun deleteResolvedBefore(before: Long)
+
+    @Query("DELETE FROM sugestoes_lancamento WHERE origem != 'notificacao'")
+    suspend fun deleteTests()
+
+    @Query("DELETE FROM sugestoes_lancamento WHERE origem = 'notificacao'")
+    suspend fun deleteReal()
+
+    @Query("DELETE FROM sugestoes_lancamento")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface TesteNotificacaoDao {
+    @Query("SELECT * FROM testes_notificacao ORDER BY criadoEm DESC, id DESC")
+    fun observeAll(): Flow<List<TesteNotificacaoEntity>>
+
+    @Query("SELECT * FROM testes_notificacao WHERE id = :id")
+    suspend fun get(id: Long): TesteNotificacaoEntity?
+
+    @Query("SELECT COALESCE(MAX(notificacaoId), 0) FROM testes_notificacao")
+    suspend fun maxNotificationId(): Int
+
+    @Insert
+    suspend fun insert(t: TesteNotificacaoEntity): Long
+
+    @Query("UPDATE testes_notificacao SET status = :status, detalhe = :detalhe, sugestaoId = COALESCE(:sugestaoId, sugestaoId), atualizadoEm = :at WHERE id = :id")
+    suspend fun setStatus(id: Long, status: String, detalhe: String, sugestaoId: Long?, at: Long)
+
+    /** Só avança de "aguardando": o listener pode ter lido (e ido além) antes desta escrita. */
+    @Query("UPDATE testes_notificacao SET status = :status, detalhe = :detalhe, atualizadoEm = :at WHERE id = :id AND status = 'Waiting'")
+    suspend fun setStatusIfWaiting(id: Long, status: String, detalhe: String, at: Long)
+
+    @Query("DELETE FROM testes_notificacao")
     suspend fun deleteAll()
 }

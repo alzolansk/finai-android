@@ -117,6 +117,10 @@ import com.finai.app.domain.TipScript
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.layout.onSizeChanged
 import com.finai.app.ui.components.QuickActionSheet
+import com.finai.app.ui.components.capture.PendingSuggestionsPill
+import com.finai.app.ui.components.capture.PendingSuggestionsScreen
+import com.finai.app.ui.components.capture.QueuedSuggestionToast
+import com.finai.app.ui.components.capture.SuggestionDialog
 import com.finai.app.ui.screens.agenda.AgendaScreen
 import com.finai.app.ui.screens.budgets.BudgetsScreen
 import com.finai.app.ui.screens.installments.InstallmentsScreen
@@ -150,6 +154,7 @@ fun FinaiApp(
     financeViewModel: FinanceViewModel = viewModel(),
     aiViewModel: AiViewModel = viewModel(),
     importViewModel: ImportViewModel = viewModel(),
+    captureViewModel: com.finai.app.state.CaptureViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val financeState by financeViewModel.uiState.collectAsState()
@@ -166,6 +171,14 @@ fun FinaiApp(
     var rootHeightPx by remember { mutableStateOf(0f) }
     val initialSetupComplete by viewModel.initialSetupComplete.collectAsState()
     val knownAccounts by viewModel.knownAccounts.collectAsState()
+    // Lançamento por notificações: sugestões, fila e área de testes.
+    val captureState by captureViewModel.uiState.collectAsState()
+    val captureApps by captureViewModel.apps.collectAsState()
+    val captureSimulation by captureViewModel.simulation.collectAsState()
+    val listenerConnected by captureViewModel.listenerConnected.collectAsState()
+    val captureLink by com.finai.app.data.capture.CaptureLinks.open.collectAsState()
+    val lifecycleState by androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
+    val appResumed = lifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
     val financeSummary = remember(financeState) { financeState.toAiSummaryText() }
     // O simulador de compra do chat lê uma cópia das mesmas listas do Room; nunca grava nela.
     LaunchedEffect(financeState.rawContas, financeState.rawTransacoes, financeState.rawDividas, financeState.rawObjetivos, financeState.rawFaturasCartao) {
@@ -267,6 +280,29 @@ fun FinaiApp(
     var openedInvoiceContaId by rememberSaveable { mutableStateOf<Long?>(null) }
     /** Tela de Parcelamentos: camada por cima de tudo (entra da direita), não rota do NavHost. */
     var showInstallments by rememberSaveable { mutableStateOf(false) }
+    var showIncome by rememberSaveable { mutableStateOf(false) }
+    var showReconcile by rememberSaveable { mutableStateOf(false) }
+    val incomeConfig = remember(financeState.rawTransacoes) {
+        com.finai.app.domain.IncomePlanner.current(financeState.rawTransacoes, java.time.LocalDate.now())
+    }
+    /** Sugestão aberta no quadro "Movimentação encontrada" (uma por vez). */
+    var openSuggestionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    /** Lista "Para confirmar". */
+    var showPendingSuggestions by rememberSaveable { mutableStateOf(false) }
+    /** "Editar" de uma sugestão: o formulário do "+" numa instância própria, já preenchido. */
+    var editSuggestionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editSuggestionPrefill by rememberSaveable(stateSaver = com.finai.app.ui.components.EntryPrefillSaver) {
+        mutableStateOf<com.finai.app.ui.components.EntryPrefill?>(null)
+    }
+    var settingsAtCapture by rememberSaveable { mutableStateOf(false) }
+    // Toque em "Movimentação encontrada": abre essa sugestão, com o app fechado ou aberto.
+    LaunchedEffect(captureLink) {
+        captureLink?.let { id ->
+            openSuggestionId = id
+            showPendingSuggestions = false
+            com.finai.app.data.capture.CaptureLinks.consume()
+        }
+    }
     var editingObjetivoId by remember { mutableStateOf<Long?>(null) }
     val editingConta = financeState.rawContas.firstOrNull { it.id == editingContaId }
     val editingDivida = financeState.rawDividas.firstOrNull { it.id == editingDividaId }
@@ -320,6 +356,9 @@ fun FinaiApp(
                             saldoLabel = financeState.saldoLabel,
                             saldoPositivo = financeState.saldoCents >= 0,
                             situation = financeState.situation,
+                            agendaBalance = financeState.agendaBalance,
+                            reconNotice = remember(financeState.reconciliation) { com.finai.app.domain.Reconciliation.notice(financeState.reconciliation, java.time.LocalDate.now()) },
+                            onReconcile = { showReconcile = true },
                             safeNote = financeState.safeNote,
                             week = financeState.nextWeekBills,
                             timeline = financeState.timeline,
@@ -379,7 +418,7 @@ fun FinaiApp(
                             onImport = { navigateTo(FinaiDestination.Import) },
                             sequential = uiState.agendaSequential,
                             onSequentialChange = viewModel::setAgendaSequential,
-                            cashFlow = financeState.cashFlow,
+                            agendaBalance = financeState.agendaBalance,
                             onAddMainIncome = { transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name; transactionEntryInitialMain = true; showAddTransaction = true },
                             highlight = agendaHighlight,
                             onHighlightShown = { agendaHighlight = null },
@@ -504,7 +543,36 @@ fun FinaiApp(
                         val backupStatus by financeViewModel.backupStatus.collectAsState()
                         val pendingRestore by financeViewModel.pendingRestore.collectAsState()
                         val themeMode by viewModel.themeMode.collectAsState()
+                        val listenerAccess = rememberOnResume { captureViewModel.hasListenerAccess() }
+                        val ownNotifications = rememberOnResume { FinaiNotifier(context).hasNotificationPermission() }
+                        val captureBindings = com.finai.app.ui.components.CaptureSettingsBindings(
+                            state = captureState, apps = captureApps, simulation = captureSimulation,
+                            listenerAccess = listenerAccess, listenerConnected = listenerConnected,
+                            ownNotificationsAllowed = ownNotifications,
+                            onOpenAccessSettings = {
+                                runCatching { context.startActivity(captureViewModel.listenerSettingsIntent()) }
+                                    .onFailure { runCatching { context.startActivity(captureViewModel.fallbackListenerSettingsIntent()) } }
+                            },
+                            onOpenOwnNotificationSettings = {
+                                val intent = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                runCatching { context.startActivity(intent) }
+                            },
+                            onSetEnabled = { captureViewModel.setEnabled(it) },
+                            onTogglePackage = { captureViewModel.togglePackage(it) },
+                            onLoadApps = { captureViewModel.loadApps() },
+                            onOpenPending = { showPendingSuggestions = true },
+                            onOpenSuggestion = { openSuggestionId = it },
+                            onSimulate = captureViewModel::simulate,
+                            onSendTest = captureViewModel::sendTest,
+                            onClearTests = { captureViewModel.clearTests() },
+                            onClearSimulation = captureViewModel::clearSimulation,
+                        )
+                        val startAtCapture = remember { settingsAtCapture.also { settingsAtCapture = false } }
                         SettingsScreen(
+                            capture = captureBindings,
+                            startAtCapture = startAtCapture,
                             onExit = { navController.navigateUp() },
                             configuredProviders = configuredAiProviders,
                             exhaustedProviders = exhaustedAiProviders,
@@ -514,6 +582,8 @@ fun FinaiApp(
                             onTestProvider = aiViewModel::testProvider,
                             notificationsEnabled = rememberOnResume { FinaiNotifier(context).hasNotificationPermission() },
                             onRunNotificationCheck = { FinanceCheckWorker.runOnce(context) },
+                            onOpenIncome = { showIncome = true },
+                            incomeStatus = incomeConfig?.let { c -> if (c.split != null) "Em duas partes" else "Integral" },
                             onRestartTour = {
                                 viewModel.restartOnboarding()
                                 navigateTo(FinaiDestination.Home)
@@ -810,6 +880,9 @@ fun FinaiApp(
             onDismiss = closeEntry,
             onSave = financeViewModel::saveTransactionEntry,
             onSaveCard = financeViewModel::saveCardPurchase,
+            onSaveSplitIncome = financeViewModel::saveSplitIncome,
+            incomeSplitDefault = incomeConfig?.split ?: com.finai.app.domain.IncomeSplit(com.finai.app.domain.AdvanceRule.Percent(40)),
+            onOpenIncome = { closeEntry(); showIncome = true },
             cards = entryCards,
             categories = entryCategories,
             objetivos = financeState.rawObjetivos,
@@ -870,6 +943,139 @@ fun FinaiApp(
             }
         }
 
+        // ── Lançamento por notificações ──────────────────────────────────────
+        fun openAgendaFor(receipt: com.finai.app.domain.EntryReceipt?, s: com.finai.app.data.local.entity.SugestaoLancamentoEntity) {
+            if (receipt != null) {
+                agendaHighlight = com.finai.app.domain.AgendaHighlight.of(receipt)
+                viewModel.showAgendaDate(receipt.agendaDate)
+            } else {
+                // Aberta de novo depois: o vínculo gravado leva ao lançamento (ou à fatura, no cartão).
+                val ids = s.lancamentoIds.split(';').mapNotNull { it.toLongOrNull() }.toSet()
+                val saved = financeState.rawTransacoes.filter { it.id in ids }
+                val fatura = saved.firstNotNullOfOrNull { t -> t.faturaId?.let { fid -> financeState.rawFaturasCartao.firstOrNull { it.id == fid } } }
+                agendaHighlight = if (fatura != null) com.finai.app.domain.AgendaHighlight(emptySet(), fatura.contaId)
+                    else com.finai.app.domain.AgendaHighlight(ids, null)
+                viewModel.showAgendaDate((fatura?.vencimento ?: saved.firstOrNull()?.data ?: s.data).toLocalDate())
+            }
+            openSuggestionId = null
+            showPendingSuggestions = false
+            editSuggestionId = null
+            navigateTo(FinaiDestination.Agenda)
+        }
+
+        // A lista fica por baixo do formulário de edição que ela pode abrir.
+        PendingSuggestionsScreen(
+            visible = showPendingSuggestions,
+            pending = captureState.pending,
+            resolved = captureState.resolved,
+            onOpen = { openSuggestionId = it },
+            onRestore = { captureViewModel.restore(it) },
+            onOpenSettings = {
+                showPendingSuggestions = false
+                settingsAtCapture = true
+                navigateTo(FinaiDestination.AiSettings)
+            },
+            onBack = { showPendingSuggestions = false },
+        )
+
+        // "Editar": o mesmo formulário do "+", preenchido com o que a notificação disse. Salvar
+        // grava e confirma a sugestão numa transação; fechar sem salvar deixa ela pendente.
+        val suggestionPrefill = editSuggestionPrefill
+        val suggestionEditId = editSuggestionId
+        if (suggestionEditId != null && suggestionPrefill != null) {
+            androidx.compose.runtime.key(suggestionEditId) {
+                val closeSuggestionEdit = { editSuggestionId = null; editSuggestionPrefill = null }
+                TransactionEntryScreen(
+                    visible = true,
+                    accounts = entryAccounts,
+                    incomeSources = remember(financeState.rawTransacoes) {
+                        com.finai.app.domain.EntryOptions.recentIncomeSources(financeState.rawTransacoes)
+                    },
+                    initialType = suggestionPrefill.type,
+                    initialDate = suggestionPrefill.date,
+                    onDismiss = closeSuggestionEdit,
+                    onSave = { entry -> captureViewModel.confirmWithEntry(suggestionEditId, entry) },
+                    onSaveCard = { entry, payment -> captureViewModel.confirmWithCard(suggestionEditId, entry, payment) },
+                    onSaveContribution = { entry -> captureViewModel.confirmWithContribution(suggestionEditId, entry) },
+                    onUndo = { receipt -> captureViewModel.undo(suggestionEditId, receipt) },
+                    cards = entryCards,
+                    categories = entryCategories,
+                    objetivos = financeState.rawObjetivos,
+                    faturas = financeState.rawFaturasCartao,
+                    contas = financeState.rawContas,
+                    dailySpendingCents = financeState.averageDailySpendingCents,
+                    onViewEntry = { receipt ->
+                        val s = captureState.suggestions.firstOrNull { it.id == suggestionEditId }
+                        if (s != null) openAgendaFor(receipt, s) else closeSuggestionEdit()
+                    },
+                    prefill = suggestionPrefill,
+                )
+            }
+        }
+
+        // Quadro "Movimentação encontrada": abre sozinho só quando nada está em andamento
+        // (formulário, edição, confirmação, outra camada, telas com campos); senão a sugestão
+        // espera na fila com um aviso passageiro. Aberto pelo toque na notificação, abre sempre.
+        val captureBlocked = uiState.chatOpen || uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen ||
+            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showIncome || showReconcile ||
+            showAddDivida || editingDivida != null || showAddGoal || editingObjetivo != null || editingConta != null ||
+            contributionTarget != null || budgetLimitTarget != null || initialSetupComplete != true ||
+            editSuggestionId != null || showPendingSuggestions ||
+            current == FinaiDestination.AiSettings || current == FinaiDestination.Import
+        val nextUnseenId = captureState.nextUnseen?.id
+        LaunchedEffect(nextUnseenId, captureBlocked, appResumed, openSuggestionId) {
+            if (nextUnseenId != null && !captureBlocked && appResumed && openSuggestionId == null) {
+                kotlinx.coroutines.delay(400)
+                openSuggestionId = nextUnseenId
+            }
+        }
+        var queuedToast by remember { mutableStateOf(false) }
+        var lastQueuedId by rememberSaveable { mutableStateOf<Long?>(null) }
+        LaunchedEffect(nextUnseenId, captureBlocked, appResumed) {
+            if (nextUnseenId != null && captureBlocked && appResumed && nextUnseenId != lastQueuedId) {
+                lastQueuedId = nextUnseenId
+                queuedToast = true
+                kotlinx.coroutines.delay(4_000)
+                queuedToast = false
+            }
+        }
+        LaunchedEffect(openSuggestionId) { openSuggestionId?.let { captureViewModel.markShown(it) } }
+        val openedSuggestionId = openSuggestionId
+        if (openedSuggestionId != null && editSuggestionId == null) {
+            val opened = captureState.suggestions.firstOrNull { it.id == openedSuggestionId }
+            // Ainda não está na lista em memória (acabou de chegar) ou foi apagada: confere no banco.
+            var gone by remember(openedSuggestionId) { mutableStateOf(false) }
+            LaunchedEffect(openedSuggestionId, opened == null) {
+                if (opened == null) { kotlinx.coroutines.delay(600); gone = captureViewModel.get(openedSuggestionId) == null }
+            }
+            val pendingNow = captureState.pending
+            val next = pendingNow.firstOrNull { it.id != openedSuggestionId }
+            SuggestionDialog(
+                suggestion = opened,
+                missing = gone,
+                pendingCount = pendingNow.size,
+                position = (pendingNow.indexOfFirst { it.id == openedSuggestionId } + 1).coerceAtLeast(1),
+                context = com.finai.app.ui.components.capture.SuggestionContext(
+                    accounts = entryAccounts, cards = entryCards, categories = entryCategories,
+                    faturas = financeState.rawFaturasCartao, contas = financeState.rawContas, transacoes = financeState.rawTransacoes,
+                ),
+                actions = com.finai.app.ui.components.capture.SuggestionActions(
+                    save = { id, draft, due -> captureViewModel.confirm(id, draft, due) },
+                    ignore = { id -> captureViewModel.ignore(id) },
+                    undo = { id, receipt -> captureViewModel.undo(id, receipt) },
+                    edit = { s, draft ->
+                        editSuggestionPrefill = prefillOf(s, draft)
+                        editSuggestionId = s.id
+                        openSuggestionId = null
+                    },
+                    restore = { id -> captureViewModel.restore(id) },
+                    viewAgenda = { receipt, s -> openAgendaFor(receipt, s) },
+                ),
+                onLater = { openSuggestionId = null },
+                onNext = next?.let { n -> { openSuggestionId = n.id } },
+            )
+        }
+
         // Novo objetivo em três passos e edição (referências 1b e 1c em uploads/design-metas).
         GoalCreateScreen(
             visible = showAddGoal,
@@ -924,6 +1130,30 @@ fun FinaiApp(
         )
 
         InstallmentsScreen(visible = showInstallments, summary = installments, onBack = { showInstallments = false })
+
+        if (showReconcile && financeState.agendaBalance != null) {
+            com.finai.app.ui.components.ReconcileSheet(
+                registeredCents = financeState.agendaBalance!!.todayCents,
+                accounts = entryAccounts,
+                onDismiss = { showReconcile = false },
+                onConfirm = { account, bankCents ->
+                    financeViewModel.reconcile(account, bankCents, financeState.agendaBalance!!.todayCents)
+                },
+            )
+        }
+
+        com.finai.app.ui.screens.income.IncomeScreen(
+            visible = showIncome,
+            config = incomeConfig,
+            onBack = { showIncome = false },
+            onSave = financeViewModel::saveIncomeSplit,
+            onAddIncome = {
+                showIncome = false
+                transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name
+                transactionEntryInitialMain = true
+                showAddTransaction = true
+            },
+        )
 
         DebtEntryScreen(
             visible = showAddDivida || editingDivida != null,
@@ -996,9 +1226,10 @@ fun FinaiApp(
             else -> null
         }
         val tipsBlocked = uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen ||
-            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showAddDivida ||
+            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showIncome || showReconcile || showAddDivida ||
             editingDivida != null || showAddGoal || editingObjetivo != null || editingConta != null ||
-            contributionTarget != null || budgetLimitTarget != null || initialSetupComplete != true
+            contributionTarget != null || budgetLimitTarget != null || initialSetupComplete != true ||
+            openSuggestionId != null || editSuggestionId != null || showPendingSuggestions
         LaunchedEffect(tipScreen, tipsBlocked, tipsSeen, activeTips == null) {
             val seen = tipsSeen ?: return@LaunchedEffect
             if (activeTips != null || tipScreen == null || tipsBlocked || tipScreen in seen) return@LaunchedEffect
@@ -1015,10 +1246,20 @@ fun FinaiApp(
         // Segunda trava, independente da ordem em que os tratadores foram
         // registrados: com qualquer camada aberta por cima, a navegação entre
         // telas não reage ao voltar.
-        val anyLayerOpen = overlayOpen || celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments ||
+        val anyLayerOpen = overlayOpen || celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showIncome || showReconcile ||
             showAddDivida || editingDivida != null || activeTips != null || initialSetupComplete == false ||
-            showAddGoal || editingObjetivo != null || contributionTarget != null
+            showAddGoal || editingObjetivo != null || contributionTarget != null ||
+            editSuggestionId != null || showPendingSuggestions
         SideEffect { navController.enableOnBackPressed(!anyLayerOpen) }
+
+        // Fila: indicador discreto nas telas principais e aviso passageiro sobre formulário aberto.
+        PendingSuggestionsPill(
+            count = captureState.pending.size,
+            visible = !anyLayerOpen && openSuggestionId == null && current in bottomTabs && showNavBar,
+            onClick = { showPendingSuggestions = true },
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 92.dp),
+        )
+        QueuedSuggestionToast(visible = queuedToast, modifier = Modifier.align(Alignment.TopCenter))
 
         // Meta concluída / dívida quitada: por cima de tudo, fecha com toque ou voltar.
         AnimatedVisibility(
@@ -1171,4 +1412,41 @@ private fun PersistenceErrorBanner(
             Text("Fechar", color = FinaiColors.Emerald, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
     }
+}
+
+
+/** O que o formulário do "+" recebe ao abrir "Editar" numa movimentação encontrada. */
+private fun prefillOf(
+    s: com.finai.app.data.local.entity.SugestaoLancamentoEntity,
+    d: com.finai.app.domain.capture.SuggestionDraft,
+): com.finai.app.ui.components.EntryPrefill {
+    val kind = d.kind
+    val type = when {
+        kind == com.finai.app.domain.capture.MovementKind.Transfer -> com.finai.app.domain.TransactionType.Transferencia
+        kind.isIncome -> com.finai.app.domain.TransactionType.Receita
+        else -> com.finai.app.domain.TransactionType.Gasto
+    }
+    val test = s.origem != com.finai.app.domain.capture.SuggestionOrigin.Notification.key
+    val note = when {
+        kind.reviewOnly -> " · ${kind.label.lowercase()}: confira o tipo antes de salvar"
+        type == com.finai.app.domain.TransactionType.Gasto && d.payment == null -> " · confira a forma de pagamento"
+        else -> ""
+    }
+    return com.finai.app.ui.components.EntryPrefill(
+        type = type,
+        cents = d.amountCents,
+        category = d.category?.takeIf { type == com.finai.app.domain.TransactionType.Gasto },
+        description = when (kind) {
+            com.finai.app.domain.capture.MovementKind.PixSent, com.finai.app.domain.capture.MovementKind.PixReceived -> d.description
+            else -> d.counterpart
+        },
+        account = if (type == com.finai.app.domain.TransactionType.Receita) d.account ?: d.counterpart.ifBlank { null } else d.account,
+        date = d.date,
+        payment = d.payment,
+        card = d.card,
+        installments = d.installments,
+        dueDate = d.dueDate,
+        banner = if (test) "Teste do FinAI · nada será gravado" else "Detectado por notificação · ${s.appNome}$note",
+        demo = test,
+    )
 }

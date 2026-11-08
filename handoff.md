@@ -1,3 +1,13 @@
+# Handoff atual — lançamento por notificações (18/10/2026)
+
+Branch `main`, sem commit (o usuário pediu para não commitar sem autorização). Resumo e decisões:
+`CLAUDE.md` (Status atual), `LANCAMENTO-POR-NOTIFICACAO.md` (uso, formatos, testes, limitações),
+planning.md §11. Próximos passos: o usuário testar no celular com notificações reais do banco;
+se algum formato não for reconhecido, acrescentar o exemplo em `NotificationParserTest` e ajustar
+`NotificationParser`. Depois do aval, commitar (inclui `app/schemas/.../15.json`).
+
+---
+
 # Handoff atual — novo lançamento conforme playbook de 14 páginas
 
 Atualização: 11/10/2026. Branch: `nova-tela-gastos`. Base: `267ea2a` (primeira etapa, Codex).

@@ -45,6 +45,23 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+        Lançamento por notificações: o leitor (FinanceNotificationListener) não usa permissão
+        de app. O acesso é dado pelo usuário em Ajustes → Acesso a notificações, e o serviço é
+        protegido por BIND_NOTIFICATION_LISTENER_SERVICE (só o sistema se liga a ele). Não há
+        SYSTEM_ALERT_WINDOW, acessibilidade nem USE_FULL_SCREEN_INTENT: o FinAI nunca abre uma
+        tela por cima de outro app.
+
+        <queries> com o launcher: é o que deixa a tela "Escolher aplicativos" listar os apps
+        instalados (Android 11+) sem QUERY_ALL_PACKAGES.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:name=".FinaiApplication"
         android:icon="@mipmap/ic_launcher"
@@ -84,6 +101,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".data.capture.FinanceNotificationListener"
+            android:label="@string/capture_listener_label"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.notification.default_filter_types"
+                android:value="conversations|alerting|silent" />
+        </service>
     </application>
 
 </manifest>

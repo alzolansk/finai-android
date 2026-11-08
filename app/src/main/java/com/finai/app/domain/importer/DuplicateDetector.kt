@@ -1,6 +1,7 @@
 package com.finai.app.domain.importer
 
 import com.finai.app.data.local.entity.TransacaoEntity
+import com.finai.app.domain.capture.NOTIFICATION_ORIGIN
 import com.finai.app.domain.toLocalDate
 import java.time.LocalDate
 import kotlin.math.abs
@@ -17,6 +18,15 @@ import kotlin.math.max
  * Compara contra dois conjuntos: o que já está no Room (importação anterior ou
  * lançamento manual) e o próprio lote sendo importado (fatura que lista a
  * mesma compra duas vezes).
+ *
+ * Compra confirmada a partir de uma notificação ([NOTIFICATION_ORIGIN]) pesa mais: o banco
+ * costuma escrever o estabelecimento de um jeito na notificação e de outro na fatura, e a data
+ * pode andar um dia. Mesmo valor perto da data já é "possível"; com o mesmo estabelecimento, é
+ * "provável" e entra desmarcada — é o que impede somar a mesma compra duas vezes na fatura.
+ * Tudo isso só sinaliza: nada é unido nem apagado, e duas compras iguais continuam podendo
+ * entrar se o usuário marcar. A data comparada é sempre a da compra (a parcela grava a data da
+ * compra, não o vencimento da fatura). [card] é o cartão da fatura sendo importada, quando
+ * conhecido: a mesma compra em outro cartão nunca é "provável".
  */
 object DuplicateDetector {
 
@@ -31,6 +41,7 @@ object DuplicateDetector {
         entry: ParsedEntry,
         existing: List<TransacaoEntity>,
         earlierInBatch: List<ParsedEntry>,
+        card: String? = null,
     ): Verdict {
         val date = entry.date ?: return NONE
         val merchant = MerchantClassifier.normalizeMerchant(entry.description)
@@ -48,18 +59,42 @@ object DuplicateDetector {
         for (transacao in existing) {
             if (transacao.parcelaNumero != null && entry.installment != null &&
                 transacao.parcelaNumero != entry.installment.current) continue
+            if (transacao.parcelasTotal != null && entry.installment != null &&
+                transacao.parcelasTotal != entry.installment.total) continue
             if (abs(transacao.valorCentavos) != abs(entry.amountCents)) continue
             val existingDate = transacao.data.toLocalDate()
             val days = abs(existingDate.toEpochDay() - date.toEpochDay())
             val existingMerchant = MerchantClassifier.normalizeMerchant(
                 if (transacao.compraId != null) transacao.descricao.substringBeforeLast(" · parcela ") else transacao.descricao)
             val sim = similarity(merchant, existingMerchant)
+            val fromNotification = transacao.origem == NOTIFICATION_ORIGIN
+            val otherCard = card != null && (transacao.faturaId != null || transacao.compraId != null) &&
+                transacao.contaOrigem.isNotBlank() && !sameCard(card, transacao.contaOrigem)
 
-            if (days == 0L && sameMerchant(merchant, existingMerchant)) {
+            if (days == 0L && sameMerchant(merchant, existingMerchant) && !otherCard) {
                 return Verdict(
                     DuplicateVerdict.LIKELY,
-                    "Já existe \"${transacao.descricao}\" em ${formatShort(existingDate)} com o mesmo valor.",
+                    if (fromNotification) "Já lançado pela notificação de ${formatShort(existingDate)} (\"${transacao.descricao}\"). Marque só se for outra compra."
+                    else "Já existe \"${transacao.descricao}\" em ${formatShort(existingDate)} com o mesmo valor.",
                 )
+            }
+            if (fromNotification && days <= NEAR_DAYS) {
+                if (days <= 1L && sameMerchant(merchant, existingMerchant) && !otherCard) {
+                    return Verdict(
+                        DuplicateVerdict.LIKELY,
+                        "Já lançado pela notificação de ${formatShort(existingDate)} (\"${transacao.descricao}\"). Marque só se for outra compra.",
+                    )
+                }
+                if (possible == null) possible = Verdict(
+                    DuplicateVerdict.POSSIBLE,
+                    if (otherCard) "Mesmo valor de \"${transacao.descricao}\" (${formatShort(existingDate)}), lançado pela notificação no cartão ${transacao.contaOrigem}. Confira."
+                    else "Mesmo valor de \"${transacao.descricao}\", lançado pela notificação em ${formatShort(existingDate)}. Confira se é a mesma compra.",
+                )
+                continue
+            }
+            if (otherCard && days == 0L && sameMerchant(merchant, existingMerchant) && possible == null) {
+                possible = Verdict(DuplicateVerdict.POSSIBLE, "Mesmo valor e data de \"${transacao.descricao}\", mas no cartão ${transacao.contaOrigem}.")
+                continue
             }
             if (days <= NEAR_DAYS && sim >= 0.55 && possible == null) {
                 possible = Verdict(
@@ -69,6 +104,14 @@ object DuplicateDetector {
             }
         }
         return possible ?: NONE
+    }
+
+    /** "Nubank" e "Nubank final 1234" são o mesmo cartão; "Nubank" e "Inter", não. */
+    private fun sameCard(a: String, b: String): Boolean {
+        val x = MerchantClassifier.normalizeMerchant(a)
+        val y = MerchantClassifier.normalizeMerchant(b)
+        if (x.isBlank() || y.isBlank()) return true
+        return x == y || x.startsWith(y) || y.startsWith(x)
     }
 
     private fun formatShort(date: LocalDate) = "%02d/%02d".format(date.dayOfMonth, date.monthValue)

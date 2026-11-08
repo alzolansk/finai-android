@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">FinAI</string>
+    <string name="capture_listener_label">FinAI · lançamentos por notificações</string>
 </resources>

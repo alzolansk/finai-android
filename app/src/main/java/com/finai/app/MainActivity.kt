@@ -1,6 +1,7 @@
 package com.finai.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.drawable.ColorDrawable
@@ -17,6 +18,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
+import com.finai.app.data.capture.AppVisibility
+import com.finai.app.data.capture.CaptureLinks
+import com.finai.app.data.capture.CaptureNotifications
 import com.finai.app.data.prefs.FinaiPreferences
 import com.finai.app.data.prefs.ThemeMode
 import com.finai.app.ui.theme.FinaiTheme
@@ -38,6 +42,9 @@ class MainActivity : ComponentActivity() {
         val initialMode = runCatching { runBlocking { prefs.themeMode.first() } }.getOrDefault(ThemeMode.LIGHT)
         applySystemBars(dark = isDark(initialMode, systemDark = isSystemNightMode()))
         requestNotificationPermissionIfNeeded()
+        // Toque em "Movimentação encontrada" com o app fechado. Recriação (rotação, processo
+        // restaurado) traz o mesmo intent de volta: só vale na primeira criação.
+        if (savedInstanceState == null) handleSuggestionIntent(intent)
         setContent {
             val mode by prefs.themeMode.collectAsState(initial = initialMode)
             val dark = isDark(mode, systemDark = isSystemInDarkTheme())
@@ -46,6 +53,29 @@ class MainActivity : ComponentActivity() {
                 FinaiApp()
             }
         }
+    }
+
+    /** Toque na notificação com o app já aberto (FLAG_ACTIVITY_SINGLE_TOP). */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleSuggestionIntent(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        AppVisibility.onStart()
+    }
+
+    override fun onStop() {
+        AppVisibility.onStop()
+        super.onStop()
+    }
+
+    private fun handleSuggestionIntent(intent: Intent?) {
+        if (intent?.action != CaptureNotifications.ACTION_OPEN_SUGGESTION) return
+        val id = intent.getLongExtra(CaptureNotifications.EXTRA_SUGGESTION_ID, -1L)
+        if (id >= 0) CaptureLinks.request(id)
+        intent.removeExtra(CaptureNotifications.EXTRA_SUGGESTION_ID)
     }
 
     private fun isDark(mode: ThemeMode, systemDark: Boolean): Boolean = when (mode) {

@@ -41,7 +41,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -50,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -118,9 +118,8 @@ object FinaiNavBarSpec {
     /** "mola" (.34, 1.45, .55, 1): passa um pouco do alvo e volta. */
     val Springy = CubicBezierEasing(0.34f, 1.45f, 0.55f, 1f)
 
-    val Inactive = Color(0xFFA1A1AA)
+    val Inactive = Color(0xFFD4D4D8)
     val Active = Color(0xFFFAFAFA)
-    val IndicatorFill = Color.White.copy(alpha = 0.13f)
     val IndicatorHighlight = Color.White.copy(alpha = 0.22f)
 }
 
@@ -182,6 +181,7 @@ fun FinaiBottomNav(
             modifier = Modifier
                 .glassPosition(surface)
                 .drawBehind { drawGlass(backdrop, surface, GlassMaterial.Nav) }
+                .navGlassFinish(reduced)
                 // O overshoot da mola nas abas das pontas não pode vazar para fora da pílula.
                 // A sombra fica de fora do recorte (desenhada antes).
                 .clip(RoundedCornerShape(percent = 50))
@@ -203,7 +203,6 @@ fun FinaiBottomNav(
                 },
         ) {
             NavBarContent(
-                progress = progress,
                 fullWidthPx = fullWidthPx,
                 selectedIndex = selectedIndex,
                 expanded = !collapsed,
@@ -219,7 +218,7 @@ fun FinaiBottomNav(
 }
 
 /**
- * Faixa de proteção na base (130 dp, cor do fundo a 85% → 0) para o vidro não brigar
+ * Faixa de proteção na base (130 dp, opacidade em NavGlassSpec) para o vidro não brigar
  * com o conteúdo. Vai *dentro* da área marcada com [glassSource], como no protótipo:
  * o vidro desfoca o degradê junto com o conteúdo.
  */
@@ -238,13 +237,12 @@ fun NavBarBottomScrim(visible: Boolean, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .height(FinaiNavBarSpec.BottomScrimHeight + navBottom)
             .graphicsLayer { this.alpha = alpha.value }
-            .background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background.copy(alpha = 0.85f)))),
+            .background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background.copy(alpha = NavGlassSpec.ScrimOpacity)))),
     )
 }
 
 @Composable
 private fun NavBarContent(
-    progress: State<Float>,
     fullWidthPx: Int,
     selectedIndex: Int,
     expanded: Boolean,
@@ -312,10 +310,14 @@ private fun NavBarContent(
                         scaleY = lerp(1f, FinaiNavBarSpec.StretchScaleY, s)
                         alpha = indicatorAlpha.value
                     }
-                    .drawBehind {
-                        val pill = indicatorSurface.pillPath(size.width, size.height)
-                        drawPath(pill, FinaiNavBarSpec.IndicatorFill)
-                        drawGlassEdges(indicatorSurface, size.width, size.height, Color.Transparent, FinaiNavBarSpec.IndicatorHighlight)
+                    .drawWithCache {
+                        val fill = Brush.verticalGradient(NavGlassSpec.IndicatorColors)
+                        onDrawBehind {
+                            val pill = indicatorSurface.pillPath(size.width, size.height)
+                            drawPath(pill, fill)
+                            drawGlassEdges(indicatorSurface, size.width, size.height, Color.White.copy(alpha = 0.06f), FinaiNavBarSpec.IndicatorHighlight)
+                            drawPath(pill, Color.White.copy(alpha = 0.035f * stretch.value))
+                        }
                     },
             )
             // 1–4: abas; 5: botão +.

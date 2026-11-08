@@ -30,6 +30,11 @@ data class MonthCashFlow(
     val recorrentes: List<TransacaoEntity>,
     val avulsas: List<TransacaoEntity>,
     val debtsDue: List<DebtInstallment>,
+    /**
+     * Receita do mês por competência (mês trabalhado), para o fechamento mensal. Nulo = a mesma
+     * do caixa (só difere com salário dividido, que cai em dois meses).
+     */
+    val competenceIncomeCents: Long? = null,
 ) {
     private val lancamentos get() = recorrentes + avulsas
     private val gastos get() = lancamentos.filter { it.tipo == TransactionType.Gasto.name }
@@ -43,6 +48,14 @@ data class MonthCashFlow(
     /** Guardado em objetivos e reservas no mês: saiu do livre sem ser gasto. */
     val aportesCents: Long get() = aportes.sumOf { it.valorCentavos }
     val saldoCents: Long get() = toGetCents - toPayCents - aportesCents
+
+    /**
+     * Fechamento do mês: a receita entra pela competência, não pela data do recebimento. O
+     * salário integral conta uma vez; o saldo de um salário dividido, que cai no mês seguinte,
+     * volta para o mês trabalhado. O caixa ([saldoCents]) continua pela data de recebimento.
+     */
+    val fechamentoCents: Long
+        get() = saldoCents - (receitas.sumOf { it.valorCentavos }) + (competenceIncomeCents ?: receitas.sumOf { it.valorCentavos })
 
     companion object {
         fun of(
@@ -64,6 +77,8 @@ data class MonthCashFlow(
                 recorrentes = recorrentes,
                 avulsas = avulsas,
                 debtsDue = DebtSchedule.installmentsInMonth(dividas, month, today),
+                competenceIncomeCents = transacoes.takeIf { list -> list.any { it.competenciaDeslocamento != 0 } }
+                    ?.let { list -> IncomeCompetence.incomeCents(list, month) },
             )
         }
     }

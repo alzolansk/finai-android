@@ -80,7 +80,11 @@ import com.finai.app.domain.toLocalDate
 import com.finai.app.domain.EntryOptions
 import com.finai.app.domain.EntryReceipt
 import com.finai.app.domain.GoalReceipt
+import com.finai.app.domain.AdvanceRule
 import com.finai.app.domain.IncomeKind
+import com.finai.app.domain.IncomeSplit
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import com.finai.app.domain.MONTH_NAMES_PT
 import com.finai.app.domain.PaymentMethod
 import com.finai.app.domain.TransactionEntry
@@ -167,6 +171,17 @@ fun TransactionEntryScreen(
      */
     edit: EntryEditTarget? = null,
     onSaveEdit: (suspend (EntryChange, EditScope?) -> Unit)? = null,
+    /**
+     * Lançamento novo que já nasce preenchido ("Editar" de uma movimentação encontrada numa
+     * notificação). Instância própria: o rascunho do "+" não é tocado. Depois de salvar, a
+     * confirmação oferece "Fechar" no lugar de "Lançar outro" (a gravação está presa à sugestão).
+     */
+    prefill: EntryPrefill? = null,
+    /** Receita recorrente em duas partes (adiantamento + saldo); nulo = o toggle não aparece. */
+    onSaveSplitIncome: (suspend (TransacaoEntity, IncomeSplit) -> EntryReceipt)? = null,
+    /** A divisão que vale hoje (a de Minha renda); o resumo do toggle a usa. */
+    incomeSplitDefault: IncomeSplit = IncomeSplit(AdvanceRule.Percent(40)),
+    onOpenIncome: (() -> Unit)? = null,
 ) {
     val typography = MaterialTheme.typography
     MaterialTheme(typography = typography.copy(
@@ -181,7 +196,8 @@ fun TransactionEntryScreen(
             TransactionEntryContent(
                 EntryInputs(visible, accounts, incomeSources, cards, categories, objetivos, faturas, contas, dailySpendingCents, edit, initialDate),
                 initialType, initialExtra, initialMainIncome, onDismiss, onSave, onViewEntry, onSaveCard.takeIf { edit == null },
-                onSaveContribution, onUndo, onCreateGoal, onFinished, onSaveEdit,
+                onSaveContribution, onUndo, onCreateGoal, onFinished, onSaveEdit, prefill,
+                onSaveSplitIncome.takeIf { edit == null }, incomeSplitDefault, onOpenIncome,
             )
         }
     }
@@ -200,6 +216,46 @@ private class EntryInputs(
     val dailySpendingCents: Long?,
     val edit: EntryEditTarget?,
     val initialDate: LocalDate?,
+)
+
+/**
+ * Campos que um lançamento novo já traz preenchidos. Só o que foi lido ou escolhido: o resto
+ * fica como no "+" vazio. [banner] é a linha de origem ("Detectado por notificação"); [demo] =
+ * sugestão de teste, que demonstra o fluxo sem gravar nada.
+ */
+data class EntryPrefill(
+    val type: TransactionType,
+    val cents: Long?,
+    val category: String?,
+    val description: String,
+    val account: String?,
+    val date: LocalDate,
+    val payment: PaymentMethod?,
+    val card: String?,
+    val installments: Int?,
+    val dueDate: LocalDate?,
+    val banner: String,
+    val demo: Boolean,
+)
+
+/** O preenchimento sobrevive à rotação junto com a instância do formulário que ele abriu. */
+val EntryPrefillSaver = Saver<EntryPrefill?, Any>(
+    save = { p ->
+        p?.let {
+            arrayListOf<Any?>(it.type.name, it.cents ?: -1L, it.category, it.description, it.account, it.date.toString(),
+                it.payment?.name, it.card, it.installments ?: -1, it.dueDate?.toString(), it.banner, it.demo)
+        }
+    },
+    restore = { saved ->
+        @Suppress("UNCHECKED_CAST")
+        val l = saved as List<Any?>
+        EntryPrefill(
+            type = TransactionType.valueOf(l[0] as String), cents = (l[1] as Long).takeIf { it >= 0 }, category = l[2] as String?,
+            description = l[3] as String, account = l[4] as String?, date = LocalDate.parse(l[5] as String),
+            payment = (l[6] as String?)?.let(PaymentMethod::valueOf), card = l[7] as String?, installments = (l[8] as Int).takeIf { it >= 0 },
+            dueDate = (l[9] as String?)?.let(LocalDate::parse), banner = l[10] as String, demo = l[11] as Boolean,
+        )
+    },
 )
 
 /**
@@ -266,6 +322,10 @@ private fun TransactionEntryContent(
     onCreateGoal: ((Boolean) -> Unit)?,
     onFinished: () -> Unit,
     onSaveEdit: (suspend (EntryChange, EditScope?) -> Unit)?,
+    prefill: EntryPrefill?,
+    onSaveSplitIncome: (suspend (TransacaoEntity, IncomeSplit) -> EntryReceipt)?,
+    incomeSplitDefault: IncomeSplit,
+    onOpenIncome: (() -> Unit)?,
 ) {
     val visible = inputs.visible
     val edit = inputs.edit
@@ -273,21 +333,23 @@ private fun TransactionEntryContent(
     val today = LocalDate.now()
     // Rascunho: os mesmos campos de antes, mais pagamento, parcelas, tipo de receita e destino.
     // Na edição, o rascunho nasce do lançamento gravado (a tela de edição é montada por item).
-    var cents by rememberSaveable { mutableStateOf(original?.valorCentavos?.toString() ?: "") }
-    var category by rememberSaveable { mutableStateOf(original?.categoria ?: "") }
-    var description by rememberSaveable { mutableStateOf(original?.descricao ?: "") }
-    var account by rememberSaveable { mutableStateOf(original?.contaOrigem ?: "") }
-    var dateString by rememberSaveable { mutableStateOf((original?.data?.toLocalDate() ?: today).toString()) }
+    // Sugestão de notificação: o rascunho nasce do que foi lido (a instância é montada por sugestão).
+    var cents by rememberSaveable { mutableStateOf(original?.valorCentavos?.toString() ?: prefill?.cents?.toString() ?: "") }
+    var category by rememberSaveable { mutableStateOf(original?.categoria ?: prefill?.category ?: "") }
+    var description by rememberSaveable { mutableStateOf(original?.descricao ?: prefill?.description ?: "") }
+    var account by rememberSaveable { mutableStateOf(original?.contaOrigem ?: prefill?.account ?: "") }
+    var dateString by rememberSaveable { mutableStateOf((original?.data?.toLocalDate() ?: prefill?.date ?: today).toString()) }
     var recurring by rememberSaveable { mutableStateOf(false) }
-    var typeName by rememberSaveable { mutableStateOf(original?.tipo?.takeIf { t -> TransactionType.values().any { it.name == t } } ?: TransactionType.Gasto.name) }
-    var payName by rememberSaveable { mutableStateOf(PaymentMethod.Debito.name) }
-    var card by rememberSaveable { mutableStateOf("") }
-    var installments by rememberSaveable { mutableIntStateOf(EntryOptions.MIN_INSTALLMENTS) }
+    var typeName by rememberSaveable { mutableStateOf(original?.tipo?.takeIf { t -> TransactionType.values().any { it.name == t } } ?: prefill?.type?.name ?: TransactionType.Gasto.name) }
+    var payName by rememberSaveable { mutableStateOf((prefill?.payment ?: PaymentMethod.Debito).name) }
+    var card by rememberSaveable { mutableStateOf(prefill?.card ?: "") }
+    var installments by rememberSaveable { mutableIntStateOf(prefill?.installments?.coerceIn(EntryOptions.MIN_INSTALLMENTS, EntryOptions.MAX_INSTALLMENTS) ?: EntryOptions.MIN_INSTALLMENTS) }
     /** Vencimento escolhido à mão; vazio = o sugerido pelas faturas. */
-    var dueString by rememberSaveable { mutableStateOf("") }
+    var dueString by rememberSaveable { mutableStateOf(prefill?.dueDate?.toString() ?: "") }
     var dueConfirmed by rememberSaveable { mutableStateOf(false) }
     var incomeName by rememberSaveable { mutableStateOf(IncomeKind.DEFAULT.name) }
-    var targetName by rememberSaveable { mutableStateOf(if (original != null) TransferTarget.Conta.name else TransferTarget.Reserva.name) }
+    var splitIncome by rememberSaveable { mutableStateOf(false) }
+    var targetName by rememberSaveable { mutableStateOf(if (original != null || prefill?.type == TransactionType.Transferencia) TransferTarget.Conta.name else TransferTarget.Reserva.name) }
     /** Objetivo escolhido; −1 = nenhum (com uma opção só, ela vale sem toque). */
     var goalId by rememberSaveable { mutableLongStateOf(-1L) }
     var destAccount by rememberSaveable { mutableStateOf(original?.contaDestino ?: "") }
@@ -298,6 +360,8 @@ private fun TransactionEntryContent(
     val type = TransactionType.valueOf(typeName)
     val pay = PaymentMethod.valueOf(payName)
     val incomeKind = IncomeKind.valueOf(incomeName)
+    /** "Receber em duas partes": só na receita recorrente (Salário ou Recorrente) de um lançamento novo. */
+    val canSplitIncome = onSaveSplitIncome != null && (incomeKind == IncomeKind.Salario || incomeKind == IncomeKind.Recorrente)
     val target = TransferTarget.valueOf(targetName)
     val date = LocalDate.parse(dateString)
     val isGasto = type == TransactionType.Gasto
@@ -311,7 +375,7 @@ private fun TransactionEntryContent(
     // rascunho está vazio — senão reabrir a tela com "Voltar preserva rascunho" trocaria o
     // tipo de um lançamento que o usuário já estava preenchendo.
     LaunchedEffect(visible) {
-        if (edit == null && visible && receipt == null && cents.isEmpty() && category.isEmpty() && description.isBlank()) {
+        if (edit == null && prefill == null && visible && receipt == null && cents.isEmpty() && category.isEmpty() && description.isBlank()) {
             typeName = initialType.name
             inputs.initialDate?.let { dateString = it.toString() }
             if (initialType == TransactionType.Receita) incomeName = when {
@@ -389,7 +453,7 @@ private fun TransactionEntryContent(
     // Description uses the system IME; the custom keypad must yield to it instead of stacking on top.
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     // O teclado recolhe ao tocar em categoria, pagamento ou pílula e volta ao tocar no valor.
-    var amountEditing by rememberSaveable { mutableStateOf(edit == null) }
+    var amountEditing by rememberSaveable { mutableStateOf(edit == null && prefill?.cents == null) }
     /** Edição: o primeiro número digitado substitui o valor gravado, como um campo já selecionado. */
     var replaceAmount by rememberSaveable { mutableStateOf(edit != null) }
     val showKeypad = amountEditing && !imeVisible && panel == null && !success
@@ -402,7 +466,7 @@ private fun TransactionEntryContent(
     fun clearDraft(keepType: Boolean) {
         cents = ""; category = ""; description = ""; account = ""; dateString = LocalDate.now().toString()
         recurring = false; payName = PaymentMethod.Debito.name; card = ""; installments = EntryOptions.MIN_INSTALLMENTS
-        dueString = ""; dueConfirmed = false; incomeName = IncomeKind.DEFAULT.name; goalId = -1L; destAccount = ""
+        dueString = ""; dueConfirmed = false; incomeName = IncomeKind.DEFAULT.name; splitIncome = false; goalId = -1L; destAccount = ""
         if (!keepType) { typeName = TransactionType.Gasto.name; targetName = TransferTarget.Reserva.name }
         receipt = null; error = null; undoError = null; amountEditing = true; panel = null
     }
@@ -440,8 +504,10 @@ private fun TransactionEntryContent(
                         if (isCard) requireNotNull(onSaveCard)(entry, CardPayment(card.trim(), requireNotNull(dueDate), count))
                         else onSave(entry)
                     }
-                    TransactionType.Receita -> onSave(incomeKind.applyTo(base).copy(
-                        descricao = base.descricao.ifEmpty { incomeDescription(incomeKind) }))
+                    TransactionType.Receita -> {
+                        val income = incomeKind.applyTo(base).copy(descricao = base.descricao.ifEmpty { incomeDescription(incomeKind) })
+                        if (canSplitIncome && splitIncome) requireNotNull(onSaveSplitIncome)(income, incomeSplitDefault) else onSave(income)
+                    }
                     TransactionType.Transferencia -> if (toGoal) {
                         val goal = requireNotNull(selectedGoal)
                         requireNotNull(onSaveContribution)(base.copy(
@@ -517,6 +583,7 @@ private fun TransactionEntryContent(
                             EditHeader(type, edit, Modifier.weight(1f))
                         }
                     }
+                    prefill?.let { p -> PrefillBanner(p.banner, p.demo) }
                     Column(
                         Modifier.weight(1f).verticalScroll(rememberScrollState()).alpha(if (success) .45f else 1f)
                             .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -560,8 +627,17 @@ private fun TransactionEntryContent(
                                         onLineClick = { openPanel(if (card.isBlank()) "card" else "due") })
                                 }
                             }
-                            TransactionType.Receita -> if (edit == null) IncomeKindSelector(incomeKind, enabled = !saving && !success) {
-                                incomeName = it.name; amountEditing = false
+                            TransactionType.Receita -> if (edit == null) {
+                                IncomeKindSelector(incomeKind, enabled = !saving && !success) {
+                                    incomeName = it.name; amountEditing = false
+                                }
+                                if (canSplitIncome) {
+                                    SplitIncomeCard(
+                                        on = splitIncome, enabled = !saving && !success, totalCents = valueCents,
+                                        split = incomeSplitDefault, month = YearMonth.from(date), onChange = { splitIncome = it },
+                                        onAdjust = onOpenIncome,
+                                    )
+                                }
                             }
                             TransactionType.Transferencia -> {
                                 if (edit == null) DestinationStrip(target, enabled = !saving && !success) {
@@ -610,8 +686,10 @@ private fun TransactionEntryContent(
                                 valueCents, confirmationCategory(type, category, incomeKind, selectedGoal?.nome, destAccount),
                                 date, if (isCard) card else selectedAccount, today),
                             dailySpendingCents = inputs.dailySpendingCents, enabled = !undoing,
-                            onAnother = { clearDraft(keepType = true); onFinished() },
-                            onViewAgenda = { val r = receipt!!; clearDraft(keepType = false); onFinished(); onViewEntry(r) },
+                            onAnother = if (prefill == null) { { clearDraft(keepType = true); onFinished() } } else null,
+                            onClose = { onFinished(); onDismiss() },
+                            onViewAgenda = if (prefill?.demo == true) null else { { val r = receipt!!; clearDraft(keepType = false); onFinished(); onViewEntry(r) } },
+                            demo = prefill?.demo == true,
                         )
                     }
                 }
@@ -639,7 +717,7 @@ private fun TransactionEntryContent(
             }
             // Desfazer: aviso de vidro no topo, enquanto a confirmação estiver aberta.
             UndoNotice(
-                visible = success, title = receipt?.let { confirmationTitle(it, type) } ?: "", busy = undoing, error = undoError,
+                visible = success, title = if (prefill?.demo == true) "Teste concluído" else receipt?.let { confirmationTitle(it, type) } ?: "", busy = undoing, error = undoError,
                 // Abaixo do topo, para o X continuar à mão.
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 60.dp), onUndo = { undo() },
             )
@@ -675,6 +753,19 @@ private fun TransactionEntryContent(
             }
         }
         }
+    }
+}
+
+/** "Detectado por notificação" (ou "Teste do FinAI · nada será gravado") sob o topo. */
+@Composable
+private fun PrefillBanner(text: String, demo: Boolean) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)
+            .background(if (demo) FinaiColors.AmberSoftBg else FinaiColors.EmeraldSoftBg, RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (demo) FinaiColors.AmberDark else FinaiColors.EmeraldDark)
     }
 }
 
@@ -966,6 +1057,69 @@ private fun InstallmentCard(
         ) {
             Text(line, color = EntryInk.copy(alpha = .9f), fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f))
             if (needsAction) Text("Confirmar", color = SelectedText, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+/**
+ * "Receber em duas partes" (ref. 1b): adiantamento + saldo, mesma competência. Ligado, mostra as
+ * duas entradas que serão geradas e leva a Minha renda para ajustar a divisão.
+ */
+@Composable
+private fun SplitIncomeCard(
+    on: Boolean, enabled: Boolean, totalCents: Long, split: IncomeSplit, month: YearMonth,
+    onChange: (Boolean) -> Unit, onAdjust: (() -> Unit)?,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(TileBg)
+            .border(1.5.dp, if (on) FinaiColors.EmeraldSoftStroke else TileBorder, shape),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                .selectable(on, enabled = enabled, role = Role.Switch, onClick = { onChange(!on) })
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Receber em duas partes", color = EntryInk, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("Adiantamento + saldo, mesma competência", color = EntryMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+            }
+            androidx.compose.material3.Switch(
+                checked = on, onCheckedChange = null, enabled = enabled,
+                colors = androidx.compose.material3.SwitchDefaults.colors(
+                    checkedTrackColor = FinaiColors.Emerald, checkedThumbColor = Color.White,
+                    uncheckedTrackColor = TrackColor, uncheckedThumbColor = Color.White, uncheckedBorderColor = Color.Transparent,
+                ),
+            )
+        }
+        if (on) {
+            val advance = split.advanceCents(totalCents)
+            val next = month.plusMonths(1)
+            Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                listOf(
+                    "%02d/%02d · Adiantamento".format(split.advanceDay.coerceAtMost(month.lengthOfMonth()), month.monthValue) to advance,
+                    "%02d/%02d · Saldo".format(split.balanceDay.coerceAtMost(next.lengthOfMonth()), next.monthValue) to totalCents - advance,
+                ).forEach { (label, cents) ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(TileIconBg).padding(horizontal = 11.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(label, color = EntryInk, fontSize = 13.sp)
+                        Text(
+                            if (totalCents > 0) com.finai.app.util.formatBrl(cents / 100.0) else "—",
+                            color = FinaiColors.EmeraldDark, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                if (onAdjust != null) {
+                    Text(
+                        "Ajustar divisão em Minha renda", color = FinaiColors.EmeraldDark, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically)
+                            .clickable(enabled = enabled, role = Role.Button, onClick = onAdjust),
+                    )
+                }
+            }
         }
     }
 }
@@ -1264,7 +1418,7 @@ private fun UndoNotice(visible: Boolean, title: String, busy: Boolean, error: St
 @Composable
 private fun EntryConfirmation(
     receipt: EntryReceipt, type: TransactionType, summary: String, dailySpendingCents: Long?, enabled: Boolean,
-    onAnother: () -> Unit, onViewAgenda: () -> Unit,
+    onAnother: (() -> Unit)?, onClose: () -> Unit, onViewAgenda: (() -> Unit)?, demo: Boolean = false,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         val goal = receipt.goal
@@ -1278,15 +1432,17 @@ private fun EntryConfirmation(
                 TransactionType.Transferencia -> FinaiColors.Indigo to (if (FinaiColors.isDark) Color(0xFF1E1B4B) else Color.White)
             }
             Box(Modifier.size(48.dp).background(circle, CircleShape), contentAlignment = Alignment.Center) { EntryGlyph("check", check) }
-            Text(type.confirmation, color = EntryInk, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+            Text(if (demo) "Teste concluído" else type.confirmation, color = EntryInk, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+            if (demo) Text("Teste do FinAI: nada foi lançado nas suas finanças.", color = FinaiColors.TextTertiary, fontSize = 13.sp,
+                textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
         }
         Text(summary, color = FinaiColors.TextTertiary, fontSize = 13.sp, textAlign = TextAlign.Center, maxLines = 2,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp, bottom = 14.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onAnother, enabled = enabled, shape = EntryShape, modifier = Modifier.weight(1f).height(52.dp)) {
-                Text("Lançar outro", color = EntryInk, fontWeight = FontWeight.Bold, maxLines = 1)
+            OutlinedButton(onClick = onAnother ?: onClose, enabled = enabled, shape = EntryShape, modifier = Modifier.weight(1f).height(52.dp)) {
+                Text(if (onAnother != null) "Lançar outro" else "Fechar", color = EntryInk, fontWeight = FontWeight.Bold, maxLines = 1)
             }
-            Button(onClick = onViewAgenda, enabled = enabled, shape = EntryShape,
+            if (onViewAgenda != null) Button(onClick = onViewAgenda, enabled = enabled, shape = EntryShape,
                 colors = ButtonDefaults.buttonColors(containerColor = FinaiColors.InkStrong, contentColor = FinaiColors.OnInkStrong),
                 modifier = Modifier.weight(1f).height(52.dp)) {
                 Text("Ver na agenda", fontWeight = FontWeight.Bold, maxLines = 1)

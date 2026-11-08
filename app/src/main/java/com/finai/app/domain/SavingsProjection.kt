@@ -66,7 +66,7 @@ data class SavingsProjection(val months: List<MonthProjection>) {
                 } else {
                     0L
                 }
-                MonthProjection(month, flow.saldoCents + estimated, estimated)
+                MonthProjection(month, flow.fechamentoCents + estimated, estimated)
             }.toList()
             return SavingsProjection(months)
         }

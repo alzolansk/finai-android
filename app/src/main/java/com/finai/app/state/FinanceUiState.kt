@@ -115,6 +115,10 @@ data class FinanceUiState(
      * com o saldo depois de cada movimento. O ciclo atual é o mesmo [plan] (mesmo "Livre até o salário").
      */
     val cashFlow: com.finai.app.domain.CashFlowTimeline? = null,
+    /** Agenda de foco no futuro: o saldo corrente contínuo, de hoje em diante ([com.finai.app.domain.AgendaBalance]). */
+    val agendaBalance: com.finai.app.domain.AgendaBalance? = null,
+    /** Última conciliação com o saldo do banco; nula se nunca houve. */
+    val reconciliation: com.finai.app.domain.ReconciliationState? = null,
     /** O fluxo cronológico como a IA recebe ([com.finai.app.domain.CashFlowTimeline.aiBlock]). */
     val aiCashFlowBlock: String = "",
     /** "Decisões para você", tiradas do plano, sem IA. */

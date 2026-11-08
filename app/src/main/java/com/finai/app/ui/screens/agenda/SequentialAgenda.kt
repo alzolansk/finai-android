@@ -1,6 +1,30 @@
 package com.finai.app.ui.screens.agenda
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.text.style.TextDecoration
+import com.finai.app.domain.AgendaBalance
+import com.finai.app.domain.isAdjustment
+import com.finai.app.domain.BalanceTone
+import com.finai.app.domain.balanceTone
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -56,7 +80,7 @@ internal fun AgendaModeTabs(sequential: Boolean, onChange: (Boolean) -> Unit, mo
     Row(
         modifier.fillMaxWidth().height(48.dp).clip(CircleShape).background(FinaiColors.SurfaceMuted).padding(3.dp),
     ) {
-        listOf("Mensal" to false, "Sequencial" to true).forEach { (label, value) ->
+        listOf("Mensal" to false, "A seguir" to true).forEach { (label, value) ->
             val selected = value == sequential
             val bg by animateColorAsState(if (selected) FinaiColors.InkStrong else Color.Transparent, finaiTween(FinaiMotion.Quick), label = "agendaTabBg")
             val fg by animateColorAsState(if (selected) FinaiColors.OnInkStrong else FinaiColors.TextTertiary, finaiTween(FinaiMotion.Quick), label = "agendaTabFg")
@@ -72,258 +96,197 @@ internal fun AgendaModeTabs(sequential: Boolean, onChange: (Boolean) -> Unit, mo
 }
 
 /**
- * A Agenda sequencial: os ciclos entre salários, em ordem, com o saldo depois de cada movimento.
- * Os números vêm prontos de [CashFlowTimeline] (os mesmos ciclos do "Livre até o salário"); aqui
- * só se desenha. O mês aparece como divisor, sem zerar o saldo.
+ * A Agenda com foco no futuro (ref. 2a): o que já aconteceu no mês fica num bloco recolhido no
+ * topo e o que ainda vai acontecer vem em ordem, cada item com o saldo corrente depois dele. O
+ * saldo atravessa os meses sem recomeçar. Os números vêm prontos de [AgendaBalance] (as mesmas
+ * regras do mês que a Agenda mensal usa); aqui só se desenha.
  */
 internal fun LazyListScope.sequentialAgendaItems(
-    timeline: CashFlowTimeline?,
+    balance: AgendaBalance?,
     today: LocalDate,
-    showPrevious: Boolean,
-    onShowPrevious: () -> Unit,
-    futureShown: Int,
-    onShowMoreFuture: () -> Unit,
     onToggleContaPaga: (id: Long, pago: Boolean) -> Unit,
     onRequestPayInstallment: (TimelineMovement) -> Unit,
-    onAddMainIncome: () -> Unit,
     /** Toque num lançamento: a mesma folha de ações da Agenda mensal. */
     onOpenTransaction: (com.finai.app.data.local.entity.TransacaoEntity) -> Unit = {},
 ) {
-    val cycle = timeline?.cycle
-    if (timeline == null || cycle == null) {
-        item(key = "seq-sem-renda") {
+    if (balance == null) {
+        item(key = "seq-vazio") {
             com.finai.app.ui.components.EmptyStateCard(
-                "Sem renda principal cadastrada, o app não sabe quando o dinheiro entra e não calcula o saldo entre salários.",
-                "Informar renda", onAddMainIncome,
+                "Não foi possível montar a Agenda agora. Tente reabrir o app.", actionLabel = null, onAction = null,
             )
-        }
-        val list = timeline?.unprojected.orEmpty()
-        list.groupBy { YearMonth.from(it.date) }.forEach { (month, movements) ->
-            item(key = "seq-sem-renda-$month") { MonthLabel(month) }
-            item(key = "seq-sem-renda-lista-$month") {
-                MovementGroup(movements, allowPay = true, null, null, null, onToggleContaPaga, onRequestPayInstallment, onOpenTransaction)
-            }
         }
         return
     }
-
-    item(key = "seq-resumo") { CycleSummaryCard(cycle) }
-
-    val previous = timeline.segments.firstOrNull { it.kind == SegmentKind.Previous }
-    val future = timeline.segments.filter { it.kind == SegmentKind.Future }
-    val shown = buildList {
-        if (showPrevious && previous != null) add(previous)
-        timeline.current?.let(::add)
-        addAll(future.take(futureShown))
+    item(key = "seq-resumo") { BalanceHeader(balance, today) }
+    if (balance.past.isNotEmpty()) {
+        item(key = "seq-anteriores") { PastBlock(balance.past, today) }
     }
-    if (previous != null && !showPrevious) {
-        item(key = "seq-ver-anterior") {
-            TextAction("Ver ciclo anterior (${dm(previous.start)} a ${dm(previous.end)}) ›", onShowPrevious)
+    if (balance.future.isEmpty()) {
+        item(key = "seq-nada") {
+            com.finai.app.ui.components.EmptyStateCard(
+                "Nada previsto daqui para frente. Lance uma conta ou uma entrada para ver o saldo seguir.", actionLabel = null, onAction = null,
+            )
+        }
+        return
+    }
+    val firstMonth = YearMonth.from(balance.future.first().date)
+    var lastMonth: YearMonth? = null
+    balance.future.forEachIndexed { index, m ->
+        val month = YearMonth.from(m.date)
+        if (month != lastMonth) {
+            if (month != firstMonth) {
+                item(key = "seq-mes-$month") { MonthDivider(month, balance.monthStart[month] ?: balance.todayCents) }
+            }
+            lastMonth = month
+        }
+        item(key = "seq-$index-${m.date}-${m.descricao}") {
+            FutureRow(m, onToggleContaPaga, onRequestPayInstallment, onOpenTransaction)
         }
     }
-    shown.forEach { segment ->
-        val k = "seq-${segment.start}"
-        item(key = "$k-cabecalho") { SegmentHeader(segment) }
-        val isCurrent = segment.kind == SegmentKind.Current
-        // A marca de hoje entra uma vez: antes do primeiro movimento que ainda não aconteceu, se ele
-        // é deste mês; senão, depois do último que já aconteceu (para não ficar sob o mês seguinte).
-        val firstAhead = if (isCurrent) segment.movements.firstOrNull { it.date.isAfter(today) } else null
-        val lastPast = if (isCurrent) segment.movements.lastOrNull { !it.date.isAfter(today) } else null
-        val markerBefore = firstAhead?.takeIf { YearMonth.from(it.date) == YearMonth.from(today) || lastPast == null }
-        val markerAfter = if (markerBefore == null) lastPast else null
-        segment.movements.groupBy { YearMonth.from(it.date) }.forEach { (month, movements) ->
-            item(key = "$k-mes-$month") { MonthLabel(month) }
-            item(key = "$k-lista-$month") {
-                MovementGroup(movements, allowPay = isCurrent, markerBefore, markerAfter, cycle.saldoHojeCents, onToggleContaPaga, onRequestPayInstallment, onOpenTransaction)
+}
+
+/** "Saldo hoje" → "Fim de <mês seguinte>", da mesma projeção dos itens abaixo. */
+@Composable
+private fun BalanceHeader(balance: AgendaBalance, today: LocalDate) {
+    val nextMonth = YearMonth.from(today).plusMonths(1)
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(FinaiColors.InkStrong).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("SALDO HOJE · ${dm(today)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.OnInkStrong.copy(alpha = 0.6f))
+            Text(signed(balance.todayCents), fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.OnInkStrong, modifier = Modifier.padding(top = 3.dp))
+        }
+        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = FinaiColors.OnInkStrong.copy(alpha = 0.4f), modifier = Modifier.size(18.dp))
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+            Text(
+                "FIM DE ${MONTH_NAMES_PT[nextMonth.monthValue - 1].uppercase()}", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = FinaiColors.OnInkStrong.copy(alpha = 0.6f), maxLines = 1,
+            )
+            Text(
+                signed(balance.endOfNextMonthCents), fontSize = 22.sp, fontWeight = FontWeight.ExtraBold,
+                color = if (balance.endOfNextMonthCents < 0) FinaiColors.Rose else FinaiColors.Emerald, modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+    }
+}
+
+/** Já pago ou passado no mês: recolhido, riscado, com data e valor em cinza (entradas em verde). */
+@Composable
+private fun PastBlock(past: List<TimelineMovement>, today: LocalDate) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val reduced = com.finai.app.ui.theme.rememberReducedMotion()
+    val rotation by animateFloatAsState(if (open) 180f else 0f, if (reduced) snap() else tween(200), label = "pastChevron")
+    val shape = RoundedCornerShape(16.dp)
+    val monthName = MONTH_NAMES_PT[today.monthValue - 1].lowercase()
+    Column(Modifier.fillMaxWidth().clip(shape).border(1.dp, FinaiColors.BorderHairline, shape).background(FinaiColors.Surface)) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                .clickable(role = Role.Button, onClickLabel = if (open) "Recolher movimentações anteriores" else "Ver movimentações anteriores") { open = !open }
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(FinaiColors.SurfaceMuted), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Check, contentDescription = null, tint = FinaiColors.TextTertiary, modifier = Modifier.size(15.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Movimentações anteriores", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextSecondary)
+                Text("${past.size} ${if (past.size == 1) "paga" else "pagas"} em $monthName · toque para ver", fontSize = 12.sp, color = FinaiColors.TextTertiary)
+            }
+            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = FinaiColors.TextTertiary, modifier = Modifier.size(20.dp).rotate(rotation))
+        }
+        AnimatedVisibility(open, enter = if (reduced) EnterTransition.None else expandVertically(tween(200)), exit = if (reduced) ExitTransition.None else shrinkVertically(tween(200))) {
+            Column {
+                HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp)
+                past.forEach { m ->
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(dm(m.date), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted, modifier = Modifier.width(48.dp))
+                        Text(
+                            title(m), fontSize = 13.sp, color = FinaiColors.TextTertiary, textDecoration = TextDecoration.LineThrough,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp),
+                        )
+                        Text(
+                            signedMoney(m),
+                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            color = if (m.cents > 0) FinaiColors.EmeraldDark else FinaiColors.TextTertiary,
+                        )
+                    }
+                }
             }
         }
-        item(key = "$k-rodape") { SegmentFooter(segment) }
-    }
-    if (future.size > futureShown) {
-        item(key = "seq-mais") { TextAction("Ver mais um ciclo ›", onShowMoreFuture) }
     }
 }
 
-/** O período em andamento: o livre (= menor saldo até o salário) separado da sobra final. */
+/** Mês seguinte: o saldo atravessa a virada, e o divisor diz com quanto o mês começa. */
 @Composable
-private fun CycleSummaryCard(cycle: PayCycle) {
-    val falta = cycle.shortfall
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .border(1.dp, FinaiColors.BorderHairline, RoundedCornerShape(18.dp))
-            .background(FinaiColors.Surface)
-            .padding(14.dp),
-    ) {
-        val desde = cycle.inicio?.let { "Salário de ${dm(it)}" } ?: "Desde ${dm(cycle.contaDesde ?: cycle.today)}"
-        Text(
-            "$desde → próximo em ${dm(cycle.proximo)}" + if (cycle.proximoEstimado) " (estimado)" else "",
-            fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary,
-        )
-        Text(
-            if (falta != null) "Vai faltar antes do salário" else "Livre até o salário",
-            fontSize = 12.5.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 8.dp),
-        )
-        Text(
-            if (falta != null) "Faltam ${brl(falta.cents)}" else brl(cycle.availableCents),
-            fontSize = 26.sp, fontWeight = FontWeight.ExtraBold,
-            color = if (falta != null) FinaiColors.RoseDark else FinaiColors.TextPrimary,
-        )
-        Text(
-            if (falta != null) "a partir de ${dm(falta.date)}" + (falta.causa?.let { " · $it" } ?: "")
-            else "menor saldo previsto, em ${dm(cycle.floor.date)}",
-            fontSize = 12.5.sp, color = FinaiColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
-        HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp, modifier = Modifier.padding(vertical = 12.dp))
-        Row(Modifier.fillMaxWidth()) {
-            Stat("Saldo hoje", signed(cycle.saldoHojeCents), Modifier.weight(1f))
-            Stat("A receber", "+ " + brl(cycle.aReceberCents), Modifier.weight(1f), FinaiColors.EmeraldDark)
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 10.dp)) {
-            Stat("A pagar", brl(cycle.comprometidoCents), Modifier.weight(1f))
-            Stat("Sobra no fim", signed(cycle.livreCents), Modifier.weight(1f), if (cycle.livreCents < 0) FinaiColors.RoseDark else FinaiColors.TextPrimary)
-        }
-    }
-}
-
-@Composable
-private fun Stat(label: String, value: String, modifier: Modifier, color: Color = FinaiColors.TextPrimary) {
-    Column(modifier) {
-        Text(label, fontSize = 12.sp, color = FinaiColors.TextTertiary)
-        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = color, modifier = Modifier.padding(top = 1.dp))
-    }
-}
-
-@Composable
-private fun SegmentHeader(segment: TimelineSegment) {
+private fun MonthDivider(month: YearMonth, startCents: Long) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp, start = 4.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().padding(start = 2.dp, end = 2.dp, top = 10.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(
-            when (segment.kind) {
-                SegmentKind.Previous -> "CICLO ANTERIOR"
-                SegmentKind.Current -> "CICLO ATUAL"
-                SegmentKind.Future -> "PRÓXIMO CICLO"
-            },
-            fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
-            color = if (segment.kind == SegmentKind.Current) FinaiColors.EmeraldDark else FinaiColors.TextSecondary,
-        )
-        Text("${dm(segment.start)} a ${dm(segment.end)}", fontSize = 12.5.sp, color = FinaiColors.TextTertiary)
-        if (segment.incomeEstimated) StatusChip("Salário estimado", BillStatus.Pending)
+        Text(MONTH_NAMES_PT[month.monthValue - 1].uppercase() + " " + month.year, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
+        Box(Modifier.weight(1f).height(1.dp).background(FinaiColors.BorderSubtle))
+        Text("começa com ${signed(startCents)}", fontSize = 12.sp, color = FinaiColors.TextTertiary, maxLines = 1)
     }
 }
 
 @Composable
-private fun MonthLabel(month: YearMonth) {
-    Text(
-        MONTH_NAMES_PT[month.monthValue - 1].uppercase() + " " + month.year,
-        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted,
-        modifier = Modifier.padding(start = 4.dp, top = 2.dp),
-    )
-}
-
-/** Os movimentos de um mês do ciclo, com a marca de hoje entre o que já foi e o que vem. */
-@Composable
-private fun MovementGroup(
-    movements: List<TimelineMovement>,
-    allowPay: Boolean,
-    todayMarkerBefore: TimelineMovement?,
-    todayMarkerAfter: TimelineMovement?,
-    todayBalanceCents: Long?,
-    onToggleContaPaga: (id: Long, pago: Boolean) -> Unit,
-    onRequestPayInstallment: (TimelineMovement) -> Unit,
-    onOpenTransaction: (com.finai.app.data.local.entity.TransacaoEntity) -> Unit,
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(FinaiColors.Surface),
-    ) {
-        val todayIndex = todayMarkerBefore?.let { marker -> movements.indexOfFirst { it === marker } } ?: -1
-        movements.forEachIndexed { index, m ->
-            if (index == todayIndex) {
-                TodayMarker(todayBalanceCents, first = index == 0)
-            } else if (index > 0) {
-                HorizontalDivider(color = FinaiColors.BorderFaint, thickness = 1.dp, modifier = Modifier.padding(start = 58.dp))
-            }
-            MovementRow(m, allowPay, onToggleContaPaga, onRequestPayInstallment, onOpenTransaction)
-            if (m === todayMarkerAfter) TodayMarker(todayBalanceCents, first = false)
-        }
-    }
-}
-
-/** "Hoje": o saldo do ciclo agora, entre o realizado e o previsto. */
-@Composable
-private fun TodayMarker(balanceCents: Long?, first: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth().background(FinaiColors.EmeraldSoftBg)
-            .padding(horizontal = 12.dp, vertical = if (first) 8.dp else 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("HOJE", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.EmeraldDark, modifier = Modifier.weight(1f))
-        balanceCents?.let { Text("Saldo ${signed(it)}", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark) }
-    }
-}
-
-@Composable
-private fun MovementRow(
+private fun FutureRow(
     m: TimelineMovement,
-    allowPay: Boolean,
     onToggleContaPaga: (id: Long, pago: Boolean) -> Unit,
     onRequestPayInstallment: (TimelineMovement) -> Unit,
     onOpenTransaction: (com.finai.app.data.local.entity.TransacaoEntity) -> Unit,
 ) {
     val conta = (m.source as? CycleSource.Conta)?.conta
     val parcela = (m.source as? CycleSource.Parcela)?.parcela
-    // Salário estimado de um ciclo futuro tem id negativo: não existe no banco para editar.
+    // Salário estimado de uma projeção tem id negativo: não existe no banco para editar.
     val lancamento = (m.source as? CycleSource.Lancamento)?.transacao?.takeIf { it.id > 0 }
     // Mesmas ações da Agenda mensal: tocar na conta alterna paga/pendente; na parcela mais antiga em
-    // aberto, registra o pagamento (com confirmação). Projeção de ciclo futuro não é editável aqui.
+    // aberto, registra o pagamento (com confirmação); no lançamento, abre a folha de ações.
     val onClick: (() -> Unit)? = when {
         conta != null -> { { onToggleContaPaga(conta.id, conta.status != "pago") } }
-        parcela != null && parcela.isNext && allowPay -> { { onRequestPayInstallment(m) } }
+        parcela != null && parcela.isNext -> { { onRequestPayInstallment(m) } }
         lancamento != null -> { { onOpenTransaction(lancamento) } }
         else -> null
     }
     val entrada = m.cents > 0
+    val shape = RoundedCornerShape(15.dp)
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (m.mainIncome) Modifier.background(FinaiColors.EmeraldSoftBg.copy(alpha = 0.55f)) else Modifier)
+        Modifier.fillMaxWidth().clip(shape).border(1.dp, FinaiColors.BorderHairline, shape).background(FinaiColors.Surface)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 13.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(Modifier.width(34.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("%02d".format(m.date.dayOfMonth), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary)
-            Text(MONTH_ABBREV_PT[m.date.monthValue - 1].lowercase(), fontSize = 12.sp, color = FinaiColors.TextTertiary)
+        Column(
+            Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(if (entrada) FinaiColors.EmeraldSoftBg else FinaiColors.SurfaceMuted),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+        ) {
+            Text("%02d".format(m.date.dayOfMonth), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = if (entrada) FinaiColors.EmeraldDark else FinaiColors.TextPrimary)
+            Text(MONTH_ABBREV_PT[m.date.monthValue - 1].uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary)
         }
-        Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
-            Text(
-                title(m), fontSize = 14.sp, fontWeight = if (m.mainIncome) FontWeight.Bold else FontWeight.SemiBold,
-                color = FinaiColors.TextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            )
-            Row(
-                modifier = Modifier.padding(top = 3.dp),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StatusChip(m.status.label, styleOf(m.status))
-                if (m.lowest) StatusChip("Menor saldo", BillStatus.DueToday)
+        Column(Modifier.weight(1f)) {
+            Text(title(m), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (m.status == MovementStatus.Overdue || m.status == MovementStatus.DueToday || m.status == MovementStatus.Estimated) {
+                    StatusChip(m.status.label, styleOf(m.status))
+                }
                 detail(m)?.let { Text(it, fontSize = 12.sp, color = FinaiColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                (if (entrada) "+ " else "− ") + money(kotlin.math.abs(m.cents)),
-                fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                signedMoney(m), fontSize = 14.sp, fontWeight = FontWeight.Bold,
                 color = if (entrada) FinaiColors.EmeraldDark else FinaiColors.TextPrimary,
             )
             m.balanceAfterCents?.let {
                 Text(
-                    "Saldo ${signed(it)}", fontSize = 12.sp, fontWeight = if (m.lowest) FontWeight.Bold else FontWeight.Normal,
-                    color = if (it < 0) FinaiColors.RoseDark else FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                    "saldo ${signed(it)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp),
+                    color = when (balanceTone(it)) {
+                        BalanceTone.Negative -> FinaiColors.RoseDark
+                        BalanceTone.Low -> FinaiColors.AmberDark
+                        BalanceTone.Normal -> FinaiColors.TextTertiary
+                    },
                 )
             }
         }
@@ -334,25 +297,6 @@ private fun MovementRow(
 private fun StatusChip(label: String, style: BillStatus) {
     Box(Modifier.clip(RoundedCornerShape(99.dp)).background(style.bg).padding(horizontal = 7.dp, vertical = 2.dp)) {
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = style.fg, maxLines = 1)
-    }
-}
-
-@Composable
-private fun SegmentFooter(segment: TimelineSegment) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("Sobra no fim do ciclo", fontSize = 12.5.sp, color = FinaiColors.TextTertiary)
-            if (segment.kind != SegmentKind.Previous) {
-                Text("Não é somada ao próximo ciclo", fontSize = 12.sp, color = FinaiColors.TextMuted)
-            }
-        }
-        Text(
-            signed(segment.sobraCents), fontSize = 14.sp, fontWeight = FontWeight.Bold,
-            color = if (segment.sobraCents < 0) FinaiColors.RoseDark else FinaiColors.TextSecondary,
-        )
     }
 }
 
@@ -385,5 +329,10 @@ private fun detail(m: TimelineMovement): String? {
 
 private fun brl(cents: Long) = formatBrl0(cents / 100.0)
 private fun signed(cents: Long) = if (cents < 0) "− " + brl(-cents) else brl(cents)
+/** Entrada com "+"; saída sem sinal; o ajuste de saldo negativo com "−" (o valor dele já vem com sinal). */
+private fun signedMoney(m: TimelineMovement): String {
+    val adjustment = (m.source as? CycleSource.Lancamento)?.transacao?.isAdjustment == true
+    return (if (m.cents > 0) "+ " else if (adjustment) "− " else "") + money(kotlin.math.abs(m.cents))
+}
 private fun money(cents: Long) = if (cents % 100 == 0L) formatBrl0(cents / 100.0) else formatBrl(cents / 100.0)
 private fun dm(d: LocalDate) = "%02d/%02d".format(d.dayOfMonth, d.monthValue)

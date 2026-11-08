@@ -78,6 +78,19 @@ data class TransacaoEntity(
      * criados por mudanças anteriores, em vez de só o trecho tocado.
      */
     val serieId: Long? = null,
+    /**
+     * Meses entre o recebimento e a competência (mês trabalhado): 0 = mesma competência do mês
+     * em que cai; -1 = o saldo do salário, que cai no mês seguinte ao trabalhado. O fluxo de
+     * caixa usa a data; relatório e fechamento mensal usam a competência
+     * ([com.finai.app.domain.IncomeCompetence]).
+     */
+    @androidx.room.ColumnInfo(defaultValue = "0") val competenciaDeslocamento: Int = 0,
+    /** Liga as duas partes de um salário dividido; nulo em qualquer outro lançamento. */
+    val rendaGrupo: String? = null,
+    /** "adiantamento" ou "saldo" ([com.finai.app.domain.IncomePart]); nulo fora do salário dividido. */
+    val rendaParte: String? = null,
+    /** Como o adiantamento foi definido ("pct:40" ou "fixo:200000"), para reabrir Minha renda. */
+    val rendaDivisao: String? = null,
 )
 
 /** Uma fatura de cartão, exibida como um único compromisso na Agenda. */
@@ -222,4 +235,76 @@ data class UsoProvedorIaEntity(
 data class NotificacaoEnviadaEntity(
     @PrimaryKey val chave: String,
     val ultimoEnvio: String, // "yyyy-MM-dd"
+)
+
+/**
+ * Sugestão de lançamento lida de uma notificação (lançamento assistido). Só vira lançamento
+ * quando o usuário confirma; até lá não entra em nenhum cálculo. Guarda o mínimo: o que foi
+ * extraído, o estado da revisão, a identificação técnica para não repetir ([chaveSistema] +
+ * [assinatura], ver [com.finai.app.domain.capture.CaptureDedupe]) e o vínculo com o que foi
+ * salvo ([lancamentoIds]). [textoOriginal] existe só enquanto a sugestão está pendente, por no
+ * máximo [com.finai.app.data.capture.CaptureRepository.TEXT_RETENTION_DAYS] dias.
+ */
+@Entity(tableName = "sugestoes_lancamento", indices = [Index("estado"), Index("chaveSistema")])
+data class SugestaoLancamentoEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** "notificacao" | "simulacao" | "teste" ([com.finai.app.domain.capture.SuggestionOrigin]). */
+    val origem: String,
+    val pacote: String,
+    val appNome: String,
+    val capturadoEm: Long,
+    val atualizadoEm: Long,
+    val chaveSistema: String,
+    val assinatura: String,
+    /** [com.finai.app.domain.capture.MovementKind]. */
+    val tipo: String,
+    val valorCentavos: Long?,
+    /** Valores encontrados quando a mensagem é ambígua, separados por ";". */
+    val valoresEncontrados: String,
+    val descricao: String,
+    val categoria: String?,
+    /** Dia da movimentação (meia-noite local, epoch millis). */
+    val data: Long,
+    /** false = a data é a da notificação, não uma escrita na mensagem. */
+    val dataExplicita: Boolean,
+    val parcelas: Int?,
+    val valorParcelaCentavos: Long?,
+    val cartaoFinal: String?,
+    /** Conta ou cartão que a mensagem citou pelo nome. Nunca o nome do app. */
+    val contaSugerida: String?,
+    /** "pendente" | "confirmada" | "ignorada". */
+    val estado: String,
+    /** Mesmo texto, outra notificação, pouco depois: o usuário decide se é repetida. */
+    val possivelRepeticao: Boolean,
+    /** Quando o quadro foi mostrado dentro do app (nulo = ainda não; é o que abre o quadro sozinho). */
+    val avisadaEm: Long?,
+    val resolvidaEm: Long?,
+    /** Ids dos lançamentos gravados na confirmação, separados por ";". */
+    val lancamentoIds: String,
+    val textoOriginal: String?,
+    /** Teste que gerou a sugestão ([TesteNotificacaoEntity.id]); nulo nas reais. */
+    val testeId: Long?,
+)
+
+/**
+ * Um envio da área "Testar com notificações": o que foi mandado e até onde chegou
+ * (aguardando → publicada → recebida pelo listener → sugestão criada / repetição / não
+ * reconhecida). Nunca vai para o backup; "Limpar testes" apaga tudo daqui.
+ */
+@Entity(tableName = "testes_notificacao")
+data class TesteNotificacaoEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val exemplo: Int,
+    val etapa: String,
+    /** "simulacao" | "notificacao". */
+    val modo: String,
+    val titulo: String,
+    val texto: String,
+    /** Id usado no `notify()`; o mesmo id é a mesma notificação (reenvio/atualização). */
+    val notificacaoId: Int,
+    val status: String,
+    val detalhe: String,
+    val sugestaoId: Long?,
+    val criadoEm: Long,
+    val atualizadoEm: Long,
 )

@@ -30,6 +30,6 @@ object SavingsCapacityCalculator {
         val extras = (flow.recorrentes + flow.avulsas)
             .filter { it.tipo == TransactionType.Receita.name && it.extra }
             .sumOf { it.valorCentavos }
-        return flow.saldoCents - extras
+        return flow.fechamentoCents - extras
     }
 }

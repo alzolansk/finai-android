@@ -23,13 +23,15 @@ class ImportAnalyzer(private val aiAssistant: ImportAiAssistant?) {
         sourceName: String,
         documentKind: DocumentKind,
         usedOcr: Boolean,
+        /** Cartão da fatura, quando o documento diz: compra igual em outro cartão não é duplicata provável. */
+        card: String? = null,
     ): ImportPreview {
         val seen = mutableListOf<ParsedEntry>()
         val items = parse.entries.mapIndexed { index, entry ->
             val category = entry.categoryHint?.let { MerchantClassifier.normalizeCategoryName(it) }
                 ?.let { CategorySuggestion(it, CategorySource.RULE, needsReview = false) }
                 ?: MerchantClassifier.classify(entry.description)
-            val duplicate = DuplicateDetector.check(entry, existing, seen)
+            val duplicate = DuplicateDetector.check(entry, existing, seen, card)
             val recurrence = RecurrenceDetector.check(entry, existing, parse.entries)
             seen += entry
 

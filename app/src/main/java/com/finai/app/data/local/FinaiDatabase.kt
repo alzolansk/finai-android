@@ -16,6 +16,8 @@ import com.finai.app.data.local.dao.ObjetivoDao
 import com.finai.app.data.local.dao.OrcamentoCategoriaDao
 import com.finai.app.data.local.dao.TransacaoDao
 import com.finai.app.data.local.dao.UsoProvedorIaDao
+import com.finai.app.data.local.dao.SugestaoLancamentoDao
+import com.finai.app.data.local.dao.TesteNotificacaoDao
 import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
@@ -26,13 +28,15 @@ import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.OrcamentoCategoriaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.data.local.entity.UsoProvedorIaEntity
+import com.finai.app.data.local.entity.SugestaoLancamentoEntity
+import com.finai.app.data.local.entity.TesteNotificacaoEntity
 
 /**
  * The app's only local database — everything financial lives here, on-device,
  * per planning.md §4's privacy-first requirement.
  */
 /** Versão do schema do Room — também é a que o backup exportado carrega (Fase 7, item 12). */
-const val FINAI_DB_VERSION = 14
+const val FINAI_DB_VERSION = 16
 
 @Database(
     entities = [
@@ -46,6 +50,8 @@ const val FINAI_DB_VERSION = 14
         MensagemChatEntity::class,
         UsoProvedorIaEntity::class,
         NotificacaoEnviadaEntity::class,
+        SugestaoLancamentoEntity::class,
+        TesteNotificacaoEntity::class,
     ],
     version = FINAI_DB_VERSION,
     // Fase 6: o schema de cada versão passa a ser exportado para
@@ -66,6 +72,8 @@ abstract class FinaiDatabase : RoomDatabase() {
     abstract fun mensagemChatDao(): MensagemChatDao
     abstract fun usoProvedorIaDao(): UsoProvedorIaDao
     abstract fun notificacaoEnviadaDao(): NotificacaoEnviadaDao
+    abstract fun sugestaoLancamentoDao(): SugestaoLancamentoDao
+    abstract fun testeNotificacaoDao(): TesteNotificacaoDao
 
     companion object {
 
@@ -241,7 +249,32 @@ abstract class FinaiDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+        /**
+         * Lançamento assistido por notificação: duas tabelas novas, nenhuma coluna existente
+         * muda. `sugestoes_lancamento` guarda as sugestões até a confirmação (e um tempo depois,
+         * para não repetir); `testes_notificacao` é só da área de testes. SQL igual ao do
+         * `15.json` gerado pelo Room.
+         */
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_14_15_SQL.forEach(db::execSQL)
+            }
+        }
+
+        /**
+         * Salário dividido por competência: só colunas novas, todas com padrão. Receita recorrente
+         * de salário que já existe continua "Integral" (deslocamento 0, sem grupo).
+         */
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transacoes ADD COLUMN competenciaDeslocamento INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE transacoes ADD COLUMN rendaGrupo TEXT")
+                db.execSQL("ALTER TABLE transacoes ADD COLUMN rendaParte TEXT")
+                db.execSQL("ALTER TABLE transacoes ADD COLUMN rendaDivisao TEXT")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
 
         @Volatile private var instance: FinaiDatabase? = null
 
@@ -269,5 +302,13 @@ abstract class FinaiDatabase : RoomDatabase() {
         }
 
         const val DATABASE_NAME = "finai.db"
+
+        /** Copiado do `15.json` que o Room gerou: é exatamente o schema que ele valida. */
+        internal val MIGRATION_14_15_SQL: List<String> = listOf(
+            "CREATE TABLE IF NOT EXISTS `sugestoes_lancamento` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `origem` TEXT NOT NULL, `pacote` TEXT NOT NULL, `appNome` TEXT NOT NULL, `capturadoEm` INTEGER NOT NULL, `atualizadoEm` INTEGER NOT NULL, `chaveSistema` TEXT NOT NULL, `assinatura` TEXT NOT NULL, `tipo` TEXT NOT NULL, `valorCentavos` INTEGER, `valoresEncontrados` TEXT NOT NULL, `descricao` TEXT NOT NULL, `categoria` TEXT, `data` INTEGER NOT NULL, `dataExplicita` INTEGER NOT NULL, `parcelas` INTEGER, `valorParcelaCentavos` INTEGER, `cartaoFinal` TEXT, `contaSugerida` TEXT, `estado` TEXT NOT NULL, `possivelRepeticao` INTEGER NOT NULL, `avisadaEm` INTEGER, `resolvidaEm` INTEGER, `lancamentoIds` TEXT NOT NULL, `textoOriginal` TEXT, `testeId` INTEGER)",
+            "CREATE INDEX IF NOT EXISTS `index_sugestoes_lancamento_estado` ON `sugestoes_lancamento` (`estado`)",
+            "CREATE INDEX IF NOT EXISTS `index_sugestoes_lancamento_chaveSistema` ON `sugestoes_lancamento` (`chaveSistema`)",
+            "CREATE TABLE IF NOT EXISTS `testes_notificacao` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `exemplo` INTEGER NOT NULL, `etapa` TEXT NOT NULL, `modo` TEXT NOT NULL, `titulo` TEXT NOT NULL, `texto` TEXT NOT NULL, `notificacaoId` INTEGER NOT NULL, `status` TEXT NOT NULL, `detalhe` TEXT NOT NULL, `sugestaoId` INTEGER, `criadoEm` INTEGER NOT NULL, `atualizadoEm` INTEGER NOT NULL)",
+        )
     }
 }

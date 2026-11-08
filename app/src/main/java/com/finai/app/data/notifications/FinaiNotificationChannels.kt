@@ -17,6 +17,13 @@ import android.os.Build
 object FinaiNotificationChannels {
     const val ALERTS_CHANNEL_ID = "finai_alerts"
     const val COACH_CHANNEL_ID = "finai_coach"
+    /** "Movimentação encontrada": uma sugestão lida de notificação, esperando confirmação. */
+    const val CAPTURE_CHANNEL_ID = "finai_captura"
+    /**
+     * Só as notificações "Teste do FinAI" da área de testes. É o único canal do próprio FinAI que o
+     * listener aceita, e só com o marcador de teste: nenhum outro aviso do app é lido.
+     */
+    const val TEST_CHANNEL_ID = "finai_testes"
 
     fun ensureCreated(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -39,6 +46,26 @@ object FinaiNotificationChannels {
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
                 description = "Padrões de gasto identificados nos seus lançamentos."
+            },
+        )
+
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CAPTURE_CHANNEL_ID,
+                "Movimentações encontradas",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = "Compras e Pix lidos das notificações dos apps que você escolheu, esperando sua confirmação."
+            },
+        )
+
+        manager.createNotificationChannel(
+            NotificationChannel(
+                TEST_CHANNEL_ID,
+                "Testes do FinAI",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = "Notificações de teste enviadas por você em Configurações → Lançamentos por notificações."
             },
         )
     }

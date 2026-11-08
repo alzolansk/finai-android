@@ -7,6 +7,97 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 ## Status atual
 
+**Saldo projetado contínuo + conciliação (08/11/2026, `main`, sem commit; telas 3a/3b do mesmo protótipo):**
+- **Ajuste de saldo** = `TransacaoEntity` com `tipo = "Ajuste"` (`ADJUSTMENT_TYPE`, não é `TransactionType`, não
+  aparece no "+"), valor **com sinal**, origem `conciliacao`. Fora de gasto/receita/limites/coach/balanço do
+  mês (todos filtram o tipo pelo nome); `freeCashSign` = +1, então entra no saldo, no ciclo e nas
+  projeções. Aparece na Agenda (mensal e "A seguir") com selo "Ajuste de saldo" e se exclui como qualquer
+  lançamento; a folha dele não edita. Sem migração Room.
+- **Saldo contado desde o ajuste mais antigo** (`AgendaBalance.startMonthFor`): sem ajuste parte do mês de
+  hoje; com ajuste, do mês do mais antigo (o ajuste foi calculado contra o saldo contado desde ali, então a
+  contagem não pode recomeçar depois dele). Meses anteriores ao de hoje só contam o efetivado. Excluir o
+  ajuste volta ao saldo de antes. `AgendaBalance` agora traz `monthEnds` (4 meses), `lowest` e usa
+  horizonte de 4 meses.
+- **Estado da conciliação** em DataStore (`FinaiPreferences.reconciliation`: data, saldo, ajuste), limpo por
+  "Apagar todos os dados"; **não vai no backup** (os ajustes vão, como lançamentos). Aviso da Início
+  (`Reconciliation.notice`): âmbar se nunca ou > 30 dias; verde no dia. Conciliar com diferença zero só
+  grava a data (sem ajuste).
+- **UI:** `ui/screens/home/ProjectedBalanceCard.kt` (card "Saldo em conta hoje", barras, aviso) entra **abaixo**
+  do card "Livre até o salário", que continua (decisão da Fase 7); `ui/components/ReconcileSheet.kt`.
+  **Limitação:** com várias contas a folha deixa escolher a conta que vai no ajuste, mas o "saldo
+  registrado" é o saldo geral do app, não por conta (contas a pagar e parcelas não têm conta).
+- **Validação:** 413 testes JVM verdes (`ReconciliationTest`). No emulador: card, barras, aviso âmbar,
+  folha e máscara conferidos; **depois de reinstalar, o app deu "FinAI isn't responding" ao digitar o
+  saldo (cursor preso no fim com `TextFieldValue`) e não foi diagnosticado** (pode ser o emulador lento).
+  Conferir no celular: digitar o saldo, lançar o ajuste, ver o aviso verde, o ajuste na Agenda e excluí-lo.
+
+**Renda por competência + Agenda "A seguir" (08/11/2026, `main`, sem commit):** protótipo
+"FinAI Melhorias - Renda Agenda Saldo" (telas 1a, 1b, 2a; 3a/3b conciliação ficaram de fora).
+- **Salário em duas partes** (`domain/IncomeSplit.kt`, Kotlin puro): `IncomeSplit` (adiantamento em %
+  ou valor fixo; o saldo é sempre o que sobra, então a soma é o salário em centavos), `IncomePlanner`
+  (`generate`/`regenerate`/`current`/`familyOf`), `IncomeCompetence` (receita por competência).
+  **Room 15→16** (`MIGRATION_15_16`, só `ADD COLUMN`; `Migration15To16Test` escrito, não executado):
+  `transacoes.competenciaDeslocamento` (0; −1 no saldo, que cai no mês seguinte ao trabalhado),
+  `rendaGrupo`, `rendaParte`, `rendaDivisao`. Salário existente continua "Integral" (padrões). São duas
+  séries recorrentes (adiantamento dia 20, saldo dia 5), só o adiantamento é `rendaPrincipal` (o ciclo
+  começa nele; o saldo é entrada dentro do ciclo). Regenerar só troca o que não foi efetivado: a divisão
+  nova vale da primeira competência sem recebimento efetivado, e o saldo pendente da competência em
+  curso vira "salário − adiantamento já pago". Caixa/Agenda seguem a data de recebimento;
+  `MonthCashFlow.fechamentoCents` agrupa por competência e alimenta o "Balanço do mês" da Início,
+  `SavingsCapacityCalculator` e `SavingsProjection` (`FinancialPlan` continua pelo caixa).
+- **Telas:** `ui/screens/income/IncomeScreen.kt` ("Minha renda", aberta por Configurações → Minha renda
+  e pelo link do formulário); `SplitIncomeCard` em `TransactionEntryScreen` (Receita Salário/Recorrente).
+- **Agenda "A seguir"** (a aba "Sequencial" virou essa; abre nela por padrão): `domain/AgendaBalance.kt`
+  (usa `CashFlowTimeline.monthMovements`, as mesmas regras do mês). **Decisão do usuário:** o saldo
+  parte de zero no dia 1º do mês de hoje e acumula (sem saldo de banco, é o "saldo do app"); o ciclo do
+  salário e o "Livre até o salário" não mudaram. A UI de ciclos da sequencial (cabeçalho de ciclo,
+  "ver ciclo anterior") saiu; `CashFlowTimeline.build` continua alimentando a IA.
+- **Validação:** 403 testes JVM verdes (`IncomeSplitTest`, 13 novos). Conferido no emulador Pixel 6
+  API 34 (tema claro): assistente, Agenda, Minha renda e salvar em duas partes. Não conferidos: tema
+  escuro, o toggle do formulário, a expansão do bloco "Movimentações anteriores", Playwright (o
+  protótipo é HTML; a comparação foi visual).
+
+**Lançamento por notificações (18/10/2026, `main`, sem commit):** o FinAI lê notificações dos apps
+escolhidos, sugere o lançamento e só grava com confirmação. Guia de uso, formatos cobertos, roteiro
+adb e limitações: `LANCAMENTO-POR-NOTIFICACAO.md`; decisões em planning.md §11; privacidade em
+PRIVACY.md.
+- **Domínio (Kotlin puro, `domain/capture/`):** `NotificationParser` (regras locais; crédito,
+  débito, sem forma, parcelada com nº explícito, Pix enviado/recebido; estorno/fatura/TED só para
+  revisão; recusada/propaganda/limite/sem valor ignorados; limite/saldo nunca viram valor; vários
+  valores = ambíguo), `CaptureDedupe` (mesma notificação: chave do Android + assinatura do
+  conteúdo; atualização não reabre resolvida), `SuggestionRules`/`SuggestionDraft` (o que falta;
+  crédito usa `EntryOptions.resolveCardDue`), `SuggestionMatcher` (mesma compra já lançada: só
+  avisa), `CaptureSamples` (os 13 exemplos da área de testes = os dos testes).
+- **Room 14→15** (`MIGRATION_14_15`, SQL copiado do `15.json` gerado; `Migration14To15Test`):
+  `sugestoes_lancamento` e `testes_notificacao`. Origem do lançamento confirmado =
+  `NOTIFICATION_ORIGIN` ("notificacao"); a Agenda mostra o selo "Notificação".
+- **Android (`data/capture/`):** `FinanceNotificationListener` (descarta pelo pacote antes de ler;
+  do FinAI só o canal `finai_testes` com marcador), `CaptureProcessor` (parse → `register` →
+  "Movimentação encontrada" só com o app fora da tela, `AppVisibility`), `CaptureRepository`
+  (confirmação dentro de `withTransaction` com a checagem "ainda pendente": idempotente;
+  `undo`, `ignore`, retenção), `CaptureNotifications` (toque abre a sugestão: `MainActivity`
+  trata no `onCreate` e no `onNewIntent`, via `CaptureLinks`), `TestNotificationWorker`.
+- **UI:** `ui/components/capture/SuggestionDialog.kt` (quadro central, `Dialog`), `CaptureOverlays.kt`
+  ("Para confirmar", indicador, aviso de fila), `CaptureSettingsPages.kt` (Configurações →
+  Lançamentos por notificações, apps, testes A/B), `TransactionEntryScreen(prefill = …)` para o
+  Editar (instância própria; "Fechar" no lugar de "Lançar outro"; modo teste não grava).
+  `FinanceViewModel.apagarTodosOsDados` pausa a captura; `FinanceRepository` limpa/exporta/restaura.
+- **Importação:** `DuplicateDetector.check(..., card)` reconhece compra confirmada pela notificação
+  (±1 dia + mesmo lugar = provável; só valor = possível), cartão diferente nunca é provável,
+  parcela só bate com o mesmo número e total.
+- **Achado no emulador:** `return@Column` dentro do quadro corrompia os grupos do Compose e
+  derrubava o app ao salvar (corrigido com if/else). Não usar retorno antecipado em composable.
+- **Validação:** Gradle Android roda nesta máquina. `assembleDebug`, `assemblePessoal`, 390 testes
+  JVM verdes. Instrumentados no emulador Pixel 6 API 34: 39 verdes (novos: `CaptureRepositoryTest`,
+  `CaptureListenerE2ETest`, `SuggestionLinkTest`, `Migration14To15Test`; mais migrações,
+  repositórios e o formulário). `TransactionEntryFlowTest.transferRoomAndAgenda` falha **antes
+  desta entrega** (espera "Salvar transferência" com o destino padrão "Reserva"). Captura real
+  conferida no emulador: listener autorizado, `com.android.shell` como "banco" via adb, app em
+  segundo plano → "Movimentação encontrada" → toque abre a sugestão → salvar → Agenda; app aberto
+  → quadro sozinho; app fora da lista descartado; reenvio/atualização sem duplicar; Editar de
+  parcelada (3 faturas) e Desfazer; testes A e B pela tela. **Não testado em aparelho físico nem
+  com notificação real de banco.**
+
 **Novo lançamento (11/10/2026): fluxo do playbook implementado; falta build Android e teste no aparelho.**
 Referência: `uploads/design-gasto/finai-gasto-playbook.pdf` (14 páginas; a pasta `uploads/` é
 ignorada pelo Git). Estado completo, decisões e o que falta: `handoff.md`. Primeira etapa (Codex,

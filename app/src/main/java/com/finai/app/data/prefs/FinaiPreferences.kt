@@ -2,6 +2,7 @@ package com.finai.app.data.prefs
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -35,6 +36,49 @@ class FinaiPreferences(private val context: Context) {
         val TIPS_SEEN = stringSetPreferencesKey("tips_seen")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val DISMISSED_INSIGHTS = stringSetPreferencesKey("dismissed_insights")
+        val CAPTURE_ENABLED = booleanPreferencesKey("capture_enabled")
+        val CAPTURE_PACKAGES = stringSetPreferencesKey("capture_packages")
+        val RECON_DATE = stringPreferencesKey("reconciled_on")
+        val RECON_BALANCE = longPreferencesKey("reconciled_balance_cents")
+        val RECON_ADJUST = longPreferencesKey("reconciled_adjust_cents")
+    }
+
+    /**
+     * Última conciliação com o saldo do banco: data, saldo informado e ajuste lançado. Decide o
+     * aviso "Confira com o banco" da Início (mais de 30 dias ou nunca). O saldo em si vem dos
+     * lançamentos, inclusive o de ajuste, que ficam no Room. "Apagar todos os dados" limpa.
+     */
+    val reconciliation: Flow<com.finai.app.domain.ReconciliationState?> = context.dataStore.data.map { p ->
+        val date = p[Keys.RECON_DATE]?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: return@map null
+        com.finai.app.domain.ReconciliationState(date, p[Keys.RECON_BALANCE] ?: 0L, p[Keys.RECON_ADJUST] ?: 0L)
+    }
+
+    suspend fun saveReconciliation(state: com.finai.app.domain.ReconciliationState) {
+        context.dataStore.edit {
+            it[Keys.RECON_DATE] = state.date.toString()
+            it[Keys.RECON_BALANCE] = state.balanceCents
+            it[Keys.RECON_ADJUST] = state.adjustmentCents
+        }
+    }
+
+    suspend fun clearReconciliation() {
+        context.dataStore.edit { it.remove(Keys.RECON_DATE); it.remove(Keys.RECON_BALANCE); it.remove(Keys.RECON_ADJUST) }
+    }
+
+    /**
+     * Lançamento por notificações: se a captura está ligada e quais apps o FinAI acompanha. A
+     * autorização de leitura é do Android (acesso a notificações); isto é só a escolha do
+     * usuário dentro do FinAI. Sem a chave, desligada. "Apagar todos os dados" pausa.
+     */
+    val captureEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.CAPTURE_ENABLED] ?: false }
+    val capturePackages: Flow<Set<String>> = context.dataStore.data.map { it[Keys.CAPTURE_PACKAGES] ?: emptySet() }
+
+    suspend fun setCaptureEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.CAPTURE_ENABLED] = enabled }
+    }
+
+    suspend fun setCapturePackages(packages: Set<String>) {
+        context.dataStore.edit { it[Keys.CAPTURE_PACKAGES] = packages }
     }
 
     /**

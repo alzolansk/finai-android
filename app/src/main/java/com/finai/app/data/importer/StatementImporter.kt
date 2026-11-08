@@ -87,6 +87,7 @@ class StatementImporter(
             }
 
             onStage(ImportStage.CLASSIFYING)
+            val metadata = InvoiceMetadataParser.parse(extracted.lines, reference)
             ImportOutcome.Success(
                 analyzer.analyze(
                     parse = parsed,
@@ -94,7 +95,8 @@ class StatementImporter(
                     sourceName = name,
                     documentKind = kind,
                     usedOcr = extracted.usedOcr,
-                ).copy(invoiceMetadata = InvoiceMetadataParser.parse(extracted.lines, reference)),
+                    card = metadata.reference,
+                ).copy(invoiceMetadata = metadata),
             )
         } catch (e: SecurityException) {
             ImportOutcome.Failure("Sem permissão para ler \"$name\". Escolha o arquivo de novo pelo seletor.")

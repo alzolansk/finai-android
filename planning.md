@@ -289,6 +289,29 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
 
 ## 11. Perguntas em aberto
 
+- **Lançamento por notificações, decisões tomadas em 18/10/2026 na implementação (aguardando
+  confirmação do usuário):** guia de uso em `LANCAMENTO-POR-NOTIFICACAO.md`.
+  - **Pix enviado = gasto no débito/Pix** (pede conta e categoria). Se foi para uma conta
+    própria, o caminho é Editar → Transferência. **Pix recebido = receita avulsa**, "de onde
+    veio" = pagador da mensagem.
+  - **"Compra aprovada" sem dizer crédito/débito pergunta a forma**; no Editar o formulário abre
+    em Débito (a faixa avisa "confira a forma de pagamento"), porque ele sempre tem uma forma
+    marcada.
+  - **Estorno, cancelamento, pagamento de fatura e TED/DOC** ficam "Precisa revisar": o quadro
+    não deixa salvar; Editar ou Ignorar.
+  - **Retenção:** texto original só enquanto pendente, no máximo 30 dias; sugestões resolvidas
+    guardadas 90 dias (sem texto), só para uma atualização da mesma notificação não reabri-las.
+  - **Backup:** sugestões reais sem texto original e a lista de apps escolhidos; a captura não
+    liga sozinha depois de restaurar. Testes nunca vão.
+  - **Apagar todos os dados:** apaga sugestões e testes e pausa a captura; a lista de apps
+    escolhidos fica (é configuração, não dado financeiro).
+  - **Confirmar sugestão de teste não grava nada** (nem em dados de demonstração).
+  - **O quadro não abre sozinho** sobre formulário, confirmação, outra camada, Configurações ou
+    Importação; nesses casos, aviso passageiro no topo e fila. Aberto pelo toque na notificação,
+    abre sempre. Uma sugestão abre sozinha só uma vez (`avisadaEm`); depois fica na lista.
+  - **Mesmo texto em outra notificação em até 10 min** vira sugestão nova marcada "pode ser
+    repetida" (nunca é descartada: duas compras iguais existem).
+
 - **Lançamento de transações, decisões confirmadas em 10/10/2026:** seguir
   `uploads/design-gasto/finai-gasto-playbook.pdf`. A reserva contínua mantém a regra
   atual, sem valor-alvo: mostrar saldo antes/depois e cobertura em dias, sem inventar

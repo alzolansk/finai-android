@@ -87,6 +87,10 @@ fun HomeScreen(
     /** "Informar renda": abre o lançamento de receita já marcado como renda principal. */
     onAddMainIncome: () -> Unit,
     onNewEntry: () -> Unit,
+    /** Saldo projetado contínuo e o aviso de conciliação (ref. 3a). */
+    agendaBalance: com.finai.app.domain.AgendaBalance? = null,
+    reconNotice: com.finai.app.domain.ReconciliationNotice? = null,
+    onReconcile: () -> Unit = {},
 ) {
     // Ordem por urgência (Fase 7, item 3): situação → o que vence → planejamento.
     LazyColumn(
@@ -112,6 +116,10 @@ fun HomeScreen(
                 onOpenBudgets = onOpenBudgets,
                 onExplain = onExplainSafe,
             )
+        }
+
+        if (agendaBalance != null) {
+            item(key = "saldo-projetado") { ProjectedBalanceCard(agendaBalance, reconNotice, onReconcile) }
         }
 
         item { NextWeekSection(week, onOpenAgenda, onNewEntry) }

@@ -141,3 +141,22 @@ contas, objetivos, dívidas, limites, assinaturas e o histórico do chat
 escolhido (Downloads, Drive, e-mail...), e a tela avisa isso. "Restaurar de um arquivo"
 valida o formato e a versão do schema, mostra o que o arquivo traz e só grava depois da
 confirmação, substituindo todos os dados do aparelho numa transação.
+
+## Lançamento por notificações (18/10/2026)
+
+- **Leitura:** `data/capture/FinanceNotificationListener.kt` (`NotificationListenerService`,
+  protegido por `BIND_NOTIFICATION_LISTENER_SERVICE`). O acesso é dado pelo usuário nos ajustes
+  do Android e vale para todas as notificações; o serviço descarta **pelo nome do pacote, antes
+  de ler os extras**, tudo que não está em `FinaiPreferences.capturePackages` ou com a captura
+  pausada. Do próprio FinAI só aceita o canal `finai_testes` com o marcador de teste.
+- **Interpretação local:** `domain/capture/NotificationParser.kt`, regras fixas. Nenhum texto
+  de notificação vai para IA, rede ou log (`FinaiLog.d` só registra contagens e motivo de
+  descarte, e só em debug).
+- **Guardado:** `sugestoes_lancamento` (Room) com o que foi extraído, estado, chave técnica do
+  Android e assinatura (hash) do conteúdo. O texto original (até 600 caracteres) fica só
+  enquanto a sugestão está pendente e no máximo 30 dias (`CaptureRepository.purge`); resolvidas
+  somem em 90 dias. Backup: sem texto original e sem testes (`BackupCodec`).
+- **Notificação "Movimentação encontrada":** `VISIBILITY_PRIVATE` com versão pública sem valor
+  nem estabelecimento (tela bloqueada mostra só o título).
+- Sem `SYSTEM_ALERT_WINDOW`, acessibilidade, full-screen intent ou `QUERY_ALL_PACKAGES` (a lista
+  de apps usa `<queries>` com o launcher).

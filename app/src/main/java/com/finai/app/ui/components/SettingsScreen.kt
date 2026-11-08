@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Key
@@ -116,8 +117,15 @@ fun SettingsScreen(
     onDismissBackupStatus: () -> Unit = {},
     themeMode: ThemeMode = ThemeMode.LIGHT,
     onSetThemeMode: (ThemeMode) -> Unit = {},
+    /** Lançamento por notificações (Configurações → "Lançamentos por notificações"). */
+    capture: CaptureSettingsBindings? = null,
+    /** Abre direto na página da captura (ex.: vindo da lista "Para confirmar"). */
+    startAtCapture: Boolean = false,
+    /** Abre Minha renda (salário integral ou em duas partes); nulo esconde a linha. */
+    onOpenIncome: (() -> Unit)? = null,
+    incomeStatus: String? = null,
 ) {
-    var page by rememberSaveable { mutableStateOf(SettingsPage.MAIN) }
+    var page by rememberSaveable { mutableStateOf(if (startAtCapture && capture != null) SettingsPage.CAPTURE else SettingsPage.MAIN) }
     var providerName by rememberSaveable { mutableStateOf<String?>(null) }
     val provider = providerName?.let { ProviderId.valueOf(it) }
 
@@ -125,6 +133,7 @@ fun SettingsScreen(
         page = when (page) {
             SettingsPage.MAIN -> { onExit(); SettingsPage.MAIN }
             SettingsPage.PROVIDER -> SettingsPage.AI
+            SettingsPage.CAPTURE_APPS, SettingsPage.CAPTURE_TESTS -> SettingsPage.CAPTURE
             else -> SettingsPage.MAIN
         }
     }
@@ -152,6 +161,9 @@ fun SettingsScreen(
                     themeMode = themeMode,
                     onOpen = { page = it },
                     onRestartTour = onRestartTour,
+                    capture = capture,
+                    onOpenIncome = onOpenIncome,
+                    incomeStatus = incomeStatus,
                 )
                 SettingsPage.AI -> AiPage(
                     configuredProviders = configuredProviders,
@@ -178,6 +190,9 @@ fun SettingsScreen(
                     )
                 }
                 SettingsPage.APPEARANCE -> AppearancePage(themeMode, onSetThemeMode)
+                SettingsPage.CAPTURE -> capture?.let { CapturePage(it, onOpenApps = { page = SettingsPage.CAPTURE_APPS }, onOpenTests = { page = SettingsPage.CAPTURE_TESTS }) }
+                SettingsPage.CAPTURE_APPS -> capture?.let { CaptureAppsPage(it) }
+                SettingsPage.CAPTURE_TESTS -> capture?.let { CaptureTestsPage(it) }
                 SettingsPage.NOTIFICATIONS -> NotificationsPage(notificationsEnabled, onRunNotificationCheck)
                 SettingsPage.ACCOUNTS -> AccountsPage(knownAccounts, onAddAccount, onRemoveAccount)
                 SettingsPage.PRIVACY -> PrivacyPage(
@@ -197,6 +212,9 @@ private enum class SettingsPage(val title: String) {
     NOTIFICATIONS("Notificações"),
     ACCOUNTS("Contas e cartões"),
     PRIVACY("Privacidade e dados"),
+    CAPTURE("Lançamentos por notificações"),
+    CAPTURE_APPS("Escolher aplicativos"),
+    CAPTURE_TESTS("Testar com notificações"),
 }
 
 // ── principal ───────────────────────────────────────────────────────────
@@ -210,6 +228,9 @@ private fun MainPage(
     themeMode: ThemeMode,
     onOpen: (SettingsPage) -> Unit,
     onRestartTour: () -> Unit,
+    capture: CaptureSettingsBindings? = null,
+    onOpenIncome: (() -> Unit)? = null,
+    incomeStatus: String? = null,
 ) {
     val aiStatus = when {
         configuredProviders.isEmpty() -> StatusLine("Nenhum provedor conectado", StatusTone.Warning)
@@ -234,6 +255,19 @@ private fun MainPage(
             else StatusLine("Sem permissão do sistema", StatusTone.Warning),
             onClick = { onOpen(SettingsPage.NOTIFICATIONS) },
         )
+        if (capture != null) {
+            RowDivider()
+            CaptureMainRow(capture) { onOpen(SettingsPage.CAPTURE) }
+        }
+        if (onOpenIncome != null) {
+            RowDivider()
+            SettingsRow(
+                icon = Icons.Filled.Payments,
+                title = "Minha renda",
+                status = StatusLine(incomeStatus ?: "Salário e como você recebe", StatusTone.Neutral),
+                onClick = onOpenIncome,
+            )
+        }
         RowDivider()
         SettingsRow(
             icon = Icons.Filled.CreditCard,
@@ -806,11 +840,11 @@ private fun PrivacyPage(
 
 // ── peças de lista ──────────────────────────────────────────────────────
 
-private enum class StatusTone { Ok, Warning, Error, Neutral, Muted }
+internal enum class StatusTone { Ok, Warning, Error, Neutral, Muted }
 
-private data class StatusLine(val text: String, val tone: StatusTone)
+internal data class StatusLine(val text: String, val tone: StatusTone)
 
-private val StatusTone.color: Color
+internal val StatusTone.color: Color
     get() = when (this) {
         StatusTone.Ok -> FinaiColors.EmeraldDark
         StatusTone.Warning -> FinaiColors.AmberDark
@@ -821,7 +855,7 @@ private val StatusTone.color: Color
 
 /** Um bloco de linhas: uma só borda, divisórias finas entre as linhas — nada de card dentro de card. */
 @Composable
-private fun SettingsGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -832,7 +866,7 @@ private fun SettingsGroup(modifier: Modifier = Modifier, content: @Composable Co
 }
 
 @Composable
-private fun GroupLabel(text: String) {
+internal fun GroupLabel(text: String) {
     Text(
         text.uppercase(),
         fontSize = 12.sp,
@@ -844,12 +878,12 @@ private fun GroupLabel(text: String) {
 }
 
 @Composable
-private fun RowDivider() {
+internal fun RowDivider() {
     HorizontalDivider(thickness = 1.dp, color = FinaiColors.BorderFaint, modifier = Modifier.padding(start = 58.dp))
 }
 
 @Composable
-private fun FootNote(icon: ImageVector?, text: String) {
+internal fun FootNote(icon: ImageVector?, text: String) {
     Row(
         modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -868,7 +902,7 @@ private fun TextAction(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SettingsRow(
+internal fun SettingsRow(
     title: String,
     icon: ImageVector? = null,
     leading: (@Composable () -> Unit)? = null,

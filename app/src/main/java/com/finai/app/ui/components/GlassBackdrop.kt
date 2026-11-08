@@ -120,19 +120,10 @@ data class GlassMaterial(
     val shadowOffsetY: Dp,
     /** Blur da sombra no sentido do CSS (`box-shadow ... 32px`). */
     val shadowBlur: Dp,
+    val refract: Boolean = false,
 ) {
     companion object {
-        val Nav = GlassMaterial(
-            tint = Color(0xFF27272A).copy(alpha = 0.42f),
-            fallbackTint = Color(0xFF27272A).copy(alpha = 0.92f),
-            blurRadius = Dp(22f),
-            saturation = 1.8f,
-            border = Color.White.copy(alpha = 0.10f),
-            topHighlight = Color.White.copy(alpha = 0.16f),
-            shadowColor = Color.Black.copy(alpha = 0.45f),
-            shadowOffsetY = Dp(12f),
-            shadowBlur = Dp(32f),
-        )
+        val Nav: GlassMaterial get() = NavGlassSpec.Material
     }
 }
 
@@ -144,7 +135,14 @@ data class GlassMaterial(
 class GlassSurface {
     internal var positionInWindow by mutableStateOf(Offset.Unspecified)
     private var effectNode: Any? = null
-    private var effectKey: Pair<Float, Float>? = null
+    private var effectBlur = -1f
+    private var effectSaturation = -1f
+    private var effectWidth = -1f
+    private var effectHeight = -1f
+    private var effectRefract = false
+    private var refraction: Any? = null
+    private var baseEffect: Any? = null
+    private var refract = false
     private var width = 0f
     private var height = 0f
     private var blurRadiusPx = 0f
@@ -155,11 +153,12 @@ class GlassSurface {
 
     internal val inflatePx: Float get() = ceil(blurRadiusPx)
 
-    internal fun setGeometry(width: Float, height: Float, blurRadiusPx: Float, saturation: Float) {
+    internal fun setGeometry(width: Float, height: Float, blurRadiusPx: Float, saturation: Float, refract: Boolean = false) {
         this.width = width
         this.height = height
         this.blurRadiusPx = blurRadiusPx
         this.saturation = saturation
+        this.refract = refract && Build.VERSION.SDK_INT >= 33
     }
 
     /** Grava o conteúdo de trás, deslocado para a posição da superfície, no nó com blur. */
@@ -168,12 +167,23 @@ class GlassSurface {
         val barPos = positionInWindow
         if (width <= 0f || height <= 0f || !barPos.isSpecified || !sourceInWindow.isSpecified) return null
         val node = effectNode as RenderNode? ?: RenderNode("finaiGlassEffect").also { effectNode = it }
-        val key = blurRadiusPx to saturation
-        if (key != effectKey) {
+        val materialChanged = effectBlur != blurRadiusPx || effectSaturation != saturation
+        if (materialChanged) {
             val blur = RenderEffect.createBlurEffect(blurRadiusPx, blurRadiusPx, Shader.TileMode.CLAMP)
             val saturate = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(saturation) })
-            node.setRenderEffect(RenderEffect.createColorFilterEffect(saturate, blur))
-            effectKey = key
+            baseEffect = RenderEffect.createColorFilterEffect(saturate, blur)
+            effectBlur = blurRadiusPx
+            effectSaturation = saturation
+        }
+        if (materialChanged || effectRefract != refract || (refract && (effectWidth != width || effectHeight != height))) {
+            val base = baseEffect as RenderEffect
+            node.setRenderEffect(if (refract && Build.VERSION.SDK_INT >= 33) {
+                val lens = refraction as NavGlassRefraction? ?: NavGlassRefraction().also { refraction = it }
+                lens.effect(width, height, inflatePx, base)
+            } else base)
+            effectWidth = width
+            effectHeight = height
+            effectRefract = refract
         }
         // Folga do tamanho do blur em volta da pílula: sem ela as bordas do vidro
         // repetiriam o último pixel (CLAMP) em vez de misturar o que está ao lado.
@@ -246,7 +256,7 @@ fun DrawScope.drawGlass(backdrop: GlassBackdrop, surface: GlassSurface, material
         }
     }
 
-    surface.setGeometry(w, h, material.blurRadius.toPx(), material.saturation)
+    surface.setGeometry(w, h, material.blurRadius.toPx(), material.saturation, material.refract)
     val source = backdrop.contentNode
     // Lidas aqui (estado) para o desenho ser refeito quando a barra ou a fonte mudam de lugar.
     val sourcePos = backdrop.sourceInWindow

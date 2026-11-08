@@ -65,6 +65,7 @@ import com.finai.app.domain.MONTH_NAMES_PT
 import com.finai.app.domain.DebtSchedule
 import com.finai.app.domain.PayCycle
 import com.finai.app.domain.freeCashSign
+import com.finai.app.domain.isAdjustment
 import androidx.compose.foundation.gestures.scrollBy
 import com.finai.app.ui.components.EntryGlyph
 import com.finai.app.domain.toLocalDate
@@ -115,7 +116,8 @@ fun AgendaScreen(
     /** Visão sequencial (linha do tempo entre salários) em vez da mensal. */
     sequential: Boolean = false,
     onSequentialChange: (Boolean) -> Unit = {},
-    cashFlow: com.finai.app.domain.CashFlowTimeline? = null,
+    /** Saldo corrente contínuo da Agenda de foco no futuro ([com.finai.app.domain.AgendaBalance]). */
+    agendaBalance: com.finai.app.domain.AgendaBalance? = null,
     onAddMainIncome: () -> Unit = {},
     /** Item recém-lançado ("Ver na agenda" do lançamento): a lista rola até ele e o destaca. */
     highlight: com.finai.app.domain.AgendaHighlight? = null,
@@ -135,8 +137,6 @@ fun AgendaScreen(
     var sheetInstallment by remember { mutableStateOf<Triple<DebtInstallment, java.time.YearMonth, Boolean>?>(null) }
     var pendingDeleteBill by remember { mutableStateOf<Bill?>(null) }
     var pendingPayInstallment by remember { mutableStateOf<com.finai.app.domain.TimelineMovement?>(null) }
-    var showPreviousCycle by rememberSaveable { mutableStateOf(false) }
-    var futureCyclesShown by rememberSaveable { mutableStateOf(1) }
 
     // Tracks whether the month moved forward or back so the label/totals slide in from the
     // matching side — a plain crossfade reads ambiguous when the user is clearly paging.
@@ -160,7 +160,7 @@ fun AgendaScreen(
         item(key = "title") {
             PageTitle(
                 "Agenda", listState,
-                subtitle = if (sequential) "O dinheiro em ordem, de salário a salário" else "Pagamentos e recebimentos do mês",
+                subtitle = if (sequential) "O que ainda vai acontecer" else "Pagamentos e recebimentos do mês",
             )
         }
 
@@ -173,15 +173,10 @@ fun AgendaScreen(
 
         if (sequential) {
             sequentialAgendaItems(
-                timeline = cashFlow,
+                balance = agendaBalance,
                 today = today,
-                showPrevious = showPreviousCycle,
-                onShowPrevious = { showPreviousCycle = true },
-                futureShown = futureCyclesShown,
-                onShowMoreFuture = { futureCyclesShown++ },
                 onToggleContaPaga = onToggleContaPaga,
                 onRequestPayInstallment = { pendingPayInstallment = it },
-                onAddMainIncome = onAddMainIncome,
                 onOpenTransaction = { sheetTransaction = it to false },
             )
         } else {
@@ -515,7 +510,9 @@ private enum class Tag(val label: String, private val lightFg: Color, private va
     Conta("Conta", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
     Extra("Extra", Color(0xFF047857), Color(0xFFECFDF5)),
     Importado("Importado", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
+    Notificacao("Notificação", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
     Transferencia("Transferência", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
+    Ajuste("Ajuste de saldo", Color(0xFF3F3F46), Color(0xFFF4F4F5)),
     ;
 
     val fg: Color get() = lightFg.themedText
@@ -751,11 +748,13 @@ private fun TransacaoRow(
                         principal -> Tag.RendaPrincipal
                         receita -> Tag.Receita
                         transacao.tipo == "Transferencia" -> Tag.Transferencia
+                        transacao.isAdjustment -> Tag.Ajuste
                         else -> null
                     },
                     if (transacao.recorrente) Tag.Recorrente else null,
                     if (transacao.extra) Tag.Extra else null,
                     if (transacao.origem == "importado") Tag.Importado else null,
+                    if (transacao.origem == com.finai.app.domain.capture.NOTIFICATION_ORIGIN) Tag.Notificacao else null,
                 ),
                 transacao.categoria.takeIf { transacao.tipo == "Gasto" }
                     ?: transacao.contaDestino?.takeIf { transacao.tipo == "Transferencia" }?.let { "para $it" },
@@ -764,9 +763,15 @@ private fun TransacaoRow(
         trailing = {
             val cents = transacao.valorCentavos
             val valor = if (cents % 100 == 0L) formatBrl0(cents / 100.0) else com.finai.app.util.formatBrl(cents / 100.0)
+            // O ajuste de saldo tem valor com sinal: "+" entra em verde, "−" sai neutro.
+            val entra = receita || (transacao.isAdjustment && cents > 0)
+            val texto = if (transacao.isAdjustment) {
+                val abs = kotlin.math.abs(cents)
+                (if (cents > 0) "+ " else "− ") + (if (abs % 100 == 0L) formatBrl0(abs / 100.0) else com.finai.app.util.formatBrl(abs / 100.0))
+            } else if (receita) "+ $valor" else valor
             Text(
-                if (receita) "+ $valor" else valor, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                color = if (receita) FinaiColors.EmeraldDark else FinaiColors.TextPrimary,
+                texto, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                color = if (entra) FinaiColors.EmeraldDark else FinaiColors.TextPrimary,
             )
             if (transacao.data.toLocalDate().isAfter(today)) {
                 Box(Modifier.padding(top = 3.dp)) { Chip(BillStatus.Expected.label, BillStatus.Expected.fg, BillStatus.Expected.bg) }

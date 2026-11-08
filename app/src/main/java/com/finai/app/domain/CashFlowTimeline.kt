@@ -286,8 +286,22 @@ data class CashFlowTimeline(
             transacoes: List<TransacaoEntity>,
             dividas: List<DividaEntity>,
             today: LocalDate,
+        ): List<TimelineMovement> = monthMovements(contas, transacoes, dividas, today, months = 3)
+
+        /**
+         * O que entra e sai, mês a mês e em ordem, a partir do mês de [today] e pelas mesmas regras
+         * do mês ([MonthCashFlow]), sem saldo. É a base do saldo corrente da Agenda ([AgendaBalance]).
+         */
+        fun monthMovements(
+            contas: List<ContaEntity>,
+            transacoes: List<TransacaoEntity>,
+            dividas: List<DividaEntity>,
+            today: LocalDate,
+            months: Int,
+            /** Primeiro mês da lista; antes de hoje quando o saldo é contado desde uma conciliação. */
+            from: YearMonth = YearMonth.from(today),
         ): List<TimelineMovement> {
-            val entries = (0L..2L).map { YearMonth.from(today).plusMonths(it) }.flatMap { m ->
+            val entries = (0L until months.toLong()).map { from.plusMonths(it) }.flatMap { m ->
                 val flow = MonthCashFlow.of(contas, transacoes, dividas, m, today)
                 buildList {
                     (flow.payable + flow.receivable).forEach { conta ->

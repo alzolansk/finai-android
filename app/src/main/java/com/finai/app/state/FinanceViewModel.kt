@@ -15,6 +15,7 @@ import com.finai.app.data.ai.AiResponseCache
 import com.finai.app.data.notifications.FinaiNotifier
 import com.finai.app.data.repository.FinanceRepository
 import com.finai.app.domain.TransactionType
+import com.finai.app.domain.isAdjustment
 import com.finai.app.domain.transactionsInMonth
 import com.finai.app.domain.AlertCalculator
 import com.finai.app.domain.BehaviorCoach
@@ -140,7 +141,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }.combine(repository.orcamentosDoMes(mesAtual)) { snapshot, orcamentos ->
         snapshot to orcamentos
     }.combine(prefs.dismissedInsights) { (snapshot, orcamentos), dismissed ->
-        buildState(snapshot, orcamentos, dismissed)
+        Triple(snapshot, orcamentos, dismissed)
+    }.combine(prefs.reconciliation) { (snapshot, orcamentos, dismissed), reconciliation ->
+        buildState(snapshot, orcamentos, dismissed).copy(reconciliation = reconciliation)
     }.catch { t ->
         // Uma exceção aqui (leitura do banco, ou um calculator diante de um dado
         // inesperado) cancelaria o StateFlow e levaria o app junto. Em vez disso
@@ -180,6 +183,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val cashFlow = runCatching {
             com.finai.app.domain.CashFlowTimeline.build(s.contas, s.transacoes, s.dividas, today, plan.cycle)
         }.onFailure { FinaiLog.e(TAG, "Falha ao montar a Agenda sequencial", it) }.getOrNull()
+        // Agenda de foco no futuro: as mesmas regras do mês, em ordem, com o saldo corrente contínuo.
+        val agendaBalance = runCatching {
+            com.finai.app.domain.AgendaBalance.build(s.transacoes, s.contas, s.dividas, today)
+        }.onFailure { FinaiLog.e(TAG, "Falha ao montar a Agenda com saldo corrente", it) }.getOrNull()
         val monthlyCapacityCents = plan.capacidadeMensalCents
         val savingsProjection = plan.projection
         val goalPlans = plan.goals
@@ -207,7 +214,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             .filter {
                 // Item de fatura tem a data da compra, não do pagamento: quem vence é a
                 // fatura (a ContaEntity dela, já em weekFromContas), não cada compra.
-                it.tipo != TransactionType.Transferencia.name && !it.recorrente && it.faturaId == null &&
+                it.tipo != TransactionType.Transferencia.name && !it.isAdjustment && !it.recorrente && it.faturaId == null &&
                     it.data.toLocalDate().let { d -> !d.isBefore(today) && !d.isAfter(nextWeekEnd) }
             }
             .map { it.data.toLocalDate() to it.toUiWeekBill(today) }
@@ -225,7 +232,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         // Mesma conta dos totais da Agenda do mês (recebimentos − contas a pagar).
         val saldoCents = com.finai.app.domain.MonthCashFlow.of(
             s.contas, s.transacoes, s.dividas, java.time.YearMonth.from(today), today,
-        ).saldoCents
+        ).fechamentoCents
 
         return FinanceUiState(
             loading = false,
@@ -300,6 +307,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             aiGoalsBlock = com.finai.app.domain.AiContext.goalsBlock(goalPlans.filterNot { Completion.isDone(it.objetivo) }),
             aiPlanBlock = plan.aiBlock(),
             cashFlow = cashFlow,
+            agendaBalance = agendaBalance,
             aiCashFlowBlock = cashFlow?.aiBlock().orEmpty(),
             alerts = AlertCalculator.alerts(s.contas, budgetProgress, subscriptionInsights, goalPlans, today, payCycle?.shortfall),
         )
@@ -391,6 +399,27 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         require(entry.valorCentavos > 0 && entry.categoria.isNotBlank())
         return repository.salvarLancamento(entry)
     }
+
+    /**
+     * Conciliar saldo (3b): lança o ajuste da diferença (se houver) e grava a data e o saldo
+     * conciliado. As projeções da Início e da Agenda se recalculam pelo fluxo do Room.
+     * [registeredCents] é o saldo que o FinAI mostrava quando a folha abriu.
+     */
+    suspend fun reconcile(account: String, bankCents: Long, registeredCents: Long) {
+        val today = java.time.LocalDate.now()
+        val diff = bankCents - registeredCents
+        if (diff != 0L) repository.registrarAjuste(account, diff, today)
+        prefs.saveReconciliation(com.finai.app.domain.ReconciliationState(today, bankCents, diff))
+    }
+
+    suspend fun saveSplitIncome(entry: TransacaoEntity, split: com.finai.app.domain.IncomeSplit): com.finai.app.domain.EntryReceipt {
+        require(entry.valorCentavos > 0)
+        return repository.salvarRendaDividida(entry, split)
+    }
+
+    /** Minha renda → "Salvar renda". [split] nulo = salário integral. */
+    suspend fun saveIncomeSplit(split: com.finai.app.domain.IncomeSplit?) =
+        repository.salvarDivisaoDaRenda(split, java.time.LocalDate.now())
 
     suspend fun saveCardPurchase(entry: TransacaoEntity, payment: com.finai.app.domain.CardPayment): com.finai.app.domain.EntryReceipt {
         require(entry.valorCentavos > 0 && entry.categoria.isNotBlank())
@@ -647,6 +676,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun exportBackup(uri: android.net.Uri) = viewModelScope.launch {
         try {
             val backup = repository.exportar(com.finai.app.data.local.FINAI_DB_VERSION, System.currentTimeMillis())
+                .copy(capturaApps = prefs.capturePackages.first())
             val json = com.finai.app.data.backup.BackupCodec.encode(backup)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use { it.write(json.toByteArray()) }
@@ -683,6 +713,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         _pendingRestore.value = null
         launchSafely("restaurar o backup") {
             repository.restaurar(backup)
+            // Os apps escolhidos voltam; a captura não liga sozinha (o acesso é deste aparelho).
+            if (backup.capturaApps.isNotEmpty()) prefs.setCapturePackages(backup.capturaApps)
             AiResponseCache.clear()
             FinaiNotifier(getApplication()).cancelAll()
             _backupStatus.value = "Dados restaurados: ${backup.summary()}."
@@ -709,6 +741,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         launchSafely("apagar todos os dados") {
             repository.apagarTodosOsDados()
             prefs.clearDismissedInsights()
+            prefs.clearReconciliation()
+            // Lançamento por notificações: fica pausado até o usuário ativar de novo.
+            prefs.setCaptureEnabled(false)
+            com.finai.app.data.capture.TestNotificationWorker.cancelAll(getApplication())
             AiResponseCache.clear()
             FinaiNotifier(getApplication()).cancelAll()
             onDone()
