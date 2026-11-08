@@ -299,8 +299,9 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
   - **O formulário de lançamento continua inteiro**; voz, frase, notificação e importar entram ao lado.
   - **Agenda sem caixinha de seleção**; tocar paga e tocar de novo reabre, com selo "Pago"/"Recebido".
   - Início: sai "Decisões para você" e a linha do tempo do ano; coach só com novidade.
-  - Pendentes (planning-v2.md §8): margem de segurança padrão, aportes planejados na projeção,
-    "+" direto ou com menu, fim da aba Dívidas, IA no fechamento do mês.
+  - "+" continua abrindo o menu atual; aportes planejados não entram na projeção (como hoje);
+    aba Dívidas sai (vira Planos › Compromissos); fechamento do mês com IA.
+  - Pendente (planning-v2.md §8): margem de segurança padrão.
 
 - **Lançamento por notificações, decisões tomadas em 18/10/2026 na implementação (aguardando
   confirmação do usuário):** guia de uso em `LANCAMENTO-POR-NOTIFICACAO.md`.

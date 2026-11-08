@@ -323,11 +323,12 @@ pagamento, parcelas, fatura, receita em 4 tipos, renda em duas partes, destinos 
 transferência, pílulas, "Todo mês", confirmação, Desfazer, Lançar outro, Ver na agenda, edição.
 
 **O que entra**
-- "+" da barra abre o formulário direto (hoje abre o `QuickActionSheet`). "Importar fatura" vai
-  para a faixa nova; "Posso comprar?" fica na Hoje; "Novo objetivo" fica em Planos.
-  (**Decisão pendente**, §8: se o usuário preferir manter o menu, a faixa vai para dentro dele.)
-- Faixa no topo do formulário, rolável: **Falar** · **Escrever** · **Notificações (N)** (abre a
-  Caixa no grupo "Para confirmar") · **Importar fatura**.
+- **"+" continua abrindo o menu atual** (`QuickActionSheet`, decisão de 08/11): "Lançar gasto"
+  em destaque e "Mais ações" (importar, simular, novo objetivo). O menu ganha uma linha
+  "Falar ou escrever" (abre o formulário já com o campo de frase ativo) e, quando houver, o item
+  "N das notificações" (abre a Caixa em "Para confirmar").
+- Faixa no topo do formulário, rolável: **Falar** · **Escrever** · **Notificações (N)** ·
+  **Importar fatura**. O quadro `v2/Lancar` mostra o formulário que o menu abre.
 - `domain/quickentry/QuickEntryParser.kt` (Kotlin puro): frase → rascunho
   (`"uber 23 ontem"`, `"gastei 45,90 no ifood no nubank"`, `"recebi 300 do freela"`,
   `"guardei 200 na reserva"`): valor, data relativa, tipo, conta/cartão pelos nomes conhecidos
@@ -430,8 +431,8 @@ abr, 410 até jun, livre em jul/27).
 
 **Domínio** (`domain/scenario/PurchaseSimulatorV2.kt`, regra 6)
 - Projeção mensal de 6 meses a partir de `AccountBalance` (saldo contínuo) com as saídas
-  previstas e os **aportes planejados das metas como saída dos meses futuros** (decisão pendente
-  §8). `menorSaldo(m)` por mês, com e sem a compra, para cada forma de pagamento.
+  previstas, **sem descontar aportes planejados das metas** (decisão de 08/11: como é hoje,
+  aporte só sai do saldo quando é registrado). `menorSaldo(m)` por mês, com e sem a compra, para cada forma de pagamento.
 - Veredito por forma: `pior − margem < 0` não cabe; `< R$ 300` apertado; senão cabe. Melhor =
   menos parcelas entre as que cabem. Efeito nas metas = valor ÷ `cabeGuardar` em meses de atraso
   (igual para qualquer forma: dizer isso).
@@ -526,8 +527,8 @@ captura e parser usam antes da IA.
 
 - Remover código morto: `DecisionsCard`, `TimelineSection`/`ExtraIncomeTimeline` na Início,
   `SpendExplanation` em texto, pontos de atenção de `GoalPlanning`, `NotificationsPanel`,
-  `BuySimulatorSheet`, `DebtsScreen`, `InstallmentsScreen`, `BudgetsScreen`, `QuickActionSheet`
-  (se a decisão do "+" confirmar), `FinaiFixtures.quickActions`.
+  `BuySimulatorSheet`, `DebtsScreen`, `InstallmentsScreen`, `BudgetsScreen`. O `QuickActionSheet`
+  fica (decisão de 08/11).
 - `TipScript`/dicas por tela reescritas para a navegação nova.
 - Atualizar `CLAUDE.md` (Status atual), `planning.md` §9 (Fase 8 = v2) e §11, `PRIVACY.md`
   (memória e regras ficam no aparelho; o que vai no prompt).
@@ -547,15 +548,15 @@ captura e parser usam antes da IA.
 Margem de segurança, preferência do "+" e modo da Agenda ficam em DataStore. Nenhuma coluna
 existente muda de significado, exceto a leitura do saldo (fase 1), que é cálculo.
 
-## 8. Decisões pendentes (perguntar antes da fase indicada)
+## 8. Decisões
 
-| # | Pergunta | Proposta | Fase |
+| # | Pergunta | Resposta (08/11/2026) | Fase |
 | --- | --- | --- | --- |
-| 1 | Margem de segurança começa em quanto? | 4 dias de gasto médio (R$ 300 no exemplo); "Sem" disponível | 1 |
-| 2 | Aportes planejados das metas contam como saída prevista nos meses futuros? | Sim, só nos meses futuros | 7–8 |
-| 3 | "+" abre o formulário direto ou continua com o menu? | Direto; importar vai para a faixa | 5 |
-| 4 | Aba Dívidas some (vira Planos › Compromissos)? | Sim | 7 |
-| 5 | Manter "Fechamento" com IA ou só texto fixo? | IA, uma chamada por mês | 10 |
+| 1 | Margem de segurança: quanto o app separa e não chama de livre? | **Pendente** (explicação enviada ao usuário) | 1 |
+| 2 | Aportes planejados das metas contam como saída prevista? | **Não. Como hoje:** aporte só sai do saldo quando registrado | 7–8 |
+| 3 | "+" abre o formulário direto ou o menu? | **Menu atual**, com a linha "Falar ou escrever" | 5 |
+| 4 | Aba Dívidas some (vira Planos › Compromissos)? | **Sim** | 7 |
+| 5 | Fechamento do mês com IA ou texto fixo? | **IA**, uma chamada por mês, com texto fixo se ela falhar | 10 |
 
 ## 9. Riscos
 
