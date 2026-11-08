@@ -22,6 +22,8 @@ data class FinanceSnapshot(
     val dividas: List<DividaEntity>,
     val objetivos: List<ObjetivoEntity>,
     val faturas: List<FaturaCartaoEntity> = emptyList(),
+    /** Margem de segurança do usuário ([com.finai.app.domain.balance.FreeToSpend]); a mesma da Início. */
+    val safetyMarginCents: Long = com.finai.app.domain.balance.FreeToSpend.DEFAULT_MARGIN_CENTS,
 ) {
     /** Faturas de cartão em aberto, pelo vencimento (a conta a pagar que a importação cria). */
     fun openInvoices(): List<ContaEntity> {

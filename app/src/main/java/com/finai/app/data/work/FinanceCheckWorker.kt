@@ -68,7 +68,10 @@ class FinanceCheckWorker(
         val orcamentos = repository.orcamentosDoMes(monthKey(today)).first()
 
         // O mesmo plano central das telas: o aviso do sino e a notificação não fazem conta própria.
-        val plan = com.finai.app.domain.FinancialPlan.build(contas, transacoes, dividas, objetivos, today)
+        val plan = com.finai.app.domain.FinancialPlan.build(
+            contas, transacoes, dividas, objetivos, today,
+            com.finai.app.data.prefs.FinaiPreferences(applicationContext).safetyMarginCents.first(),
+        )
         val goalPlans = plan.goals
         val transacoesDoMes = transacoes.filter { it.data in monthRangeMillis(today) }
         val budgetProgress = BudgetCalculator.forCategories(orcamentos, transacoesDoMes, today)

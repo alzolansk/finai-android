@@ -96,7 +96,7 @@ data class ParsedMovement(
     val cardLastDigits: String? = null,
     /** Conta ou cartão já conhecido que a mensagem cita pelo nome. */
     val accountHint: String? = null,
-    /** Uma das nove categorias de gasto, quando a regra local reconhece o estabelecimento. */
+    /** Uma das categorias de gasto, quando a regra local reconhece o estabelecimento. */
     val category: String? = null,
     /** Vários valores e nenhuma regra explica qual é o da compra. */
     val ambiguous: Boolean = false,

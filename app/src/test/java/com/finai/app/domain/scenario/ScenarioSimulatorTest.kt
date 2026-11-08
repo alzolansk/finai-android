@@ -33,7 +33,7 @@ class ScenarioSimulatorTest {
         transacoes: List<TransacaoEntity> = listOf(salario, aluguel),
         dividas: List<DividaEntity> = emptyList(),
         faturas: List<FaturaCartaoEntity> = emptyList(),
-    ) = FinanceSnapshot(contas, transacoes, dividas, emptyList(), faturas)
+    ) = FinanceSnapshot(contas, transacoes, dividas, emptyList(), faturas, safetyMarginCents = 0)
 
     private fun intent(text: String) = PurchaseIntentParser.parse(text, today)!!
 
@@ -117,7 +117,7 @@ class ScenarioSimulatorTest {
         val rotativo = DividaEntity(id = 7, nome = "Rotativo", valorOriginalCentavos = 400_000, valorAbertoCentavos = 400_000,
             taxaJurosMensalBasisPoints = 1_200, parcelasRestantes = 0, valorParcelaCentavos = 0)
         val s = snapshot(dividas = listOf(rotativo))
-        val plan = FinancialPlan.build(s.contas, s.transacoes, s.dividas, s.objetivos, today)
+        val plan = FinancialPlan.build(s.contas, s.transacoes, s.dividas, s.objetivos, today, s.safetyMarginCents)
         val r = ScenarioSimulator.simulate(s, intent("posso gastar R$ 400 no pix hoje?"), today)!!
         assertEquals(plan.livreCents, r.asked.periods.first().livreBeforeCents)
         assertTrue(r.factsBlock(), r.factsBlock().contains("\"Rotativo\" de R$ 1.000 para R$ 600"))

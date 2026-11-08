@@ -3,6 +3,7 @@ package com.finai.app.domain
 import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
 import com.finai.app.data.local.entity.TransacaoEntity
+import com.finai.app.domain.balance.AccountBalance
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -22,8 +23,9 @@ fun balanceTone(cents: Long): BalanceTone = when {
  *
  * **Sem conta própria:** os movimentos vêm de [CashFlowTimeline.monthMovements], as mesmas
  * regras do mês ([MonthCashFlow]) que a Agenda mensal e a sequencial usam. Aqui só entram a
- * ordem e a soma. O app não tem saldo de banco, então o saldo parte de zero no dia 1º do mês de
- * hoje (como o ciclo antes do primeiro salário) e é o "saldo do app", não o do banco.
+ * ordem e a soma. O saldo de hoje é o contínuo de [AccountBalance] (planning-v2, Fase 1): soma
+ * tudo o que foi efetivado desde o primeiro lançamento, sem recomeçar no mês nem no salário. É o
+ * "saldo do app" (com os ajustes de conciliação), não o do banco.
  */
 data class AgendaBalance(
     val today: LocalDate,
@@ -37,7 +39,7 @@ data class AgendaBalance(
     val monthStart: Map<YearMonth, Long>,
     /** Saldo no último dia do mês seguinte. */
     val endOfNextMonthCents: Long,
-    /** De onde o saldo é contado: o mês do ajuste de conciliação mais antigo, ou o mês de hoje. */
+    /** De onde o saldo é contado: o mês do lançamento mais antigo ([AccountBalance.startMonthFor]). */
     val startMonth: YearMonth = YearMonth.from(today),
     /** Menor saldo previsto de hoje em diante, e o dia dele. */
     val lowest: LowestBalance = LowestBalance(todayCents, today),
@@ -48,19 +50,10 @@ data class AgendaBalance(
         const val LOW_BALANCE_CENTS = 100_000L
         /** Meses mostrados: o atual e os três seguintes. */
         const val HORIZON_MONTHS = 4
-        private const val MAX_LOOKBACK_MONTHS = 36L
-
-        /**
-         * O saldo parte de zero no 1º dia do mês do ajuste de conciliação mais antigo (o ajuste
-         * foi calculado contra o saldo contado desde aquele mês, então a contagem não pode
-         * recomeçar depois dele). Sem ajuste, parte do mês de hoje.
-         */
-        fun startMonthFor(transacoes: List<TransacaoEntity>, today: LocalDate): YearMonth {
-            val current = YearMonth.from(today)
-            val oldest = transacoes.filter { it.isAdjustment && !it.data.toLocalDate().isAfter(today) }
-                .minOfOrNull { YearMonth.from(it.data.toLocalDate()) } ?: return current
-            return maxOf(oldest, current.minusMonths(MAX_LOOKBACK_MONTHS))
-        }
+        
+        /** De onde o saldo é contado: [AccountBalance.startMonthFor], o mesmo do "livre" (Fase 1). */
+        fun startMonthFor(transacoes: List<TransacaoEntity>, contas: List<ContaEntity>, today: LocalDate): YearMonth =
+            AccountBalance.startMonthFor(transacoes, contas, today)
 
         fun build(
             transacoes: List<TransacaoEntity>,
@@ -70,14 +63,14 @@ data class AgendaBalance(
             months: Int = HORIZON_MONTHS,
         ): AgendaBalance {
             val current = YearMonth.from(today)
-            val start = startMonthFor(transacoes, today)
+            val start = startMonthFor(transacoes, contas, today)
             val span = (start.until(current, java.time.temporal.ChronoUnit.MONTHS)).toInt() + months
             val all = CashFlowTimeline.monthMovements(contas, transacoes, dividas, today, span, from = start)
             // Mês anterior ao de hoje: só o que de fato aconteceu; conta em aberto e parcela de meses
             // passados não entram (a Agenda só olha para frente).
             val (past, ahead) = all
-                .filter { settled(it, today) || YearMonth.from(it.date) >= current }
-                .partition { settled(it, today) }
+                .filter { AccountBalance.settled(it, today) || YearMonth.from(it.date) >= current }
+                .partition { AccountBalance.settled(it, today) }
             val todayCents = past.sumOf { it.cents }
             var running = todayCents
             val future = ahead.map { m -> running += m.cents; m.copy(balanceAfterCents = running) }
@@ -102,13 +95,6 @@ data class AgendaBalance(
                 .minBy { it.cents }
             val shownPast = past.filter { YearMonth.from(it.date) == current }.map { it.copy(balanceAfterCents = null) }
             return AgendaBalance(today, shownPast, future, todayCents, starts, endNext, start, low, ends)
-        }
-
-        /** Já efetivado: lançamento com data até hoje, ou conta paga/recebida. Parcela em aberto nunca. */
-        private fun settled(m: TimelineMovement, today: LocalDate): Boolean = when (val s = m.source) {
-            is CycleSource.Conta -> s.conta.status == "pago"
-            is CycleSource.Parcela -> false
-            else -> !m.date.isAfter(today)
         }
     }
 }

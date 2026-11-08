@@ -98,6 +98,10 @@ object FinaiColors {
     val AmberSoftBg get() = pick(0xFFFFFBEB, 0xFF33280F)
     val AmberDeep get() = pick(0xFF78350F, 0xFFFDE68A)
 
+    // Sky — reserva contínua e parcelado no cartão (v2)
+    val Sky get() = pick(0xFF0369A1, 0xFF60A5FA)
+    val SkySoftBg get() = pick(0xFFEFF6FF, 0xFF152033)
+
     // Indigo — negotiation / behavioral coach accents
     val Indigo get() = pick(0xFF4F46E5, 0xFFA5B4FC)
     val IndigoLight get() = pick(0xFF6366F1, 0xFF818CF8)

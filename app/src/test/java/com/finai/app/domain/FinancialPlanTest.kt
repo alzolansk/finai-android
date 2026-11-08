@@ -20,8 +20,18 @@ class FinancialPlanTest {
             data = date.toEpochMillis(), descricao = desc, valorCentavos = cents, categoria = "Outros",
             contaOrigem = "Carteira", recorrente = recorrente, origem = "manual", tipo = tipo.name)
 
-    /** Salário recorrente do dia 30: ciclo de 30/09 a 29/10. */
-    private fun salario(cents: Long = 300_000) = tx(LocalDate.of(2026, 7, 30), cents, TransactionType.Receita, recorrente = true, desc = "Salário")
+    /**
+     * Estes testes medem o livre, não a margem nem a sobra de meses antigos: margem 0 e o histórico
+     * começa no último salário (Fase 1: o saldo é contínuo, então um salário recorrente iniciado
+     * em julho somaria julho e agosto, que estes cenários não querem).
+     */
+    private fun build(
+        contas: List<ContaEntity>, transacoes: List<TransacaoEntity>, dividas: List<DividaEntity>,
+        objetivos: List<ObjetivoEntity>, today: LocalDate,
+    ) = FinancialPlan.build(contas, transacoes, dividas, objetivos, today, safetyMarginCents = 0)
+
+    /** Salário recorrente do dia 30, o primeiro em 30/09: janela de hoje até 29/10. */
+    private fun salario(cents: Long = 300_000) = tx(LocalDate.of(2026, 9, 30), cents, TransactionType.Receita, recorrente = true, desc = "Salário")
 
     private fun conta(nome: String, cents: Long, vence: LocalDate) = ContaEntity(
         nome = nome, valorCentavos = cents, vencimento = vence.toEpochMillis(), status = "pendente", tipo = "a_pagar", recorrente = false)
@@ -38,7 +48,7 @@ class FinancialPlanTest {
 
     @Test fun theSameFreeMoneyIsRecommendedToOneDestinationOnly() {
         // Sobram R$ 114 no ciclo; há uma dívida cara e três metas pedindo aporte.
-        val plan = FinancialPlan.build(
+        val plan = build(
             contas = listOf(conta("Aluguel e contas", 288_600, LocalDate.of(2026, 10, 12))),
             transacoes = listOf(salario()),
             dividas = listOf(rotativo(1_200)),
@@ -56,11 +66,12 @@ class FinancialPlanTest {
         plan.goals.forEach { assertEquals("Sem aporte agora: o livre vai primeiro para \"Rotativo\".", plan.goalNoteShort(it)) }
         assertTrue(plan.decisions(emptyList(), emptyList()).first().action.contains("Rotativo"))
         assertTrue(plan.aiBlock().contains("recomendação não é gasto"))
-        assertEquals("Livre até o salário · 30/10", plan.untilShortLabel)
+        // A série começa em 30/09 (fim de mês), então segue o fim de mês: 31/10.
+        assertEquals("Livre até o salário · 31/10", plan.untilShortLabel)
     }
 
     @Test fun aRecommendationNeverReducesWhatIsFree() {
-        val plan = FinancialPlan.build(
+        val plan = build(
             contas = listOf(conta("Aluguel e contas", 288_600, LocalDate.of(2026, 10, 12))),
             transacoes = listOf(salario()),
             dividas = listOf(rotativo(1_200)),
@@ -74,7 +85,7 @@ class FinancialPlanTest {
     }
 
     @Test fun cheapDebtLeavesTheRecommendationToGoalsInPriorityOrder() {
-        val plan = FinancialPlan.build(
+        val plan = build(
             contas = listOf(conta("Aluguel e contas", 200_000, LocalDate.of(2026, 10, 12))),
             transacoes = listOf(salario()),
             dividas = listOf(rotativo(150)),
@@ -90,7 +101,7 @@ class FinancialPlanTest {
 
     @Test fun anObligationBeforeTheNextIncomeHoldsMoneyBack() {
         // Entra R$ 1.900 no dia 10 e sai R$ 600 no dia 12; antes disso, R$ 2.500 no dia 8.
-        val plan = FinancialPlan.build(
+        val plan = build(
             contas = listOf(
                 conta("Aluguel", 250_000, LocalDate.of(2026, 10, 8)),
                 conta("Fatura", 60_000, LocalDate.of(2026, 10, 12)),
@@ -112,9 +123,9 @@ class FinancialPlanTest {
     @Test fun onPaydayTheSalaryThatLandsTodayCounts() {
         // Salário todo dia 28, hoje é 28/09: o ciclo começa hoje. Antes o livre saía R$ 0.
         val payday = LocalDate.of(2026, 9, 28)
-        val plan = FinancialPlan.build(
+        val plan = build(
             contas = listOf(conta("Aluguel", 250_000, LocalDate.of(2026, 10, 5))),
-            transacoes = listOf(tx(LocalDate.of(2026, 7, 28), 300_000, TransactionType.Receita, recorrente = true, desc = "Salário")),
+            transacoes = listOf(tx(LocalDate.of(2026, 9, 28), 300_000, TransactionType.Receita, recorrente = true, desc = "Salário")),
             dividas = emptyList(),
             objetivos = emptyList(),
             today = payday,
@@ -128,7 +139,7 @@ class FinancialPlanTest {
         // O caso do usuário: R$ 5.000 hoje; depois o ciclo só ganha (salário, rescisão). O dia mais
         // apertado é hoje, então não há reserva nenhuma; os R$ 631 a mais ainda vão entrar.
         val day = LocalDate.of(2026, 9, 28)
-        val plan = FinancialPlan.build(
+        val plan = build(
             contas = listOf(conta("Contas de casa", 243_600, LocalDate.of(2026, 9, 30))),
             transacoes = listOf(
                 tx(day, 500_000, TransactionType.Receita, desc = "Teste"),
@@ -155,12 +166,12 @@ class FinancialPlanTest {
         // Rescisão de R$ 1.900 no dia 15, antes do salário de 28/10, e uma conta de R$ 1.000 no dia 20.
         val payday = LocalDate.of(2026, 9, 28)
         val rescisao = tx(LocalDate.of(2026, 10, 15), 190_000, TransactionType.Receita, desc = "Rescisão").copy(extra = true)
-        val plan = FinancialPlan.build(
+        val plan = build(
             contas = listOf(
                 conta("Aluguel", 250_000, LocalDate.of(2026, 10, 5)),
                 conta("Cartão", 100_000, LocalDate.of(2026, 10, 20)),
             ),
-            transacoes = listOf(tx(LocalDate.of(2026, 7, 28), 300_000, TransactionType.Receita, recorrente = true, desc = "Salário"), rescisao),
+            transacoes = listOf(tx(LocalDate.of(2026, 9, 28), 300_000, TransactionType.Receita, recorrente = true, desc = "Salário"), rescisao),
             dividas = emptyList(),
             objetivos = emptyList(),
             today = payday,
@@ -179,7 +190,7 @@ class FinancialPlanTest {
     }
 
     @Test fun aShortfallBlocksEveryRecommendation() {
-        val plan = FinancialPlan.build(
+        val plan = build(
             contas = listOf(conta("Aluguel", 350_000, LocalDate.of(2026, 10, 8))),
             transacoes = listOf(salario(), tx(LocalDate.of(2026, 10, 10), 190_000, TransactionType.Receita, desc = "Freela")),
             dividas = listOf(rotativo(1_200)),

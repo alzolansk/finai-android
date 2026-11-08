@@ -22,7 +22,8 @@ const val ADJUSTMENT_LABEL = "Ajuste de saldo"
 val TransacaoEntity.isAdjustment: Boolean get() = tipo == ADJUSTMENT_TYPE
 
 object TransactionEntry {
-    val categories = listOf("Alimentação", "Transporte", "Moradia", "Saúde", "Lazer", "Educação", "Compras", "Serviços", "Outros")
+    /** A lista única do app ([com.finai.app.data.model.Categorias]). */
+    val categories: List<String> get() = com.finai.app.data.model.Categorias.all
     fun key(cents: String, key: String): String {
         if (key == "erase") return cents.dropLast(1)
         if (key !in listOf("0", "00", "1", "2", "3", "4", "5", "6", "7", "8", "9")) return cents

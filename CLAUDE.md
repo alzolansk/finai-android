@@ -7,6 +7,14 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 ## Status atual
 
+**FinAI v2: fases 0 e 1 implementadas (08/11/2026, branch `claude/awesome-hawking-pdynac`).** Estado,
+ressalvas e o que mudou de regra: seção "Status de implementação" do `planning-v2.md`. Em resumo: categorias
+únicas (`Categorias.all`, 10), `MoneyRow`, cenário de demonstração debug (`DemoScenarioV2` + broadcast) e o
+**motor de saldo contínuo** `domain/balance/` (`AccountBalance`, `NextIncomeFinder`, `FreeToSpend`; margem
+R$ 300 em `FinaiPreferences.safetyMarginCents`) que alimenta `FinancialPlan`, Início, "Entenda este valor", IA
+e `AgendaBalance`. O saldo **não zera mais no salário** (revoga a decisão de 10/10). O protótipo v2 não estava
+acessível nesta conta. Próxima: Fase 2 (Hoje); antes, o usuário deve testar o saldo no celular (M1).
+
 **FinAI v2 planejado (08/11/2026): ver `planning-v2.md`.** Auditoria + protótipo navegável em
 https://claude.ai/artifact/Tzb24N1BzGMR8buHwVAtL9 (página "Protótipo v2" = referência visual de cada fase;
 página "Auditoria" = fraquezas A/B/C e IA P1–P11). 12 fases (0–11), marcos de teste no celular M1–M4.

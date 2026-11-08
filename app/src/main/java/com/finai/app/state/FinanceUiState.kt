@@ -117,6 +117,8 @@ data class FinanceUiState(
     val cashFlow: com.finai.app.domain.CashFlowTimeline? = null,
     /** Agenda de foco no futuro: o saldo corrente contínuo, de hoje em diante ([com.finai.app.domain.AgendaBalance]). */
     val agendaBalance: com.finai.app.domain.AgendaBalance? = null,
+    /** Margem de segurança do livre, em centavos (preferência do usuário; padrão R$ 300). */
+    val safetyMarginCents: Long = com.finai.app.domain.balance.FreeToSpend.DEFAULT_MARGIN_CENTS,
     /** Última conciliação com o saldo do banco; nula se nunca houve. */
     val reconciliation: com.finai.app.domain.ReconciliationState? = null,
     /** O fluxo cronológico como a IA recebe ([com.finai.app.domain.CashFlowTimeline.aiBlock]). */

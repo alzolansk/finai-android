@@ -73,6 +73,14 @@ object MerchantClassifier {
             "telhanorte", "c&c casa", "casa e construcao", "ferragem", "material de construcao",
             "tok stok", "mobly", "madeiramadeira", "faxina", "diarista",
         ) to "Moradia",
+        listOf(
+            "escola", "colegio", "faculdade", "universidade", "curso ", "udemy", "alura", "coursera",
+            "duolingo", "mensalidade escolar", "livraria", "material escolar",
+        ) to "Educação",
+        listOf(
+            "barbearia", "salao", "cabeleireir", "lavanderia", "tinturaria", "cartorio", "contador",
+            "advogado", "correios", "chaveiro", "costureira",
+        ) to "Serviços",
     )
 
     /** Estabelecimentos que quase sempre são assinatura mensal — usado por [RecurrenceDetector]. */

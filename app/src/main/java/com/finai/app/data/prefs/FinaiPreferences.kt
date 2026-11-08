@@ -38,6 +38,7 @@ class FinaiPreferences(private val context: Context) {
         val DISMISSED_INSIGHTS = stringSetPreferencesKey("dismissed_insights")
         val CAPTURE_ENABLED = booleanPreferencesKey("capture_enabled")
         val CAPTURE_PACKAGES = stringSetPreferencesKey("capture_packages")
+        val SAFETY_MARGIN = longPreferencesKey("safety_margin_cents")
         val RECON_DATE = stringPreferencesKey("reconciled_on")
         val RECON_BALANCE = longPreferencesKey("reconciled_balance_cents")
         val RECON_ADJUST = longPreferencesKey("reconciled_adjust_cents")
@@ -79,6 +80,19 @@ class FinaiPreferences(private val context: Context) {
 
     suspend fun setCapturePackages(packages: Set<String>) {
         context.dataStore.edit { it[Keys.CAPTURE_PACKAGES] = packages }
+    }
+
+    /**
+     * Margem de segurança do "livre" (planning-v2, Fase 1): quanto o app separa e não chama de
+     * livre. Padrão R$ 300 fixos; 0 = sem margem. Preferência de uso, não dado financeiro: não é
+     * apagada por "Apagar todos os dados" e nunca é recalculada sozinha.
+     */
+    val safetyMarginCents: Flow<Long> = context.dataStore.data.map {
+        it[Keys.SAFETY_MARGIN] ?: com.finai.app.domain.balance.FreeToSpend.DEFAULT_MARGIN_CENTS
+    }
+
+    suspend fun setSafetyMarginCents(cents: Long) {
+        context.dataStore.edit { it[Keys.SAFETY_MARGIN] = cents.coerceAtLeast(0) }
     }
 
     /**

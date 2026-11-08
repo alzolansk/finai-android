@@ -26,7 +26,7 @@ class EntryOptionsTest {
         assertEquals(listOf("Compras", "Moradia"), list.take(2))
         // Receita não conta como uso; o resto fica na ordem padrão.
         assertEquals(TransactionEntry.categories.filter { it !in setOf("Compras", "Moradia") }, list.drop(2))
-        assertEquals(9, list.size)
+        assertEquals(10, list.size)
     }
 
     @Test fun accountsAreRecentFirstWithoutCardsAndWithWalletFallback() {

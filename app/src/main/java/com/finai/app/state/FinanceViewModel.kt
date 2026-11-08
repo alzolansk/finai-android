@@ -143,7 +143,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }.combine(prefs.dismissedInsights) { (snapshot, orcamentos), dismissed ->
         Triple(snapshot, orcamentos, dismissed)
     }.combine(prefs.reconciliation) { (snapshot, orcamentos, dismissed), reconciliation ->
-        buildState(snapshot, orcamentos, dismissed).copy(reconciliation = reconciliation)
+        Pair(Triple(snapshot, orcamentos, dismissed), reconciliation)
+    }.combine(prefs.safetyMarginCents) { (inputs, reconciliation), margin ->
+        val (snapshot, orcamentos, dismissed) = inputs
+        buildState(snapshot, orcamentos, dismissed, margin).copy(reconciliation = reconciliation)
     }.catch { t ->
         // Uma exceção aqui (leitura do banco, ou um calculator diante de um dado
         // inesperado) cancelaria o StateFlow e levaria o app junto. Em vez disso
@@ -163,11 +166,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val assinaturas: List<AssinaturaEntity>,
     )
 
-    private fun buildState(s: Snapshot, orcamentos: List<OrcamentoCategoriaEntity>, dismissed: Set<String> = emptySet()): FinanceUiState {
+    private fun buildState(
+        s: Snapshot,
+        orcamentos: List<OrcamentoCategoriaEntity>,
+        dismissed: Set<String> = emptySet(),
+        safetyMarginCents: Long = com.finai.app.domain.balance.FreeToSpend.DEFAULT_MARGIN_CENTS,
+    ): FinanceUiState {
         val today = LocalDate.now()
         // Uma conta só, lida por todas as telas e pela IA: ciclo dia a dia, disponível e o
         // destino único da sobra (dívida cara ou metas).
-        val plan = FinancialPlan.build(s.contas, s.transacoes, s.dividas, s.objetivos, today) {
+        val plan = FinancialPlan.build(s.contas, s.transacoes, s.dividas, s.objetivos, today, safetyMarginCents) {
             FinaiLog.e(TAG, "Falha ao calcular o ciclo do salário", it)
         }
         // Sem nenhuma entrada lançada não há sobra a projetar: a visão das metas não compara com orçamento.
@@ -258,9 +266,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             saldoLabel = formatBrl(saldoCents / 100.0),
             payCycle = payCycle,
             safeNote = safeNoteFor(safe, payCycle, plan),
-            spendExplanation = com.finai.app.domain.SpendExplanation.of(safe, payCycle, today, plan.recommendationSummary.takeIf { plan.recommendations.isNotEmpty() }),
+            spendExplanation = com.finai.app.domain.SpendExplanation.of(safe, payCycle, today, plan.recommendationSummary.takeIf { plan.recommendations.isNotEmpty() }, plan.free),
             plan = plan,
-            situation = com.finai.app.domain.HomeSituation.of(safe, payCycle),
+            situation = com.finai.app.domain.HomeSituation.of(safe, payCycle, plan.free?.nextIncome),
             nextWeekBills = weekBills,
             timeline = timelineExtras.map { it.toUiTimelineEntry() },
             timelineNote = if (timelineExtras.isEmpty())
@@ -308,8 +316,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             aiPlanBlock = plan.aiBlock(),
             cashFlow = cashFlow,
             agendaBalance = agendaBalance,
-            aiCashFlowBlock = cashFlow?.aiBlock().orEmpty(),
-            alerts = AlertCalculator.alerts(s.contas, budgetProgress, subscriptionInsights, goalPlans, today, payCycle?.shortfall),
+            safetyMarginCents = safetyMarginCents,
+            // O saldo é contínuo (Fase 1): com renda, a IA lê o bloco do motor novo; o do ciclo (que
+            // zerava no salário) só vale sem renda, quando nem existe.
+            aiCashFlowBlock = plan.free?.aiBlock() ?: cashFlow?.aiBlock().orEmpty(),
+            alerts = AlertCalculator.alerts(s.contas, budgetProgress, subscriptionInsights, goalPlans, today, plan.shortfall.takeIf { plan.free != null || payCycle != null }),
         )
     }
 
@@ -320,21 +331,23 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
      * lia o aporte das metas como um rombo no mês.
      */
     private fun safeNoteFor(safe: SafeToSpendResult, cycle: com.finai.app.domain.PayCycle?, plan: FinancialPlan): String {
-        val until = if (cycle != null) "até o salário do dia ${safe.lastDayOfMonth}" else "até o dia ${safe.lastDayOfMonth}"
+        val until = if (plan.free != null || cycle != null) "até o ${plan.free?.nextIncome?.noun ?: "salário"} do dia ${safe.lastDayOfMonth}" else "até o dia ${safe.lastDayOfMonth}"
         safe.shortfall?.let { falta ->
             val valor = formatBrl0(falta.cents / 100.0)
             val porque = falta.causa?.let { " — $it" }.orEmpty()
             val today = cycle?.today ?: LocalDate.now()
             return if (falta.date.isAfter(today))
-                "Em ${dayMonth(falta.date)} faltam $valor$porque, antes do salário do dia ${safe.lastDayOfMonth}. Não há valor livre para gastar até lá."
+                "Em ${dayMonth(falta.date)} faltam $valor$porque, antes do ${plan.free?.nextIncome?.noun ?: "salário"} do dia ${safe.lastDayOfMonth}. Não há valor livre para gastar até lá."
             else
                 "O dinheiro já não fecha: faltam $valor$porque $until. Não há valor livre para gastar até lá."
         }
-        val descontado = "já descontados os compromissos" + if (plan.reservadoFuturoCents > 0) " e a reserva necessária" else ""
+        val descontado = "já descontados os compromissos" + (if (plan.reservadoFuturoCents > 0) ", a reserva necessária" else "") + (plan.free?.marginCents?.takeIf { it > 0 }?.let { " e a margem de segurança de ${formatBrl0(it / 100.0)}" } ?: "")
         val recomendacao = plan.recomendacao?.let { " Recomendação do plano: usar ${formatBrl0(it.cents / 100.0)} em ${it.name} (continua livre até você registrar)." }.orEmpty()
         val floor = safe.floor
         // O dia mais apertado vem antes do fim do ciclo: o valor é o que sobra nele, não no fim.
-        return if (cycle != null && floor != null && floor.cents < cycle.livreCents && floor.date.isAfter(cycle.today))
+        val free = plan.free
+        val endCents = free?.endCents ?: cycle?.livreCents
+        return if ((free != null || cycle != null) && floor != null && endCents != null && floor.cents < endCents && floor.date.isAfter(plan.today))
             "Sobram ${formatBrl0(safe.slackThisMonthCents.coerceAtLeast(0) / 100.0)} $until contando o dia mais apertado (${dayMonth(floor.date)}), $descontado.$recomendacao"
         else
             "Sobram ${formatBrl0(safe.slackThisMonthCents.coerceAtLeast(0) / 100.0)} $until, $descontado.$recomendacao"

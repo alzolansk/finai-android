@@ -19,7 +19,7 @@ class GoalPlanningTest {
     private val abr2028 = LocalDate.of(2028, 4, 28)
 
     private fun salario(cents: Long = 300_000) = TransacaoEntity(
-        data = LocalDate.of(2026, 7, 30).toEpochMillis(), descricao = "Salário", valorCentavos = cents, categoria = "Outros",
+        data = LocalDate.of(2026, 9, 30).toEpochMillis(), descricao = "Salário", valorCentavos = cents, categoria = "Outros",
         contaOrigem = "Carteira", recorrente = true, origem = "manual", tipo = TransactionType.Receita.name, rendaPrincipal = true)
 
     private fun meta(id: Long, nome: String, alvo: Long, guardado: Long = 0, prazo: LocalDate = abr2028, prioridade: Int = id.toInt(),
@@ -33,7 +33,7 @@ class GoalPlanningTest {
         dividas: List<DividaEntity> = emptyList(),
         contas: List<ContaEntity> = emptyList(),
     ): Triple<FinancialPlan, GoalsOverview, List<GoalInsight>> {
-        val plan = FinancialPlan.build(contas, transacoes, dividas, objetivos, today)
+        val plan = FinancialPlan.build(contas, transacoes, dividas, objetivos, today, safetyMarginCents = 0)
         val hasIncome = transacoes.any { it.tipo == TransactionType.Receita.name }
         val overview = GoalPlanning.overview(plan, hasIncome, today)
         return Triple(plan, overview, GoalPlanning.insights(plan, overview, dividas, hasIncome, today))

@@ -176,7 +176,7 @@ class PayCycleTest {
         assertEquals(319_200L, c.floor.cents)
         assertNull(c.shortfall)
 
-        val plan = FinancialPlan.build(contas, transacoes, dividas, emptyList(), hoje)
+        val plan = FinancialPlan.build(contas, transacoes, dividas, emptyList(), hoje, safetyMarginCents = 0)
         assertNull(plan.shortfall)
         assertEquals(319_200L, plan.livreCents)
     }

@@ -62,7 +62,7 @@ object EntryOptions {
     // ── categorias e contas ─────────────────────────────────────────
 
     /**
-     * As nove categorias, as usadas por último primeiro (o maior id é o lançamento mais
+     * As categorias, as usadas por último primeiro (o maior id é o lançamento mais
      * recente). As que nunca foram usadas mantêm a ordem padrão, depois das usadas.
      */
     fun categoriesByRecentUse(transacoes: List<TransacaoEntity>): List<String> {

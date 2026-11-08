@@ -151,7 +151,7 @@ fun TransactionEntryScreen(
     onViewEntry: (EntryReceipt) -> Unit,
     onSaveCard: (suspend (TransacaoEntity, CardPayment) -> EntryReceipt)? = null,
     cards: List<String> = emptyList(),
-    /** As nove categorias na ordem de uso recente ([EntryOptions.categoriesByRecentUse]). */
+    /** As categorias na ordem de uso recente ([EntryOptions.categoriesByRecentUse]). */
     categories: List<String> = TransactionEntry.categories,
     objetivos: List<ObjetivoEntity> = emptyList(),
     faturas: List<FaturaCartaoEntity> = emptyList(),

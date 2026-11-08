@@ -1,5 +1,6 @@
 package com.finai.app.domain
 
+import com.finai.app.domain.balance.FreeToSpend
 import com.finai.app.util.formatBrl0
 import java.time.LocalDate
 
@@ -41,8 +42,75 @@ data class SpendExplanation(
     companion object {
         private const val NOT_BANK = "Não é o saldo do banco: é a soma do que você lançou no app."
 
-        fun of(safe: SafeToSpendResult, cycle: PayCycle?, today: LocalDate, recommendation: String? = null): SpendExplanation =
-            if (cycle != null) fromCycle(safe, cycle, recommendation) else fromMonth(safe, today, recommendation)
+        /**
+         * Com [free] (o motor de saldo contínuo, planning-v2 Fase 1) a conta é a dele: em conta hoje,
+         * o que vai sair, a margem, o livre. Sem ele, valem os caminhos antigos (ciclo ou mês).
+         */
+        fun of(
+            safe: SafeToSpendResult,
+            cycle: PayCycle?,
+            today: LocalDate,
+            recommendation: String? = null,
+            free: FreeToSpend? = null,
+        ): SpendExplanation = when {
+            free != null -> fromFree(free, recommendation)
+            cycle != null -> fromCycle(safe, cycle, recommendation)
+            else -> fromMonth(safe, today, recommendation)
+        }
+
+        private fun fromFree(f: FreeToSpend, recommendation: String?): SpendExplanation {
+            fun item(m: TimelineMovement, sign: Int) = ExplainItem(m.date, m.descricao.ifBlank { "Sem descrição" }, sign * m.cents)
+            val incoming = f.movements.filter { it.cents > 0 }.map { item(it, 1) }
+            val upcoming = f.movements.filter { it.cents < 0 }.map { item(it, -1) }
+            val falta = f.shortfall
+            val steps = buildList {
+                add(ExplainStep(
+                    "Em conta hoje", f.accountCents,
+                    "Soma de tudo o que você já lançou e foi efetivado (recebido, pago, gasto). O saldo continua de um mês para o outro.",
+                ))
+                if (f.goingOutCents > 0) {
+                    add(ExplainStep(
+                        "Vai sair até ${dm(f.lowest.date)}", f.lowest.cents - f.accountCents,
+                        "Até ${dm(f.lowest.date)} o saldo previsto desce para ${formatBrl0(f.lowest.cents / 100.0)}, antes de a próxima renda cair.",
+                    ))
+                }
+                if (falta != null) {
+                    add(ExplainStep("Falta no dia mais apertado", f.lowest.cents, total = true))
+                } else {
+                    val used = minOf(f.marginCents, f.lowest.cents)
+                    if (used > 0) add(ExplainStep("Margem de segurança", -used, "Fica separada e não é chamada de livre. Você ajusta o valor."))
+                    add(ExplainStep("Livre até ${dm(f.nextIncome.date)}", f.freeCents, total = true))
+                }
+            }
+            val cycleView = listOf(
+                ExplainStep("Em conta hoje", f.accountCents),
+                ExplainStep("Entradas previstas até ${dm(f.windowEnd)}", f.inflowsCents),
+                ExplainStep("Saídas previstas até ${dm(f.windowEnd)}", -f.outflowsCents),
+                ExplainStep("Saldo na véspera da renda", f.endCents, total = true),
+            )
+            val afterNote = if (f.laterInflowCents > 0 && falta == null) {
+                "O período termina com ${formatBrl0(f.endCents / 100.0)}: ${formatBrl0(f.laterInflowCents / 100.0)} a mais que o menor saldo. " +
+                    "Isso vem de entradas que ainda não caíram; vira livre quando elas entrarem."
+            } else null
+            val assumptions = buildList {
+                add(NOT_BANK)
+                add("A sobra do período anterior não some no dia do salário: ela está no saldo em conta.")
+                add("Compras no cartão contam pela fatura, no vencimento, e não no dia da compra.")
+                add("O saldo é simulado dia a dia: uma entrada e uma saída no mesmo dia se compensam.")
+                add("Conta vencida e não paga sai hoje; entrada atrasada que não foi recebida não conta.")
+                add("A recomendação do plano não desconta do livre: o valor só muda quando você registra o pagamento ou o aporte.")
+                if (f.nextIncome.estimated) add("A próxima renda foi estimada em ${dm(f.nextIncome.date)}, um mês depois da última.")
+            }
+            val missing = buildList {
+                if (f.nextIncome.estimated) add("Lance a próxima renda com a data certa para o período ficar exato.")
+            }
+            return SpendExplanation(
+                period = "De hoje (${dm(f.today)}) até ${dm(f.windowEnd)}, véspera do ${f.nextIncome.noun} — ${f.days} dia(s)",
+                steps = steps, upcoming = upcoming, perDayCents = f.perDayCents, days = f.days, shortfall = falta,
+                assumptions = assumptions, missing = missing, incoming = incoming,
+                recommendation = recommendation, cycleView = cycleView, afterNote = afterNote,
+            )
+        }
 
         private fun fromCycle(safe: SafeToSpendResult, c: PayCycle, recommendation: String?): SpendExplanation {
             val period = "De hoje (${dm(c.today)}) até ${dm(c.proximo.minusDays(1))}, véspera do salário — ${c.diasAteProximo} dia(s)"

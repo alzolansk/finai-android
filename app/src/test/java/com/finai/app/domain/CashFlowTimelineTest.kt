@@ -49,6 +49,15 @@ class CashFlowTimelineTest {
         parcelasTotais = 8, proximoVencimento = d(5).toEpochMillis())
 
     private val transacoes = listOf(salario, mercado, freela)
+
+    /**
+     * O plano usa o saldo contínuo (Fase 1): um salário iniciado em julho somaria julho a setembro.
+     * Estes testes comparam o livre do plano com o menor saldo do ciclo, que parte do último salário;
+     * para os dois partirem do mesmo ponto, o salário do plano começa em 30/10 e a margem é zero.
+     */
+    private fun carryless(t: List<TransacaoEntity>) = t.map { if (it.id == salario.id) it.copy(data = d(30, 10).toEpochMillis()) else it }
+    private fun planOf(c: List<ContaEntity>, t: List<TransacaoEntity>, dv: List<DividaEntity>, goals: List<ObjetivoEntity> = emptyList()) =
+        FinancialPlan.build(c, carryless(t), dv, goals, today, safetyMarginCents = 0)
     private val contas = listOf(faturaNov, aluguel, faturaDez)
     private val dividas = listOf(picpay)
 
@@ -69,7 +78,7 @@ class CashFlowTimelineTest {
 
     @Test fun lowestBalanceIsTheFreeUntilPaydayOfTheCentralPlan() {
         val tl = timeline()
-        val plan = FinancialPlan.build(contas, transacoes, dividas, emptyList(), today)
+        val plan = planOf(contas, transacoes, dividas)
         assertEquals(41_900L, tl.cycle!!.availableCents)
         assertEquals(plan.livreCents, tl.cycle!!.availableCents)
         assertEquals(CycleFloor(d(20), 41_900), tl.current!!.floor)
@@ -107,7 +116,7 @@ class CashFlowTimelineTest {
         // Saldo de hoje já sem os R$ 2.000; o menor saldo (e o livre) não muda.
         assertEquals(221_900L, tl.cycle!!.saldoHojeCents)
         assertEquals(41_900L, tl.cycle!!.availableCents)
-        assertEquals(FinancialPlan.build(paid, transacoes, dividas, emptyList(), today).livreCents, tl.cycle!!.availableCents)
+        assertEquals(planOf(paid, transacoes, dividas).livreCents, tl.cycle!!.availableCents)
         // A fatura não aparece duas vezes nem vai para o ciclo seguinte.
         assertEquals(1, tl.segments.flatMap { it.movements }.count { (it.source as? CycleSource.Conta)?.conta?.id == faturaNov.id })
         assertTrue(MonthCashFlow.of(paid, transacoes, dividas, YearMonth.of(2026, 11), today).payable.any { it.id == faturaNov.id })
@@ -159,7 +168,7 @@ class CashFlowTimelineTest {
         // Meta pedindo aporte não vira despesa: o livre continua o mesmo.
         val meta = ObjetivoEntity(id = 1, tipo = "Viagem", nome = "Viagem", valorAlvoCentavos = 1_000_000, valorGuardadoCentavos = 0,
             prazo = d(1, 6).plusYears(1).toEpochMillis(), prioridade = 1)
-        assertEquals(41_900L, FinancialPlan.build(contas, transacoes, dividas, listOf(meta), today).livreCents)
+        assertEquals(41_900L, planOf(contas, transacoes, dividas, listOf(meta)).livreCents)
     }
 
     @Test fun previousCycleShowsOnlyWhatHappenedAndOverdueBillComesToToday() {
@@ -199,7 +208,7 @@ class CashFlowTimelineTest {
     }
 
     @Test fun spendingTodayIsCheckedAgainstTheBillsAhead() {
-        val snapshot = FinanceSnapshot(contas, transacoes, dividas, emptyList())
+        val snapshot = FinanceSnapshot(contas, carryless(transacoes), dividas, emptyList(), safetyMarginCents = 0)
         val muito = PurchaseAssistant.handle("Se eu gastar R$ 500 hoje, conseguirei pagar as contas previstas?", null, snapshot, today)
         assertTrue(muito is PurchaseAssistant.Step.Simulated)
         assertFalse((muito as PurchaseAssistant.Step.Simulated).result.asked.billsCovered)

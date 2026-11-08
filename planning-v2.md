@@ -6,6 +6,73 @@ Este documento transforma a auditoria e o protótipo v2 em fases de implementaç
 substitui o `planning.md` (requisitos e princípios continuam lá). Ele diz **o que muda, em que
 ordem, onde no código e como conferir**.
 
+## Status de implementação
+
+| Fase | Estado | Data |
+| --- | --- | --- |
+| 0 · Base | ✅ implementada (`MoneyRow` ainda sem tela: ver ressalva 7) | 08/11/2026 |
+| 1 · Motor de saldo | ✅ implementada e conferida no emulador | 08/11/2026 |
+| 2–11 | não iniciadas | |
+
+Branch `claude/awesome-hawking-pdynac`. 439 testes JVM verdes, `assembleDebug` e `assemblePessoal` ok.
+O Room continua na v16 (nenhuma migração nas fases 0–1).
+
+### Fase 0 — o que foi feito
+- `Categorias.all` é a lista única de 10 (Alimentação, Moradia, Transporte, Saúde, Lazer, Compras, Educação,
+  Serviços, Assinaturas, Outros); `TransactionEntry.categories` aponta para ela. `Categorias.system`
+  ("Dívidas", "Ajuste de saldo") fica fora. O `MerchantClassifier` ganhou regras de Educação e Serviços.
+  "+", Limites, importação, classificador e prompt da IA leem a mesma lista (`CategoriasTest`).
+- `ui/components/MoneyRow.kt`: avatar 38 dp, nome + selo "Pago"/"Recebido", valor esmaecido, "fica R$ X",
+  toque de 60 dp com `Role.Button` e estado lido pelo TalkBack, sem caixinha. Token `Sky` novo
+  (`Amber` já existia).
+- `src/debug/.../DemoScenarioV2.kt` + `DemoScenarioReceiver` (só no build debug; o `pessoal` não leva):
+  `adb shell am broadcast -a com.finai.app.DEBUG_LOAD_DEMO -n com.finai.app/.debug.DemoScenarioReceiver`
+  apaga os dados e grava o cenário do protótipo (o aparelho precisa estar em 08/11/2026).
+
+### Fase 1 — o que foi feito
+- `domain/balance/`: `AccountBalance` (regra 1), `NextIncomeFinder`/`NextIncome` (regra 3) e `FreeToSpend`
+  (regra 2, com a série diária, o "vai sair", a falta e o bloco da IA). Margem em
+  `FinaiPreferences.safetyMarginCents` (padrão R$ 300; **ainda sem tela para trocar**, vem na Fase 2).
+- Ligados ao motor novo: `FinancialPlan.build` (livre, reserva, falta, `safe`), `HomeSituation` (rótulo
+  "LIVRE ATÉ O ADIANTAMENTO · 20/11"; por dia em reais inteiros, para baixo), `SpendExplanation` (conta
+  "em conta − vai sair − margem = livre"), o bloco da IA (`aiCashFlowBlock`), o sino/worker, o simulador de
+  compra (`FinanceSnapshot.safetyMarginCents`) e `AgendaBalance` (saldo de hoje = `AccountBalance`).
+- Testes novos: `FreeToSpendTest` (14), `AccountBalanceTest` (5), `DemoScenarioV2Test` (3, em `src/testDebug`).
+- Conferido no emulador Pixel 6 API 34 com o cenário de demonstração: a Início mostra **R$ 1.220** livre até
+  o adiantamento de 20/11, 12 dias, **R$ 3.480** em conta e menor saldo **R$ 1.520 em 18/11**
+  (`docs/v2-qa/fase-1/`).
+
+### Ressalvas (leia antes de testar no celular)
+1. **Comparação visual com o protótipo não foi feita.** O artefato
+   `claude.ai/artifact/Tzb24N1BzGMR8buHwVAtL9` devolveu "not found" nas duas tentativas (08/11), não aparece
+   na lista de artefatos da conta logada no Claude Code e nenhum projeto do Claude Design tem a v2. A
+   conferência foi pelos números do próprio planning (R$ 3.480 / R$ 1.520 / R$ 1.220 / R$ 101).
+   **Os valores de academia (180), condomínio (340) e internet (120) do cenário são palpites** que somam os
+   R$ 1.960 do quadro; se o quadro tiver outros, ajustar `DemoScenarioV2` e o teste.
+2. **O saldo agora parte do primeiro lançamento (até 24 meses), não do dia 1º do mês.** Quem já usa o app
+   vai ver o "saldo em conta" mudar na primeira abertura (o histórico passa a contar). Conciliar com o banco
+   (ajuste) reancora. É a decisão A4, mas é a mudança de maior efeito destas duas fases:
+   **testar no celular antes das próximas (marco M1).**
+3. **Falta só quando o saldo previsto fica negativo.** Entre zero e a margem, o livre é R$ 0 e o app **não**
+   chama de falta (`FreeToSpend.insideMargin`). O planning dizia "livre negativo vira falta"; segui o
+   caminho menos alarmista. Para o literal, é uma linha em `FreeToSpend.build`.
+4. **Sem renda cadastrada, o caminho é o antigo** (livre do mês inteiro): com saldo contínuo e só gastos
+   lançados, um "falta R$ 5.000" seria enganoso.
+5. **`PayCycle` não mudou** (ainda tem a regra "sobra do ciclo anterior não entra"). Quem ainda o usa:
+   `CashFlowTimeline` (só sem renda, para a IA) e `PeriodProjection`/`ScenarioSimulator` nos ciclos
+   **futuros**. Por isso o simulador de compra mistura o livre novo (período atual, com margem) com o piso
+   por ciclo sem margem nos seguintes, até a Fase 8 trocá-lo.
+6. **Conta vencida e não paga sai hoje; entrada vencida e não recebida não conta** (não há como saber
+   quando cai). Na Agenda "A seguir" a conta vencida de mês passado continua escondida (Fase 4).
+7. **`MoneyRow` ainda não está ligado a nenhuma tela** (entra na Início e na Agenda nas Fases 2 e 4).
+8. **Testes antigos ajustados por causa da regra nova:** `FinancialPlanTest`, `GoalPlanningTest` e
+   `CashFlowTimelineTest` (salário recorrente passou a começar no último ciclo e margem 0, porque o saldo
+   contínuo somaria os meses anteriores); `PayCycleTest` (margem 0); `ScenarioSimulatorTest` (margem 0 no
+   snapshot); `ReconciliationTest` (sem ajuste o saldo já parte do primeiro lançamento: R$ 8.800, antes
+   R$ 5.000); `EntryOptionsTest` (10 categorias).
+9. **Não executados:** instrumentados (`connectedDebugAndroidTest`), tema claro, 320 dp com fonte 150%,
+   TalkBack, Agenda/chat na tela. O R$ 101 por dia foi corrigido depois da captura e não foi recapturado.
+
 ## 1. Fontes
 
 - **Protótipo v2 (referência visual de cada fase):** https://claude.ai/artifact/Tzb24N1BzGMR8buHwVAtL9

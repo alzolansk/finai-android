@@ -1,5 +1,6 @@
 package com.finai.app.domain
 
+import com.finai.app.domain.balance.NextIncome
 import java.time.LocalDate
 
 /** A única ação em destaque no bloco de situação da Início. */
@@ -37,9 +38,15 @@ data class HomeSituation(
     val estimated: Boolean,
 ) {
     companion object {
-        fun of(safe: SafeToSpendResult, cycle: PayCycle?): HomeSituation {
+        /**
+         * [nextIncome] (Fase 1) é a próxima renda que fecha o período: com salário dividido o
+         * rótulo vira "ATÉ O ADIANTAMENTO · 20/11". Sem ele, vale a data do [cycle].
+         */
+        fun of(safe: SafeToSpendResult, cycle: PayCycle?, nextIncome: NextIncome? = null): HomeSituation {
             val falta = safe.shortfall
             val label = when {
+                nextIncome != null ->
+                    "LIVRE ATÉ O ${nextIncome.noun.uppercase()} · ${dm(nextIncome.date)}" + if (nextIncome.estimated) " (ESTIMADO)" else ""
                 cycle == null -> "LIVRE ATÉ O FIM DO MÊS"
                 else -> "LIVRE ATÉ O SALÁRIO · ${dm(cycle.proximo)}" + if (cycle.proximoEstimado) " (ESTIMADO)" else ""
             }
@@ -55,14 +62,15 @@ data class HomeSituation(
                 label = if (falta != null) label.replaceFirst("LIVRE", "FALTA") else label,
                 mainCents = falta?.cents ?: safe.slackThisMonthCents.coerceAtLeast(0),
                 shortfall = falta != null,
-                perDayCents = safe.safeTodayCents,
+                // Em reais inteiros, para baixo: R$ 101,66 vira "R$ 101" (nunca promete mais do que dá).
+                perDayCents = safe.safeTodayCents / 100 * 100,
                 days = safe.daysRemaining,
                 action = when {
                     falta != null -> SituationAction.SeeCommitments
                     cycle == null -> SituationAction.AddIncome
                     else -> SituationAction.CanIBuy
                 },
-                estimated = cycle?.proximoEstimado == true,
+                estimated = nextIncome?.estimated ?: (cycle?.proximoEstimado == true),
             )
         }
 

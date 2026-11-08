@@ -120,13 +120,16 @@ class ReconciliationTest {
             tx(2, LocalDate.of(2026, 10, 25), "Mercado", 120_000),
             tx(3, LocalDate.of(2026, 11, 5), "Salário nov", 500_000, "Receita"),
         )
-        // Sem ajuste a contagem parte do mês de hoje: só novembro.
-        assertEquals(500_000L, AgendaBalance.build(base, emptyList(), emptyList(), today).todayCents)
+        // Fase 1: o saldo é contínuo e parte do primeiro lançamento, com ou sem ajuste:
+        // outubro (500 − 120) + novembro (500) = R$ 8.800.
+        val semAjuste = AgendaBalance.build(base, emptyList(), emptyList(), today)
+        assertEquals(880_000L, semAjuste.todayCents)
+        assertEquals(YearMonth.of(2026, 10), semAjuste.startMonth)
         // O usuário conciliou em 28/10: o banco tinha R$ 4.000 e o FinAI mostrava R$ 3.800 (ajuste +200).
         val adj = adjust(4, LocalDate.of(2026, 10, 28), 20_000)
         val agenda = AgendaBalance.build(base + adj, emptyList(), emptyList(), today)
         assertEquals(YearMonth.of(2026, 10), agenda.startMonth)
-        // outubro (500 − 120 + 20) + novembro (500) = R$ 9.000, e o mês anterior não aparece no bloco de hoje.
+        // O ajuste soma ao saldo contínuo (R$ 8.800 + 200 = R$ 9.000), e o mês anterior não aparece no bloco de hoje.
         assertEquals(900_000L, agenda.todayCents)
         assertTrue(agenda.past.all { YearMonth.from(it.date) == YearMonth.of(2026, 11) })
         assertEquals(1, agenda.past.size)

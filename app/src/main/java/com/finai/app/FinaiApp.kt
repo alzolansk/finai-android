@@ -181,7 +181,7 @@ fun FinaiApp(
     val appResumed = lifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
     val financeSummary = remember(financeState) { financeState.toAiSummaryText() }
     // O simulador de compra do chat lê uma cópia das mesmas listas do Room; nunca grava nela.
-    LaunchedEffect(financeState.rawContas, financeState.rawTransacoes, financeState.rawDividas, financeState.rawObjetivos, financeState.rawFaturasCartao) {
+    LaunchedEffect(financeState.rawContas, financeState.rawTransacoes, financeState.rawDividas, financeState.rawObjetivos, financeState.rawFaturasCartao, financeState.safetyMarginCents) {
         viewModel.setFinanceSnapshot(
             com.finai.app.domain.scenario.FinanceSnapshot(
                 contas = financeState.rawContas,
@@ -189,6 +189,7 @@ fun FinaiApp(
                 dividas = financeState.rawDividas,
                 objetivos = financeState.rawObjetivos,
                 faturas = financeState.rawFaturasCartao,
+                safetyMarginCents = financeState.safetyMarginCents,
             ),
         )
     }

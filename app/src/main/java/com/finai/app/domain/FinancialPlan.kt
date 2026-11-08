@@ -4,6 +4,7 @@ import com.finai.app.data.local.entity.ContaEntity
 import com.finai.app.data.local.entity.DividaEntity
 import com.finai.app.data.local.entity.ObjetivoEntity
 import com.finai.app.data.local.entity.TransacaoEntity
+import com.finai.app.domain.balance.FreeToSpend
 import com.finai.app.util.formatBrl0
 import java.time.LocalDate
 import java.time.YearMonth
@@ -69,6 +70,11 @@ data class FinancialPlan(
     val debts: DebtSummary,
     val safe: SafeToSpendResult,
     val projection: SavingsProjection,
+    /**
+     * O motor de saldo contínuo (planning-v2, Fase 1): saldo em conta, menor saldo até a próxima
+     * renda, margem e série diária. Nulo sem nenhuma renda (aí o livre é o do mês inteiro).
+     */
+    val free: FreeToSpend? = null,
 ) {
     val recomendacao: Recommendation? get() = recommendations.firstOrNull()
     val recomendadoCents: Long get() = recommendations.sumOf { it.cents }
@@ -78,7 +84,8 @@ data class FinancialPlan(
 
     /** "até o salário de 28/10" ou "até o fim do mês (31/10)". */
     val untilLabel: String get() =
-        if (cycle != null) "até o salário de ${dm(cycle.proximo)}" else "até o fim do mês (${dm(until)})"
+        if (free != null) "até ${free.nextIncome.noun.let { if (it == "salário") "o salário" else "o adiantamento" }} de ${dm(free.nextIncome.date)}"
+        else if (cycle != null) "até o salário de ${dm(cycle.proximo)}" else "até o fim do mês (${dm(until)})"
 
     /** A frase de cada meta sobre o que o plano recomenda para ela, coerente com as outras telas. */
     fun goalNote(goal: GoalPlan): String {
@@ -122,7 +129,8 @@ data class FinancialPlan(
 
     /** Rótulo curto do card de Objetivos: "Livre até o salário · 28/10" (sem renda, até o fim do mês). */
     val untilShortLabel: String get() =
-        if (cycle != null) "Livre até o salário · ${dm(cycle.proximo)}" else "Livre até o fim do mês · ${dm(until)}"
+        if (free != null) "Livre até o ${free.nextIncome.noun} · ${dm(free.nextIncome.date)}"
+        else if (cycle != null) "Livre até o salário · ${dm(cycle.proximo)}" else "Livre até o fim do mês · ${dm(until)}"
 
     /** "Livre até o salário de 28/10: R$ 114. Recomendação: R$ 114 para "X"." */
     val recommendationSummary: String get() = when {
@@ -225,6 +233,7 @@ data class FinancialPlan(
             dividas: List<DividaEntity>,
             objetivos: List<ObjetivoEntity>,
             today: LocalDate,
+            safetyMarginCents: Long = FreeToSpend.DEFAULT_MARGIN_CENTS,
             onCycleError: (Throwable) -> Unit = {},
         ): FinancialPlan {
             val capacity = SavingsCapacityCalculator.monthlyCapacityCents(contas, transacoes, dividas, today)
@@ -241,18 +250,28 @@ data class FinancialPlan(
             val shortfall: CycleShortfall?
             val until: LocalDate
             val safe: SafeToSpendResult
-            if (cycle != null) {
-                // Simulação dia a dia: o livre é o menor saldo de fim de dia até a véspera do salário.
-                livre = cycle.availableCents
-                // Reserva = dinheiro que já está no ciclo hoje mas precisa ficar para uma saída que
-                // vence antes da próxima entrada. O que só chega depois (sobra final − livre)
-                // não é reserva: ainda não entrou ([aindaVaiEntrarCents]).
-                reservado = (cycle.saldoHojeCents - cycle.floor.cents).coerceAtLeast(0)
-                depois = (cycle.livreCents - cycle.floor.cents).coerceAtLeast(0)
-                comprometido = cycle.comprometidoCents
-                shortfall = cycle.shortfall
-                until = cycle.proximo.minusDays(1)
-                safe = SafeToSpendCalculator.fromCycle(cycle, 0)
+            val free = runCatching { FreeToSpend.of(contas, transacoes, dividas, today, safetyMarginCents) }
+                .onFailure(onCycleError).getOrNull()
+            if (free != null) {
+                // Saldo contínuo (Fase 1): o livre é o menor saldo previsto até a véspera da próxima
+                // renda menos a margem. A reserva é o quanto o saldo de hoje desce até o dia mais
+                // apertado; o que só entra depois dele ([aindaVaiEntrarCents]) não é reserva.
+                livre = free.freeCents
+                reservado = free.goingOutCents
+                depois = free.laterInflowCents
+                comprometido = free.outflowsCents
+                shortfall = free.shortfall
+                until = free.windowEnd
+                safe = SafeToSpendResult(
+                    safeTodayCents = free.perDayCents,
+                    slackThisMonthCents = if (free.shortfall != null) -free.shortfall.cents else free.freeCents,
+                    daysRemaining = free.days,
+                    monthProgressFraction = cycle?.progress ?: 0f,
+                    lastDayOfMonth = free.nextIncome.date.dayOfMonth,
+                    shortfall = free.shortfall,
+                    floor = free.lowest,
+                    reservedForPlanCents = 0,
+                )
             } else {
                 // Sem renda cadastrada não há como saber quando o dinheiro entra: a conta é do
                 // mês inteiro, e fica com o menor entre a folga do mês e o balanço da Agenda
@@ -293,6 +312,7 @@ data class FinancialPlan(
                 debts = DebtCalculator.summarize(activeDebts, today),
                 safe = safe,
                 projection = projection,
+                free = free,
             )
         }
     }

@@ -420,3 +420,5 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
     e completos, então religar é trocar um atributo. Se a resposta for "quero
     backup", o caminho recomendado é implementar export/import de um arquivo
     (controlado pelo usuário) antes de reabilitar o backup automático.
+
+- **v2, Fase 1 (08/11/2026): a decisao de 10/10 "o saldo recomeca a cada salario" esta revogada** (A4 do planning-v2). O saldo em conta e continuo (soma tudo o que foi efetivado desde o primeiro lancamento, ate 24 meses) e o livre e o menor saldo previsto ate a vespera da proxima renda menos a margem de seguranca (padrao R$ 300). Falta so com saldo previsto negativo. Detalhes e ressalvas em `planning-v2.md`.

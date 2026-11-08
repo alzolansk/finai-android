@@ -285,7 +285,7 @@ object ScenarioSimulator {
     }
 
     private fun plan(s: FinanceSnapshot, extra: List<com.finai.app.data.local.entity.TransacaoEntity>, today: LocalDate): FinancialPlan =
-        FinancialPlan.build(s.contas, s.transacoes + extra, s.dividas, s.objetivos, today)
+        FinancialPlan.build(s.contas, s.transacoes + extra, s.dividas, s.objetivos, today, s.safetyMarginCents)
 
     /** O livre do período atual é o do plano central — o mesmo número do topo da Início. */
     private fun FinancialPlan.livreSigned(): Long = shortfall?.let { -it.cents } ?: livreCents
