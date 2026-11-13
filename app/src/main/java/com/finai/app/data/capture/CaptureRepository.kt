@@ -131,6 +131,7 @@ class CaptureRepository(private val db: FinaiDatabase, private val finance: Fina
         } else write()
         dao.update(s.copy(estado = SuggestionState.Confirmed.key, resolvidaEm = now, atualizadoEm = now,
             lancamentoIds = receipt.transactionIds.joinToString(";"), textoOriginal = null))
+        setInboxState(s, "resolvido", now)
         receipt
     }
 
@@ -140,6 +141,7 @@ class CaptureRepository(private val db: FinaiDatabase, private val finance: Fina
         if (SuggestionState.of(s.estado) != SuggestionState.Confirmed) return@withTransaction
         if (receipt.transactionIds.isNotEmpty()) finance.desfazer(receipt, now)
         dao.update(s.copy(estado = SuggestionState.Pending.key, resolvidaEm = null, atualizadoEm = now, lancamentoIds = ""))
+        setInboxState(s, "novo", now)
     }
 
     /** "Ignorar": fica guardada sem texto, para uma atualização da mesma notificação não a reabrir. */
@@ -148,6 +150,7 @@ class CaptureRepository(private val db: FinaiDatabase, private val finance: Fina
         val state = SuggestionState.of(s.estado)
         if (state != SuggestionState.Pending) throw SuggestionUnavailableException(state)
         dao.update(s.copy(estado = SuggestionState.Ignored.key, resolvidaEm = now, atualizadoEm = now, textoOriginal = null))
+        setInboxState(s, "resolvido", now)
     }
 
     /** Volta uma ignorada para "Para confirmar". */
@@ -155,10 +158,21 @@ class CaptureRepository(private val db: FinaiDatabase, private val finance: Fina
         val s = dao.get(id) ?: return@withTransaction
         if (SuggestionState.of(s.estado) == SuggestionState.Ignored) {
             dao.update(s.copy(estado = SuggestionState.Pending.key, resolvidaEm = null, atualizadoEm = now))
+            setInboxState(s, "novo", now)
         }
     }
 
-    suspend fun markShown(id: Long, now: Long = System.currentTimeMillis()) = dao.markShown(id, now)
+    suspend fun markShown(id: Long, now: Long = System.currentTimeMillis()) = db.withTransaction {
+        dao.markShown(id, now)
+        dao.get(id)?.takeIf { it.estado == "pendente" }?.let { setInboxState(it, "visto", now) }
+    }
+
+    private suspend fun setInboxState(s: SugestaoLancamentoEntity, state: String, now: Long) {
+        val date = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString()
+        db.avisoDao().upsert(com.finai.app.data.local.entity.AvisoEntity("captura-${s.id}", "captura:0", state,
+            s.valorCentavos ?: 0, vistoEm = if (state == "novo") null else date,
+            resolvidoEm = if (state == "resolvido") date else null))
+    }
 
     /** Retenção: texto original só enquanto pendente e no máximo 30 dias; resolvidas somem em 90. */
     suspend fun purge(now: Long = System.currentTimeMillis()) {

@@ -7,18 +7,53 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 ## Status atual
 
+**FinAI v2: fase 4 (Agenda) implementada, validação visual adiada pelo usuário (08/11/2026).**
+Abas "A seguir" | <mês> com `MoneyRow` (sem caixinha, selo, TalkBack "pago"). `AgendaBalance` segue as
+regras do livre (atrasado de qualquer mês cai hoje; paga adiantada fica no lugar; entrada atrasada fora do
+saldo); linhas em `domain/AgendaAhead.kt` (`AgendaAhead`, `AgendaMonth`). Mês: Entra/Sai/Sobra
+(`MonthCashFlow.entraCents/saiCents/fechamentoCents`). Segurar a conta abre `BillSheet` (substitui o ⋮).
+Parcelamentos saiu da Agenda e foi para Dívidas. 470 JVM verdes; números do quadro batem no cenário
+demo. Emulador interrompido a pedido do usuário (sem smoke/capturas). Ressalvas: `planning-v2.md`.
+
+**FinAI v2: fase 3 implementada e validada no emulador, com ressalvas (08/11/2026).**
+Protótipo v2 acessado antes de implementar (Caixa em Play e regra 8). Caixa é rota própria no topo de
+todas as telas e pelo intent das notificações financeiras: captura para confirmar, agir e acompanhar,
+ações reais, vazio, dispensados/Desfazer tudo. Room **v17**: `avisos`, migração 16→17 não destrutiva e
+schema gerado pelo KSP. Visto/dispensa/adiamento/resolução persistem; IDs não dependem do título/valor.
+Catálogo/regras compartilhados com o worker, que usa o coach novo e respeita “Já sei”. Pontos de metas
+saem de Objetivos. Backup/reset incluem os estados; capturas mantêm confirmação e desfazer transacionais.
+Builds debug/androidTest e **461 JVM** verdes; **14 instrumentados** direcionados e smoke do app completo
+em 390 dp e 320 dp/fonte 150%, claro/escuro, passaram. Botões empilham com fonte grande.
+Celular/TalkBack real/APIs antigas/entrega de 24 h/suíte instrumentada completa não validados;
+memória do assistente é fase 9, destinos Gastos/Planos são fases 6–7. APK pessoal não regenerado.
+Status, diferenças e ressalvas para regularização: `planning-v2.md` e `docs/v2-qa/fase-3/README.md`.
+
+**FinAI v2: fase 2 implementada e validada no emulador, com ressalvas (08/11/2026).** O login do usuário resolveu o bloqueio
+do protótipo. Canvas e quadros Hoje/Livre/Agenda/Lançar/Regras acessíveis; cenário debug corrigido com
+academia R$ 110, internet R$ 120 e Picpay R$ 410 em 18/11 (5/12). Comparações das fases 0–1 e diferenças
+registradas em `docs/v2-qa/fase-0/` e `fase-1/`; fase 2 em `docs/v2-qa/fase-2/`.
+Hoje usa cartão único de livre/falta + saldo, 7 dias com `MoneyRow` e toque paga/reabre, coach por novidade
+(> 1,6× média de três meses; dispensa estável em DataStore) e duas metas. `FreeExplainedScreen` substitui
+a folha de texto por gráfico, conta expansível, margem persistida e conferência do banco (lógica existente).
+Room v16, sem migração. 448 testes JVM, 4 instrumentados e smoke do app completo em 390 dp e
+320 dp/fonte 150%, nos dois temas, passaram. `assemblePessoal` verde; APK em
+`app/build/outputs/apk/pessoal/app-pessoal.apk`. M1 no celular e TalkBack real pendentes.
+Com fonte ampliada, navegação antiga trunca rótulos e a linha paga comprime título/subtítulo.
+Detalhes, evidências e ressalvas para regularização em `planning-v2.md`.
+
 **FinAI v2: fases 0 e 1 implementadas (08/11/2026, branch `claude/awesome-hawking-pdynac`).** Estado,
 ressalvas e o que mudou de regra: seção "Status de implementação" do `planning-v2.md`. Em resumo: categorias
 únicas (`Categorias.all`, 10), `MoneyRow`, cenário de demonstração debug (`DemoScenarioV2` + broadcast) e o
 **motor de saldo contínuo** `domain/balance/` (`AccountBalance`, `NextIncomeFinder`, `FreeToSpend`; margem
 R$ 300 em `FinaiPreferences.safetyMarginCents`) que alimenta `FinancialPlan`, Início, "Entenda este valor", IA
-e `AgendaBalance`. O saldo **não zera mais no salário** (revoga a decisão de 10/10). O protótipo v2 não estava
-acessível nesta conta. Próxima: Fase 2 (Hoje); antes, o usuário deve testar o saldo no celular (M1).
+e `AgendaBalance`. O saldo **não zera mais no salário** (revoga a decisão de 10/10). O protótipo estava
+inacessível naquela implementação; login e comparação foram regularizados na fase 2. Marco M1: testar
+o conjunto das fases 0–2 no celular com o APK pessoal já gerado.
 
 **FinAI v2 planejado (08/11/2026): ver `planning-v2.md`.** Auditoria + protótipo navegável em
 https://claude.ai/artifact/Tzb24N1BzGMR8buHwVAtL9 (página "Protótipo v2" = referência visual de cada fase;
 página "Auditoria" = fraquezas A/B/C e IA P1–P11). 12 fases (0–11), marcos de teste no celular M1–M4.
-Nada da v2 implementado ainda. Regras fixas: o formulário do "+" continua inteiro (jeitos novos entram
+Fases 0–4 implementadas; fases 5–11 aguardam. Regras fixas: o formulário do "+" continua inteiro (jeitos novos entram
 ao lado), Agenda sem caixinha (selo "Pago"), saldo não zera no salário, avisos dispensados não voltam.
 
 **Saldo projetado contínuo + conciliação (08/11/2026, `main`, sem commit; telas 3a/3b do mesmo protótipo):**

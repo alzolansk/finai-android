@@ -21,6 +21,10 @@ class DemoScenarioReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 db.withTransaction {
+                    db.avisoDao().deleteAll()
+                    db.sugestaoLancamentoDao().deleteAll()
+                    db.testeNotificacaoDao().deleteAll()
+                    db.orcamentoCategoriaDao().deleteAll()
                     db.transacaoDao().deleteAll()
                     db.contaDao().deleteAll()
                     db.dividaDao().deleteAll()
@@ -29,6 +33,14 @@ class DemoScenarioReceiver : BroadcastReceiver() {
                     DemoScenarioV2.contas.forEach { db.contaDao().upsert(it) }
                     DemoScenarioV2.dividas.forEach { db.dividaDao().upsert(it) }
                     DemoScenarioV2.objetivos.forEach { db.objetivoDao().upsert(it) }
+                }
+                com.finai.app.data.prefs.FinaiPreferences(context).apply {
+                    setSafetyMarginCents(30_000)
+                    saveReconciliation(com.finai.app.domain.ReconciliationState(DemoScenarioV2.today.minusDays(2), 351_500, 0))
+                    clearDismissedInsights()
+                    setInitialSetupComplete(true)
+                    setOnboardingComplete(true)
+                    com.finai.app.domain.TipScript.screens.forEach { markTipsSeen(it) }
                 }
             } finally {
                 pending.finish()

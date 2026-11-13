@@ -1,0 +1,13 @@
+
+com.finai.app.data.local.Migration16To17Test:.
+com.finai.app.InboxV2Test:...
+com.finai.app.data.local.FinaiDatabaseMigrationTest:..
+com.finai.app.data.capture.CaptureRepositoryTest:......
+com.finai.app.data.local.Migration15To16Test:.
+com.finai.app.data.repository.FinanceRepositoryResetTest:.
+
+Time: 8.662
+
+OK (14 tests)
+
+

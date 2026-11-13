@@ -72,6 +72,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleSuggestionIntent(intent: Intent?) {
+        if (intent?.action == com.finai.app.data.notifications.InboxLinks.ACTION_OPEN) {
+            com.finai.app.data.notifications.InboxLinks.request()
+            intent.action = null
+        }
         if (intent?.action != CaptureNotifications.ACTION_OPEN_SUGGESTION) return
         val id = intent.getLongExtra(CaptureNotifications.EXTRA_SUGGESTION_ID, -1L)
         if (id >= 0) CaptureLinks.request(id)

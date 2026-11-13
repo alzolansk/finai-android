@@ -38,6 +38,7 @@ data class FinaiBackup(
     val mensagens: List<MensagemChatEntity>,
     val sugestoes: List<SugestaoLancamentoEntity> = emptyList(),
     val capturaApps: Set<String> = emptySet(),
+    val avisos: List<com.finai.app.data.local.entity.AvisoEntity> = emptyList(),
 ) {
     /** Resumo para a confirmação "substitui tudo": o que o arquivo traz. */
     fun summary(): String = listOf(
@@ -121,6 +122,11 @@ object BackupCodec {
                 .putOpt("avisadaEm", s.avisadaEm).putOpt("resolvidaEm", s.resolvidaEm).put("lancamentoIds", s.lancamentoIds)
         }))
         put("capturaApps", JSONArray(b.capturaApps.sorted()))
+        put("avisos", JSONArray(b.avisos.map { a ->
+            JSONObject().put("id", a.id).put("tipo", a.tipo).put("estado", a.estado).put("valorRef", a.valorRef)
+                .putOpt("vistoEm", a.vistoEm).putOpt("resolvidoEm", a.resolvidoEm)
+                .putOpt("dispensadoEm", a.dispensadoEm).putOpt("adiadoAte", a.adiadoAte)
+        }))
     }.toString(2)
 
     /** Lê e valida; [currentSchema] é a versão do banco deste app. */
@@ -218,6 +224,11 @@ object BackupCodec {
                     )
                 },
                 capturaApps = root.optJSONArray("capturaApps")?.let { arr -> (0 until arr.length()).map { arr.getString(it) }.toSet() } ?: emptySet(),
+                avisos = root.list("avisos") { o ->
+                    com.finai.app.data.local.entity.AvisoEntity(o.getString("id"), o.getString("tipo"),
+                        o.getString("estado"), o.optLong("valorRef"), o.stringOrNull("vistoEm"),
+                        o.stringOrNull("resolvidoEm"), o.stringOrNull("dispensadoEm"), o.stringOrNull("adiadoAte"))
+                },
             )
         } catch (e: BackupFormatException) {
             throw e

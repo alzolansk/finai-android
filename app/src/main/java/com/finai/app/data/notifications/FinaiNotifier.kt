@@ -32,17 +32,24 @@ class FinaiNotifier(private val context: Context) {
     /** Usado por "Apagar todos os dados": descarta notificações já entregues sobre dados que não existem mais. */
     fun cancelAll() = NotificationManagerCompat.from(context).cancelAll()
 
+    /** O lote entregue pode conter o aviso que acabou de ser dispensado/resolvido. */
+    fun cancelFinanceAlerts() {
+        NotificationManagerCompat.from(context).cancel(ALERTS_NOTIFICATION_ID)
+        NotificationManagerCompat.from(context).cancel(COACH_NOTIFICATION_ID)
+    }
+
     /** True se o app tem permissão para mostrar notificações agora — usado só para diagnóstico na tela de IA. */
     fun hasNotificationPermission(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return NotificationManagerCompat.from(context).areNotificationsEnabled()
         return ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun post(channelId: String, notificationId: Int, content: NotificationContent) {
-        if (!hasNotificationPermission()) return
+    private fun post(channelId: String, notificationId: Int, content: NotificationContent): Boolean {
+        if (!hasNotificationPermission()) return false
 
         val openAppIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            action = InboxLinks.ACTION_OPEN
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pendingIntent = PendingIntent.getActivity(
             context, notificationId, openAppIntent,
@@ -61,9 +68,11 @@ class FinaiNotifier(private val context: Context) {
 
         try {
             NotificationManagerCompat.from(context).notify(notificationId, notification)
+            return true
         } catch (_: SecurityException) {
             // Permissão revogada entre a checagem acima e o notify() — degrada silenciosamente,
             // consistente com planning.md §4 (a ausência de notificação nunca derruba o app).
+            return false
         }
     }
 

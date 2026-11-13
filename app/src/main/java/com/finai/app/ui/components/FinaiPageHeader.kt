@@ -177,6 +177,7 @@ data class HeaderActions(
     val onOpenAssistant: () -> Unit,
     /** Centro do sino em px da janela: o painel de avisos aponta a seta para ele. */
     val onBellCenterX: (Float) -> Unit = {},
+    val inbox: Boolean = false,
 )
 
 private object HeaderColors {
@@ -318,7 +319,7 @@ fun FinaiPageHeader(
                 {
                     HeaderIconButton(
                         onClick = a.onOpenNotifications,
-                        description = when (a.unreadCount) {
+                        description = if (a.inbox) (if (a.unreadCount == 0) "Caixa" else "Caixa, ${a.unreadCount} itens novos") else when (a.unreadCount) {
                             0 -> "Notificações"
                             1 -> "Notificações, 1 não lida"
                             else -> "Notificações, ${a.unreadCount} não lidas"
@@ -326,7 +327,7 @@ fun FinaiPageHeader(
                         modifier = Modifier.onGloballyPositioned { a.onBellCenterX(it.boundsInRoot().center.x) },
                     ) { tint ->
                         Box {
-                            HeaderGlyph(HeaderGlyphs.Bell, tint)
+                            HeaderGlyph(if (a.inbox) HeaderGlyphs.Inbox else HeaderGlyphs.Bell, tint)
                             if (a.unreadCount > 0) NotificationDot(Modifier.align(Alignment.TopEnd))
                         }
                     }
@@ -563,6 +564,7 @@ private fun AssistantOrb(onClick: () -> Unit) {
 
 /** Traços do cabeçalho, no grid 24 com traço 2 (bell/settings: desenho do Lucide, ISC). */
 private object HeaderGlyphs {
+    val Inbox = listOf("M4 4h16l2 12v4H2v-4L4 4z", "M2 14h6l2 3h4l2-3h6")
     val Bell = listOf(
         "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9",
         "M10.3 21a1.94 1.94 0 0 0 3.4 0",

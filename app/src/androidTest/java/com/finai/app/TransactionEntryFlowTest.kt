@@ -54,11 +54,12 @@ class TransactionEntryFlowTest {
                         AgendaScreen(
                             listState = androidx.compose.foundation.lazy.rememberLazyListState(),
                             monthIndex = date.monthValue - 1, year = date.year,
-                            onPrevMonth = {}, onNextMonth = {}, bills = emptyList(),
-                            toPayCents = 0, toPayCount = 0, toGetCents = 0, toGetCount = 0,
-                            recurringTransactions = emptyList(),
-                            transactions = entries, invoiceItemsByAccountId = emptyMap(),
-                            debtsDue = emptyList(), onPayInstallment = {},
+                            onPrevMonth = {}, onNextMonth = {},
+                            monthMovements = com.finai.app.domain.AgendaMonth.movements(
+                                emptyList(), entries, emptyList(), java.time.YearMonth.from(date), java.time.LocalDate.now(),
+                            ),
+                            entraCents = 0, saiCents = 0, sobraCents = 0,
+                            onPayInstallment = {},
                             onToggleContaPaga = { _, _ -> },
                             onDeleteTransaction = {}, onDeleteConta = {}, onEditConta = {},
                         )

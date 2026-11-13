@@ -57,6 +57,17 @@ data class MonthCashFlow(
     val fechamentoCents: Long
         get() = saldoCents - (receitas.sumOf { it.valorCentavos }) + (competenceIncomeCents ?: receitas.sumOf { it.valorCentavos })
 
+    /** "Entra" da Agenda › Mês: contas a receber + receitas pela competência ([fechamentoCents] = entra − sai). */
+    val entraCents: Long
+        get() = receivable.sumOf { it.valorCentavos } + (competenceIncomeCents ?: receitas.sumOf { it.valorCentavos })
+
+    /** "Sai" da Agenda › Mês: contas, gastos, parcelas e aportes do mês. */
+    val saiCents: Long get() = toPayCents + aportesCents
+
+    /** A competência mudou o "Entra" (salário dividido que cai no mês seguinte). */
+    val competenceShifted: Boolean
+        get() = competenceIncomeCents != null && competenceIncomeCents != receitas.sumOf { it.valorCentavos }
+
     companion object {
         fun of(
             contas: List<ContaEntity>,

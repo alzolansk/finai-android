@@ -3,6 +3,7 @@ package com.finai.app.state
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.finai.app.data.local.FinaiDatabase
 import com.finai.app.data.local.entity.AssinaturaEntity
 import com.finai.app.data.local.entity.ContaEntity
@@ -54,6 +55,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
 /**
@@ -66,9 +69,12 @@ import kotlinx.coroutines.launch
  * around the same five flows. [AppViewModel] keeps owning the overlay-only
  * UI state (chat, sheets) that has nothing to do with persisted data.
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = FinanceRepository(FinaiDatabase.get(application))
+    private val db = FinaiDatabase.get(application)
+    private val inbox = com.finai.app.data.repository.InboxRepository(db)
     private val prefs = com.finai.app.data.prefs.FinaiPreferences(application)
 
     /**
@@ -126,7 +132,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private val mesAtual = monthKey()
+    private val inboxDay = MutableStateFlow(LocalDate.now())
+    fun refreshInboxDay() { inboxDay.value = LocalDate.now() }
+
+    init {
+        viewModelScope.launch {
+            while (true) { kotlinx.coroutines.delay(60_000); refreshInboxDay() }
+        }
+    }
 
     val uiState: StateFlow<FinanceUiState> = combine(
         repository.contas,
@@ -138,15 +151,51 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         Snapshot(contas, objetivos, dividas, transacoes, faturasCartao, emptyList())
     }.combine(repository.assinaturas) { snapshot, assinaturas ->
         snapshot.copy(assinaturas = assinaturas)
-    }.combine(repository.orcamentosDoMes(mesAtual)) { snapshot, orcamentos ->
+    }.combine(inboxDay.flatMapLatest { repository.orcamentosDoMes(monthKey(it)) }) { snapshot, orcamentos ->
         snapshot to orcamentos
     }.combine(prefs.dismissedInsights) { (snapshot, orcamentos), dismissed ->
         Triple(snapshot, orcamentos, dismissed)
     }.combine(prefs.reconciliation) { (snapshot, orcamentos, dismissed), reconciliation ->
         Pair(Triple(snapshot, orcamentos, dismissed), reconciliation)
-    }.combine(prefs.safetyMarginCents) { (inputs, reconciliation), margin ->
+    }.combine(inboxDay) { inputs, _ -> inputs }.combine(prefs.safetyMarginCents) { (inputs, reconciliation), margin ->
         val (snapshot, orcamentos, dismissed) = inputs
         buildState(snapshot, orcamentos, dismissed, margin).copy(reconciliation = reconciliation)
+    }.combine(db.sugestaoLancamentoDao().observeAll()) { state, suggestions ->
+        val today = LocalDate.now()
+        val items = state.plan?.let { plan ->
+            com.finai.app.domain.inbox.InboxCatalog.build(state.rawContas, state.rawTransacoes, state.rawDividas,
+                plan, BudgetCalculator.forCategories(state.rawOrcamentos, state.rawTransacoesDoMes, today),
+                state.goalInsights, suggestions, today, state.behaviorPattern, state.alerts)
+        }.orEmpty()
+        state.copy(inboxItems = items)
+    }.onEach { state ->
+        val legacy = prefs.dismissedInsights.first()
+        // Os flows das tabelas podem emitir em instantes diferentes depois de uma transação.
+        // Não persistir um catálogo intermediário (principalmente durante restauração/limpeza).
+        db.withTransaction {
+            val sameSnapshot = db.contaDao().getAll().toSet() == state.rawContas.toSet() &&
+                db.transacaoDao().getAll().toSet() == state.rawTransacoes.toSet() &&
+                db.objetivoDao().getAll().toSet() == state.rawObjetivos.toSet() &&
+                db.dividaDao().getAll().toSet() == state.rawDividas.toSet() &&
+                db.faturaCartaoDao().getAll().toSet() == state.rawFaturasCartao.toSet() &&
+                db.orcamentoCategoriaDao().getAll().filter { it.mesReferencia == monthKey() }.toSet() == state.rawOrcamentos.toSet() &&
+                db.sugestaoLancamentoDao().getAll().filter { it.estado == "pendente" }.toSet() == state.inboxItems.mapNotNull { it.suggestion }.toSet()
+            if (sameSnapshot) inbox.synchronize(state.inboxItems, legacy, LocalDate.now())
+        }
+    }.combine(inbox.states) { state, states ->
+        val visible = com.finai.app.domain.inbox.InboxRules.visible(state.inboxItems, states, LocalDate.now())
+        val visibleInsights = visible.mapNotNull { it.insight }
+        val facts = state.plan?.let { plan -> state.goalsOverview?.let { overview ->
+            com.finai.app.domain.GoalPlanning.factsBlock(plan, overview, visibleInsights, state.rawDividas,
+                state.rawTransacoes.any { it.tipo == "Receita" && it.valorCentavos > 0 } || state.rawContas.any { it.tipo == "a_receber" },
+                LocalDate.now(), states.filter { it.estado == "dispensado" && it.id.startsWith("meta-") }.map { it.id.removePrefix("meta-") }.toSet())
+        } } ?: state.goalFacts
+        state.copy(inboxItems = visible, inboxStates = states,
+            goalInsights = visibleInsights, goalFacts = facts,
+            behaviorPattern = state.behaviorPattern?.takeIf { p -> visible.any { it.id == p.id } },
+            alerts = visible.mapNotNull { it.alert },
+            unreadInbox = visible.count { com.finai.app.domain.inbox.InboxRules.isNew(it, states) },
+            dismissedInbox = states.count { it.estado == "dispensado" && !it.id.startsWith("coach:") })
     }.catch { t ->
         // Uma exceção aqui (leitura do banco, ou um calculator diante de um dado
         // inesperado) cancelaria o StateFlow e levaria o app junto. Em vez disso
@@ -184,9 +233,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val goalsOverview = com.finai.app.domain.GoalPlanning.overview(plan, hasIncome, today)
         // O que o usuário dispensou some da tela e da lista "já vê" da IA; a decisão de manter
         // metas separadas vai para a IA como fato.
-        val (goalInsights, dismissedInsightCount) = com.finai.app.domain.GoalPlanning.visible(
-            com.finai.app.domain.GoalPlanning.insights(plan, goalsOverview, s.dividas, hasIncome, today), dismissed,
-        )
+        val goalInsights = com.finai.app.domain.GoalPlanning.insights(plan, goalsOverview, s.dividas, hasIncome, today)
+        val dismissedInsightCount = 0
         // Agenda sequencial: os mesmos ciclos do plano, em ordem. Falha aqui não pode levar o resto junto.
         val cashFlow = runCatching {
             com.finai.app.domain.CashFlowTimeline.build(s.contas, s.transacoes, s.dividas, today, plan.cycle)
@@ -270,12 +318,13 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             plan = plan,
             situation = com.finai.app.domain.HomeSituation.of(safe, payCycle, plan.free?.nextIncome),
             nextWeekBills = weekBills,
+            homeWeek = com.finai.app.domain.HomeWeek.movements(s.contas, s.transacoes, s.dividas, today),
             timeline = timelineExtras.map { it.toUiTimelineEntry() },
             timelineNote = if (timelineExtras.isEmpty())
                 "Nenhuma entrada extra neste ano. Toque em + para lançar 13º, bônus ou restituição — ou marque uma receita já lançada como extra na Agenda."
             else
                 "Somando as entradas extras cadastradas, você tem ${formatBrl0(timelineTotalCents / 100.0)} fora da renda recorrente neste ano.",
-            behaviorPattern = BehaviorCoach.detect(s.transacoes, today).firstOrNull(),
+            behaviorPattern = com.finai.app.domain.HomeCoach.detect(s.transacoes, today, dismissed),
             monthlyCapacityCents = monthlyCapacityCents,
             monthlyCapacityLabel = formatBrl0(monthlyCapacityCents / 100.0),
             goalsNeededCents = goalPlans.sumOf { it.monthlyContributionNeededCents },
@@ -543,6 +592,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         launchSafely("atualizar a conta") {
             val conta = uiState.value.rawContas.firstOrNull { it.id == contaId } ?: return@launchSafely
             repository.salvarConta(conta.copy(status = if (pago) "pago" else "pendente"))
+            FinaiNotifier(getApplication()).cancelFinanceAlerts()
         }
     }
 
@@ -663,7 +713,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     // ── orçamento ────────────────────────────────────────────────
     fun setBudgetLimit(categoria: String, limiteReais: Double) {
         launchSafely("salvar o limite da categoria") {
-            repository.salvarLimiteOrcamento(OrcamentoCategoriaEntity(categoria, Math.round(limiteReais * 100), mesAtual))
+            repository.salvarLimiteOrcamento(OrcamentoCategoriaEntity(categoria, Math.round(limiteReais * 100), monthKey()))
         }
     }
 
@@ -747,8 +797,22 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     /** "Manter separadas" / "Dispensar" num ponto de atenção de Objetivos. */
     fun dismissInsight(key: String) = launchSafely("dispensar o aviso") { prefs.dismissInsight(key) }
 
+    fun markInboxSeen(ids: Set<String>) = launchSafely("marcar os avisos como vistos") { inbox.markSeen(ids, LocalDate.now()) }
+    fun dismissInbox(item: com.finai.app.domain.inbox.InboxItem) = launchSafely("dispensar o aviso") {
+        inbox.dismiss(item, LocalDate.now())
+        FinaiNotifier(getApplication()).cancelFinanceAlerts()
+        if (item.kind == "coach") prefs.dismissInsight(item.id)
+    }
+    fun snoozeInbox(item: com.finai.app.domain.inbox.InboxItem, until: LocalDate) = launchSafely("adiar o aviso") {
+        inbox.snooze(item, until, LocalDate.now())
+        FinaiNotifier(getApplication()).cancelFinanceAlerts()
+    }
+    fun restoreInbox() = launchSafely("mostrar os avisos dispensados") { inbox.restoreDismissed() }
+
+    fun setSafetyMargin(cents: Long) = launchSafely("alterar a margem") { prefs.setSafetyMarginCents(cents) }
+
     /** "Mostrar dispensados": todos os pontos voltam, inclusive "manter separadas". */
-    fun restoreDismissedInsights() = launchSafely("mostrar os avisos dispensados") { prefs.clearDismissedInsights() }
+    fun restoreDismissedInsights() = restoreInbox()
 
     fun apagarTodosOsDados(onDone: () -> Unit = {}) {
         launchSafely("apagar todos os dados") {

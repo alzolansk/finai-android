@@ -13,12 +13,11 @@ import java.time.LocalDate
 /**
  * O cenário do protótipo v2 (planning-v2 §5), só no build debug: hoje é 08/11/2026, há R$ 3.480 em
  * conta, a fatura Nubank (R$ 1.320) vence em 10/11, o adiantamento de R$ 2.400 cai em 20/11 e o
- * Picpay vence em 05/12. Os números que a tela mostra têm que ser **iguais** aos do quadro:
+ * Picpay (parcela 5/12 de R$ 410) vence em 18/11. Os números têm que ser **iguais** aos do quadro:
  * R$ 3.480 em conta, menor saldo R$ 1.520 em 18/11, livre R$ 1.220 com margem de R$ 300, R$ 101/dia.
  *
- * O protótipo não estava acessível quando isto foi escrito (planning-v2 §11): os valores de
- * academia, condomínio e internet foram escolhidos para somar os R$ 1.960 que o quadro tira do
- * saldo até 18/11. Se o quadro tiver outros valores, ajuste aqui e em `DemoScenarioV2Test`.
+ * Conferido no protótipo autenticado em 08/11/2026: academia R$ 110 em 12/11, internet
+ * R$ 120 em 15/11 e Picpay R$ 410 em 18/11, além da fatura. Substitui os valores presumidos.
  *
  * Carregar no aparelho: `adb shell am broadcast -a com.finai.app.DEBUG_LOAD_DEMO -n com.finai.app/.debug.DemoScenarioReceiver`
  */
@@ -55,22 +54,22 @@ object DemoScenarioV2 {
 
     val contas = listOf(
         conta(1, "Fatura Nubank", 132_000, 11, 10),
-        conta(2, "Academia", 18_000, 11, 12),
-        conta(3, "Condomínio", 34_000, 11, 15),
-        conta(4, "Internet", 12_000, 11, 18),
+        conta(2, "Academia", 11_000, 11, 12),
+        conta(3, "Internet", 12_000, 11, 15),
+        conta(4, "Aluguel", 140_000, 11, 25),
     )
 
     val dividas = listOf(
         DividaEntity(
-            id = 1, nome = "Picpay", valorOriginalCentavos = 48_100 * 8, valorAbertoCentavos = 48_100 * 5,
-            taxaJurosMensalBasisPoints = 0, parcelasRestantes = 5, valorParcelaCentavos = 48_100,
-            parcelasTotais = 8, proximoVencimento = d(12, 5), diaVencimento = 5,
+            id = 1, nome = "Picpay", valorOriginalCentavos = 41_000 * 12, valorAbertoCentavos = 41_000 * 8,
+            taxaJurosMensalBasisPoints = 420, parcelasRestantes = 8, valorParcelaCentavos = 41_000,
+            parcelasTotais = 12, proximoVencimento = d(11, 18), diaVencimento = 18,
         ),
     )
 
     val objetivos = listOf(
-        ObjetivoEntity(id = 1, tipo = "Viagem", nome = "Chile", valorAlvoCentavos = 800_000, valorGuardadoCentavos = 240_000, prazo = d(7, 28, 2027), prioridade = 1),
-        ObjetivoEntity(id = 2, tipo = "Compra", nome = "Notebook", valorAlvoCentavos = 600_000, valorGuardadoCentavos = 120_000, prazo = d(3, 28, 2027), prioridade = 2),
-        ObjetivoEntity(id = 3, tipo = "Reserva", nome = "Reserva", valorAlvoCentavos = 0, valorGuardadoCentavos = 300_000, prazo = d(12, 31, 2027), prioridade = 3, aporteMensalCentavos = 20_000),
+        ObjetivoEntity(id = 1, tipo = "Viagem", nome = "Chile em julho", valorAlvoCentavos = 800_000, valorGuardadoCentavos = 320_000, prazo = d(7, 28, 2027), prioridade = 1),
+        ObjetivoEntity(id = 2, tipo = "Compra", nome = "Notebook", valorAlvoCentavos = 500_000, valorGuardadoCentavos = 90_000, prazo = d(3, 28, 2027), prioridade = 2),
+        ObjetivoEntity(id = 3, tipo = "Reserva", nome = "Reserva de emergência", valorAlvoCentavos = 0, valorGuardadoCentavos = 410_000, prazo = d(12, 31, 2027), prioridade = 3),
     )
 }

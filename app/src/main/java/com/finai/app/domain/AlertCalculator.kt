@@ -16,6 +16,7 @@ data class FinanceAlert(
     val title: String,
     val body: String,
     val kind: AlertKind,
+    val valueCents: Long = 0,
 )
 
 /**
@@ -123,6 +124,7 @@ object AlertCalculator {
             val quando = insight.daysSinceLastUse?.let { "sem uso há $it dias" } ?: "sem registro de uso"
             result += FinanceAlert(
                 id = "assinatura:${insight.assinatura.id}",
+                valueCents = insight.assinatura.valorCentavos,
                 kind = AlertKind.Subscription,
                 severity = AlertSeverity.Warning,
                 title = "${insight.assinatura.nome} $quando",

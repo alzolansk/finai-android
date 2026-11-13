@@ -59,6 +59,7 @@ data class FinanceUiState(
     val saldoCents: Long = 0,
     val saldoLabel: String = "",
     val nextWeekBills: List<WeekBill> = emptyList(),
+    val homeWeek: List<com.finai.app.domain.TimelineMovement> = emptyList(),
     val timeline: List<TimelineEntry> = emptyList(),
     val timelineNote: String = "",
     /** Padrão de gasto mais relevante do mês, calculado por [com.finai.app.domain.BehaviorCoach] — null se nenhum padrão passou dos limiares. */
@@ -128,6 +129,10 @@ data class FinanceUiState(
 
     /** Avisos do sino da topbar — planning.md §3.9, calculados por [com.finai.app.domain.AlertCalculator]. */
     val alerts: List<FinanceAlert> = emptyList(),
+    val inboxItems: List<com.finai.app.domain.inbox.InboxItem> = emptyList(),
+    val inboxStates: List<com.finai.app.data.local.entity.AvisoEntity> = emptyList(),
+    val unreadInbox: Int = 0,
+    val dismissedInbox: Int = 0,
 )
 
 /**

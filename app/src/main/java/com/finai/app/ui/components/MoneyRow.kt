@@ -2,6 +2,10 @@ package com.finai.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +44,9 @@ enum class MoneyRowState(val badge: String?, val speech: String?) {
     Plain(null, null),
 }
 
+/** Fundo da linha: transparente (dentro de um painel), cartão, renda (verde) ou menor saldo (âmbar). */
+enum class MoneyRowBackground { None, Card, Income, Low }
+
 /**
  * A linha de lista do app v2 (planning-v2 §6, Fase 0): avatar de 38 dp, nome + selo, subtítulo,
  * valor à direita (esmaecido quando já foi pago) e, opcionalmente, "fica R$ X" embaixo do valor.
@@ -48,6 +55,7 @@ enum class MoneyRowState(val badge: String?, val speech: String?) {
  * ("pago"/"pendente"). **Nenhuma caixinha de seleção**: tocar paga, tocar de novo reabre, e quem
  * chama decide isso em [onClick]. Só desenha; não conhece Room nem calcula nada.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MoneyRow(
     title: String,
@@ -63,11 +71,20 @@ fun MoneyRow(
     /** Fundo verde suave (a renda que abre o período na Agenda "A seguir"). */
     highlighted: Boolean = false,
     onClick: (() -> Unit)? = null,
+    background: MoneyRowBackground = if (highlighted) MoneyRowBackground.Income else MoneyRowBackground.None,
+    /** Cor do "fica R$ X" (âmbar no menor saldo, rosa se negativo). */
+    balanceAfterColor: Color? = null,
+    /** Toque longo: as outras ações (editar, excluir, itens da fatura), sem botão fixo na linha. */
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
+    /** Rótulo da ação do toque, lido pelo TalkBack ("marcar como paga", "reabrir"). */
+    onClickLabel: String? = null,
 ) {
     val settled = state == MoneyRowState.Paid || state == MoneyRowState.Received
     val shape = RoundedCornerShape(14.dp)
     val a11y = buildString {
-        append(title).append(", ").append(if (income) "entrada " else "saída ").append(amount)
+        append(title).append(", ").append(if (income) "entrada " else "saída ").append(amount.trimStart('−', '-', '+', ' '))
+        subtitle?.let { append(", ").append(it) }
         state.speech?.let { append(", ").append(it) }
         balanceAfter?.let { append(", ").append(it) }
     }
@@ -75,10 +92,26 @@ fun MoneyRow(
         modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(if (highlighted) FinaiColors.EmeraldSoftBg else androidx.compose.ui.graphics.Color.Transparent)
-            .let { if (onClick != null) it.clickable(role = Role.Button, onClick = onClick) else it }
+            .let { base ->
+                when (background) {
+                    MoneyRowBackground.None -> base
+                    MoneyRowBackground.Card -> base.background(FinaiColors.Surface).border(1.dp, FinaiColors.BorderHairline, shape)
+                    MoneyRowBackground.Income -> base.background(FinaiColors.EmeraldSoftBg).border(1.dp, FinaiColors.EmeraldSoftBorder, shape)
+                    MoneyRowBackground.Low -> base.background(FinaiColors.AmberSoftBg).border(1.dp, FinaiColors.Amber.copy(alpha = .35f), shape)
+                }
+            }
+            .let {
+                when {
+                    onClick != null && onLongClick != null -> it.combinedClickable(
+                        role = Role.Button, onClickLabel = onClickLabel, onLongClickLabel = onLongClickLabel,
+                        onLongClick = onLongClick, onClick = onClick,
+                    )
+                    onClick != null -> it.clickable(role = Role.Button, onClickLabel = onClickLabel, onClick = onClick)
+                    else -> it
+                }
+            }
             .heightIn(min = 60.dp)
-            .padding(horizontal = 4.dp, vertical = 10.dp)
+            .padding(horizontal = if (background == MoneyRowBackground.None) 4.dp else 12.dp, vertical = 10.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = a11y
                 state.speech?.let { stateDescription = it }
@@ -100,7 +133,7 @@ fun MoneyRow(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
                 state.badge?.let { badge ->
                     Text(
@@ -110,7 +143,7 @@ fun MoneyRow(
                     )
                 }
             }
-            subtitle?.let { Text(it, fontSize = 13.sp, color = FinaiColors.TextMuted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            subtitle?.let { Text(it, fontSize = 13.sp, color = FinaiColors.TextMuted, maxLines = 2, overflow = TextOverflow.Ellipsis) }
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
@@ -118,7 +151,12 @@ fun MoneyRow(
                 color = if (income) FinaiColors.EmeraldDark else FinaiColors.TextPrimary,
                 modifier = Modifier.alpha(if (settled) 0.55f else 1f),
             )
-            balanceAfter?.let { Text(it, fontSize = 12.sp, color = FinaiColors.TextMuted) }
+            balanceAfter?.let {
+                Text(
+                    it, fontSize = 12.sp, color = balanceAfterColor ?: FinaiColors.TextMuted,
+                    fontWeight = if (balanceAfterColor != null) FontWeight.SemiBold else FontWeight.Normal,
+                )
+            }
         }
     }
 }

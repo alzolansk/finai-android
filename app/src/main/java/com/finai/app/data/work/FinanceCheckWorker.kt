@@ -78,15 +78,23 @@ class FinanceCheckWorker(
         val subscriptionInsights = SubscriptionCalculator.insights(assinaturas, today)
 
         // ── 2. Detecção de eventos — mesma regra determinística da tela ────
-        val shortfall = plan.cycle?.shortfall
-        val alerts = AlertCalculator.alerts(contas, budgetProgress, subscriptionInsights, goalPlans, today, shortfall)
-        val pattern = BehaviorCoach.detect(transacoes, today).firstOrNull()
+        val prefs = com.finai.app.data.prefs.FinaiPreferences(context)
+        val dismissed = prefs.dismissedInsights.first()
+        val pattern = com.finai.app.domain.HomeCoach.detect(transacoes, today, dismissed)
+        val hasIncome = transacoes.any { it.tipo == "Receita" && it.valorCentavos > 0 } || contas.any { it.tipo == "a_receber" }
+        val overview = com.finai.app.domain.GoalPlanning.overview(plan, hasIncome, today)
+        val insights = com.finai.app.domain.GoalPlanning.insights(plan, overview, dividas, hasIncome, today)
+        val inbox = com.finai.app.data.repository.InboxRepository(db)
+        val items = com.finai.app.domain.inbox.InboxCatalog.build(contas, transacoes, dividas, plan,
+            budgetProgress, insights, db.sugestaoLancamentoDao().observeAll().first(), today, pattern,
+            AlertCalculator.alerts(contas, budgetProgress, subscriptionInsights, goalPlans, today, plan.shortfall))
+        inbox.synchronize(items, dismissed, today)
+        val alerts = com.finai.app.domain.inbox.InboxRules.visible(items, inbox.states.first(), today).mapNotNull { it.alert }
 
         // ── 3. Deduplicação — só o que ainda não foi notificado hoje ───────
         val newAlerts = alerts.filter { dedupe.shouldSend(it.id, today) }
-        val newPattern = pattern?.takeIf { dedupe.shouldSend(it.id, today) }
 
-        if (newAlerts.isEmpty() && newPattern == null) {
+        if (newAlerts.isEmpty()) {
             FinaiLog.i(TAG, "Nada de novo para notificar hoje — nenhuma chamada de IA, nenhuma notificação.")
         } else {
             // Router só é criado (e só é chamado) quando existe algo para redigir — planning.md §9's
@@ -98,14 +106,12 @@ class FinanceCheckWorker(
 
             if (newAlerts.isNotEmpty()) {
                 val content = contentBuilder.forAlerts(newAlerts)
-                notifier.notifyAlerts(content, FinaiNotifier.ALERTS_NOTIFICATION_ID)
-                newAlerts.forEach { dedupe.markSent(it.id, today) }
-            }
-
-            if (newPattern != null) {
-                val content = contentBuilder.forCoach(newPattern)
-                notifier.notifyCoach(content, FinaiNotifier.COACH_NOTIFICATION_ID)
-                dedupe.markSent(newPattern.id, today)
+                // A dispensa pode acontecer enquanto a IA redige: conferir o Room de novo.
+                val currentIds = com.finai.app.domain.inbox.InboxRules.visible(items, inbox.states.first(), today).map { it.id }.toSet()
+                val stillActive = newAlerts.filter { it.id in currentIds }
+                if (stillActive.size == newAlerts.size && notifier.notifyAlerts(content, FinaiNotifier.ALERTS_NOTIFICATION_ID)) {
+                    newAlerts.forEach { dedupe.markSent(it.id, today) }
+                }
             }
         }
 

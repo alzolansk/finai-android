@@ -39,6 +39,18 @@ class BackupCodecTest {
         assertEquals(backup, decoded)
     }
 
+    @Test fun inboxStatesSurviveBackupAndOldBackupsRemainReadable() {
+        val states = listOf(
+            com.finai.app.data.local.entity.AvisoEntity("limite-Lazer-2026-11", "limite:0", "dispensado", 18000,
+                vistoEm = "2026-11-08", dispensadoEm = "2026-11-08"),
+            com.finai.app.data.local.entity.AvisoEntity("conta-1-2026-11", "conta:0", "adiado", 132000,
+                vistoEm = "2026-11-08", adiadoAte = "2026-11-10"),
+        )
+        val current = backup.copy(schemaVersion = 17, avisos = states)
+        assertEquals(current, BackupCodec.decode(BackupCodec.encode(current), 17))
+        assertTrue(BackupCodec.decode(BackupCodec.encode(backup), 17).avisos.isEmpty())
+    }
+
     @Test fun neverCarriesAiKeysOrUsage() {
         val json = BackupCodec.encode(backup)
         assertFalse(json.contains("uso_provedor", ignoreCase = true))

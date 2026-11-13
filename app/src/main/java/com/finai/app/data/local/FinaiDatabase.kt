@@ -36,7 +36,7 @@ import com.finai.app.data.local.entity.TesteNotificacaoEntity
  * per planning.md §4's privacy-first requirement.
  */
 /** Versão do schema do Room — também é a que o backup exportado carrega (Fase 7, item 12). */
-const val FINAI_DB_VERSION = 16
+const val FINAI_DB_VERSION = 17
 
 @Database(
     entities = [
@@ -52,6 +52,7 @@ const val FINAI_DB_VERSION = 16
         NotificacaoEnviadaEntity::class,
         SugestaoLancamentoEntity::class,
         TesteNotificacaoEntity::class,
+        com.finai.app.data.local.entity.AvisoEntity::class,
     ],
     version = FINAI_DB_VERSION,
     // Fase 6: o schema de cada versão passa a ser exportado para
@@ -74,6 +75,7 @@ abstract class FinaiDatabase : RoomDatabase() {
     abstract fun notificacaoEnviadaDao(): NotificacaoEnviadaDao
     abstract fun sugestaoLancamentoDao(): SugestaoLancamentoDao
     abstract fun testeNotificacaoDao(): TesteNotificacaoDao
+    abstract fun avisoDao(): com.finai.app.data.local.dao.AvisoDao
 
     companion object {
 
@@ -274,7 +276,13 @@ abstract class FinaiDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `avisos` (`id` TEXT NOT NULL, `tipo` TEXT NOT NULL, `estado` TEXT NOT NULL, `valorRef` INTEGER NOT NULL, `vistoEm` TEXT, `resolvidoEm` TEXT, `dispensadoEm` TEXT, `adiadoAte` TEXT, PRIMARY KEY(`id`))")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
 
         @Volatile private var instance: FinaiDatabase? = null
 

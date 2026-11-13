@@ -1,0 +1,8 @@
+
+com.finai.app.InboxV2VisualTest:.
+
+Time: 19.643
+
+OK (1 test)
+
+

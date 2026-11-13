@@ -229,6 +229,9 @@ interface NotificacaoEnviadaDao {
 /** Sugestões do lançamento por notificação — ver [SugestaoLancamentoEntity]. */
 @Dao
 interface SugestaoLancamentoDao {
+    @Query("SELECT * FROM sugestoes_lancamento")
+    suspend fun getAll(): List<SugestaoLancamentoEntity>
+
     @Query("SELECT * FROM sugestoes_lancamento ORDER BY capturadoEm DESC, id DESC")
     fun observeAll(): Flow<List<SugestaoLancamentoEntity>>
 

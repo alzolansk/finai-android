@@ -277,8 +277,21 @@ class FinanceRepository(private val db: FinaiDatabase) {
         transacoes.forEach { transacaoDao.upsert(it) }
     }
 
-    suspend fun salvarConta(conta: ContaEntity) =
-        if (conta.id == 0L) contaDao.upsert(conta) else contaDao.update(conta).let { conta.id }
+    suspend fun salvarConta(conta: ContaEntity): Long = db.withTransaction {
+        val previous = contaDao.getAll().firstOrNull { it.id == conta.id }
+        val id = if (conta.id == 0L) contaDao.upsert(conta) else contaDao.update(conta).let { conta.id }
+        val avisoId = "conta-$id-${YearMonth.from(conta.vencimento.toLocalDate())}"
+        val aviso = db.avisoDao().getAll().firstOrNull { it.id == avisoId }
+        if (conta.status == "pago" && aviso != null) {
+            db.avisoDao().upsert(aviso.copy(estado = "resolvido", resolvidoEm = LocalDate.now().toString()))
+        } else if (previous?.status == "pago" && conta.status != "pago") {
+            // Reabrir explicitamente pela Agenda é uma nova decisão do usuário, como Desfazer.
+            db.avisoDao().upsert(com.finai.app.data.local.entity.AvisoEntity(avisoId,
+                "${if (conta.tipo == "a_receber") "entrada" else "conta"}:${if (conta.vencimento.toLocalDate().isBefore(LocalDate.now())) 1 else 0}",
+                valorRef = conta.valorCentavos))
+        }
+        id
+    }
     suspend fun excluirConta(conta: ContaEntity) = db.withTransaction {
         faturaCartaoDao.getAll().filter { it.contaId == conta.id }.forEach { invoice ->
             transacaoDao.getAll().filter { it.faturaId == invoice.id }.forEach { transacaoDao.delete(it) }
@@ -336,6 +349,8 @@ class FinanceRepository(private val db: FinaiDatabase) {
      */
     /** Retrato de todas as tabelas de dado do usuário, para exportar (Fase 7, item 12). */
     suspend fun exportar(schemaVersion: Int, now: Long): com.finai.app.data.backup.FinaiBackup = db.withTransaction {
+        val realSuggestions = sugestaoDao.getReal()
+        val realSuggestionIds = realSuggestions.map { it.id }.toSet()
         com.finai.app.data.backup.FinaiBackup(
             schemaVersion = schemaVersion,
             exportedAt = now,
@@ -348,7 +363,8 @@ class FinanceRepository(private val db: FinaiDatabase) {
             assinaturas = assinaturaDao.getAll(),
             mensagens = mensagemChatDao.getAll(),
             // Só as reais; o texto original não sai do aparelho (o codec também o descarta).
-            sugestoes = sugestaoDao.getReal().map { it.copy(textoOriginal = null) },
+            sugestoes = realSuggestions.map { it.copy(textoOriginal = null) },
+            avisos = db.avisoDao().getAll().filterNot { it.id.startsWith("captura-") && it.id.removePrefix("captura-").toLongOrNull() !in realSuggestionIds },
         )
     }
 
@@ -368,6 +384,7 @@ class FinanceRepository(private val db: FinaiDatabase) {
             assinaturaDao.deleteAll()
             mensagemChatDao.deleteAll()
             notificacaoEnviadaDao.deleteAll()
+            db.avisoDao().deleteAll()
             sugestaoDao.deleteAll()
             testeNotificacaoDao.deleteAll()
             backup.contas.forEach { contaDao.upsert(it) }
@@ -379,6 +396,7 @@ class FinanceRepository(private val db: FinaiDatabase) {
             backup.assinaturas.forEach { assinaturaDao.upsert(it) }
             backup.mensagens.forEach { mensagemChatDao.insert(it) }
             backup.sugestoes.forEach { sugestaoDao.insert(it.copy(textoOriginal = null, testeId = null)) }
+            backup.avisos.forEach { db.avisoDao().upsert(it) }
         }
     }
 
@@ -394,6 +412,7 @@ class FinanceRepository(private val db: FinaiDatabase) {
             mensagemChatDao.deleteAll()
             notificacaoEnviadaDao.deleteAll()
             // Lançamento por notificações: sugestões (e os vínculos que elas guardam) e testes.
+            db.avisoDao().deleteAll()
             sugestaoDao.deleteAll()
             testeNotificacaoDao.deleteAll()
         }

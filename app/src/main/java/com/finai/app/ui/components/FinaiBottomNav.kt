@@ -126,7 +126,7 @@ object FinaiNavBarSpec {
 private class NavTabSpec(val destination: FinaiDestination, val label: String, val icon: ImageVector)
 
 private val NavTabs = listOf(
-    NavTabSpec(FinaiDestination.Home, "Início", Icons.Filled.Home),
+    NavTabSpec(FinaiDestination.Home, "Hoje", Icons.Filled.Home),
     NavTabSpec(FinaiDestination.Agenda, "Agenda", Icons.Outlined.CalendarToday),
     NavTabSpec(FinaiDestination.Goals, "Objetivos", Icons.Outlined.Adjust),
     NavTabSpec(FinaiDestination.Debts, "Dívidas", Icons.Outlined.CreditCard),

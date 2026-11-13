@@ -10,12 +10,16 @@ ordem, onde no código e como conferir**.
 
 | Fase | Estado | Data |
 | --- | --- | --- |
-| 0 · Base | ✅ implementada (`MoneyRow` ainda sem tela: ver ressalva 7) | 08/11/2026 |
+| 0 · Base | ✅ implementada (`MoneyRow` ligado à Hoje; Agenda na fase 4) | 08/11/2026 |
 | 1 · Motor de saldo | ✅ implementada e conferida no emulador | 08/11/2026 |
-| 2–11 | não iniciadas | |
+| 2 · Hoje e "De onde vem o livre" | ✅ implementada e validada no emulador, com ressalvas; M1 no celular pendente | 08/11/2026 |
+| 3 · Caixa | ✅ implementada e validada no emulador, com ressalvas | 08/11/2026 |
+| 4 · Agenda | ✅ implementada, com ressalvas; validação visual no emulador adiada pelo usuário | 08/11/2026 |
+| 5–11 | não iniciadas | |
 
-Branch `claude/awesome-hawking-pdynac`. 439 testes JVM verdes, `assembleDebug` e `assemblePessoal` ok.
-O Room continua na v16 (nenhuma migração nas fases 0–1).
+Branch `claude/awesome-hawking-pdynac`. Evidência anterior das fases 0–1: 439 testes JVM verdes,
+`assembleDebug` e `assemblePessoal` ok. Evidências atuais da fase 2 registradas abaixo.
+Room v17 desde a fase 3; as fases 0–2 não alteraram o schema.
 
 ### Fase 0 — o que foi feito
 - `Categorias.all` é a lista única de 10 (Alimentação, Moradia, Transporte, Saúde, Lazer, Compras, Educação,
@@ -32,7 +36,7 @@ O Room continua na v16 (nenhuma migração nas fases 0–1).
 ### Fase 1 — o que foi feito
 - `domain/balance/`: `AccountBalance` (regra 1), `NextIncomeFinder`/`NextIncome` (regra 3) e `FreeToSpend`
   (regra 2, com a série diária, o "vai sair", a falta e o bloco da IA). Margem em
-  `FinaiPreferences.safetyMarginCents` (padrão R$ 300; **ainda sem tela para trocar**, vem na Fase 2).
+  `FinaiPreferences.safetyMarginCents` (padrão R$ 300; tela para trocar entregue na fase 2).
 - Ligados ao motor novo: `FinancialPlan.build` (livre, reserva, falta, `safe`), `HomeSituation` (rótulo
   "LIVRE ATÉ O ADIANTAMENTO · 20/11"; por dia em reais inteiros, para baixo), `SpendExplanation` (conta
   "em conta − vai sair − margem = livre"), o bloco da IA (`aiCashFlowBlock`), o sino/worker, o simulador de
@@ -42,13 +46,188 @@ O Room continua na v16 (nenhuma migração nas fases 0–1).
   o adiantamento de 20/11, 12 dias, **R$ 3.480** em conta e menor saldo **R$ 1.520 em 18/11**
   (`docs/v2-qa/fase-1/`).
 
+### Fase 2 — Hoje e "De onde vem o livre" (08/11/2026)
+
+- **Bloqueio de acesso resolvido pelo login do usuário.** A primeira tentativa mostrou
+  "Sign in to view this page" e não houve implementação naquele momento. Após o login,
+  o endereço antigo abriu o artefato autenticado "FinAI — Auditoria de design e IA", página
+  "Protótipo v2", do mesmo UUID `da97f6eb-cc62-4dac-9696-e7932729f96a`.
+  Conferidos o canvas, Hoje e Livre em Play, o selo Pago, a lista expandida das saídas,
+  Agenda, Lançar e as regras 1, 2, 3 e 9.
+- **Regularização das fases 0–1:** cenário debug corrigido para fatura R$ 1.320 em 10/11,
+  academia R$ 110 em 12/11, internet R$ 120 em 15/11 e Picpay R$ 410 (5/12) em 18/11.
+  Condomínio presumido removido; aluguel R$ 1.400 em 25/11. Metas corrigidas para
+  Chile R$ 3.200/8.000, Notebook R$ 900/5.000 e reserva contínua R$ 4.100.
+  O teste agora confere a composição dos R$ 1.960, além dos totais de saldo/livre.
+- `HomeScreen`: título Hoje e data; cartão único de livre/falta e saldo, barra de três partes,
+  conferência e Por quê, simulador; 7 dias com `MoneyRow`, selo e alternância paga/pendente
+  via persistência existente; parcelas e lançamentos reutilizam as folhas da Agenda.
+  Depois coach e duas metas. Balanço, segundo cartão de saldo, decisões e linha do ano saíram.
+- `FreeExplainedScreen`: tela inteira com gráfico diário (inclui a próxima renda como referência,
+  fora da janela do livre), mínimo âmbar, conta de cinco linhas e movimentos expansíveis.
+  Margem Sem/150/300/500/personalizada em DataStore; conferência bancária reutiliza
+  `Reconciliation` e `FinanceViewModel.reconcile`, com estado de salvamento e erro.
+  Zero digitado é válido e centavos são preservados na apresentação e na gravação.
+- `HomeWeek` usa os movimentos da Agenda e mantém a conta paga na semana para reabrir.
+  `HomeCoach` compara com a média dos três meses completos anteriores (estritamente > 1,6×),
+  exclui futuro e sistema e grava "Já sei" em `dismissedInsights`, com chave estável.
+  Nenhuma chamada de IA na Hoje. Sem migração: Room permanece v16.
+- **Validação concluída no emulador:** 448 testes JVM e 4 instrumentados verdes na versão
+  final; smoke do app completo passou em 390 × 844 dp e 320 × 844 dp/fonte 150%, nos dois
+  temas. Capturas conferidas e exportadas. Builds debug, androidTest e `assemblePessoal`
+  verdes; APK em `app/build/outputs/apk/pessoal/app-pessoal.apk` (16.789.674 bytes).
+  O marco M1 continua pendente de uso no celular. TalkBack real e suíte instrumentada
+  completa não foram executados. Resultados e diferenças: `docs/v2-qa/fase-2/README.md`.
+
+#### Ressalvas da fase 2 para regularização posterior
+
+1. Caixa ainda abre o painel de avisos atual; ponto ainda segue o estado antigo. Persistência
+   e conteúdo da Caixa são fase 3. A engrenagem de Configurações continua acessível no topo.
+2. Barra inferior mantém Objetivos/Dívidas; Hoje foi renomeada. Gastos/Planos e os destinos
+   correspondentes são fases 6–7; "Ver gastos" abre Limites e "Planos" abre Objetivos por enquanto.
+3. A sugestão de margem de quatro dias no quadro foi substituída pelo padrão **fixo de R$ 300**
+   já decidido na §8. Não há ajuste automático pela média de gasto.
+4. Mantida a regra da fase 1: usar a margem sem saldo negativo deixa livre zero, sem chamar
+   a diferença de falta. Entradas antes do mínimo tornam "vai sair" uma queda líquida;
+   a explicação identifica entradas e saídas, sem somar novamente os movimentos depois do mínimo.
+5. Coach da tela usa regra nova e dispensa em DataStore. Worker ainda usa `BehaviorCoach` antigo;
+   integrar dispensa/notificações e memória do assistente nas fases 3/9. A ação de Objetivos
+   "Mostrar dispensados" ainda limpa o conjunto compartilhado, inclusive dispensas do coach.
+6. O cenário reproduz os movimentos conferidos de caixa e os saldos das metas, mas não inventa
+   o histórico de pedidos dos três meses nem o gasto necessário para a cobertura da reserva.
+   Usa âncora sintética de R$ 3.480 e data de conferência em 06/11; não reconstrói o histórico
+   de conciliação R$ 3.515/−R$ 35 citado no quadro de regras.
+   Portanto coach, cobertura em dias e sugestão de R$ 600 no Chile não são valores fixos de UI:
+   dependem dos registros e das regras atuais (o plano prioriza Picpay pelos juros de 4,2%).
+7. Sem renda recorrente mantém o fallback mensal da fase 1 e avisa isso; gráfico só com a
+   janela disponível. Conciliação permanece **global**, mesmo selecionando a conta do ajuste:
+   com várias contas, comparar a soma dos saldos, como a tela explica.
+8. Fechamento escondido até a fase 10. Dicas/tour e limpeza do código antigo ficam na fase 11.
+   Em 320 dp com fonte 150%, a barra inferior antiga trunca rótulos e o `MoneyRow` pago
+   comprime título/subtítulo até reticências: regularizar o arranjo da linha e a navegação/fase 11.
+   Teste em celular, TalkBack real e APIs antigas devem ser registrados
+   separadamente; não considerar o aceite de acessibilidade final encerrado.
+
+### Fase 3 — Caixa (08/11/2026)
+
+- **Protótipo acessível antes de implementar:** sessão autenticada abriu o mesmo UUID;
+  conferidos `v2/Caixa` em Play, seus três grupos, ações, rodapé e a regra 8 de `v2/Logicas`.
+- **Room 16→17:** tabela `avisos`, migração não destrutiva e `17.json` gerado pelo KSP.
+  IDs por evento, valor de referência, visto, resolução, dispensa e adiamento persistidos.
+  Primeira leitura migra dispensas antigas do DataStore uma vez, inclusive quando o título mudou.
+  Dispensado só reabre ao atingir limite, passar a atraso ou variar **mais de 20%**;
+  adiado volta na data. Resolver uma conta ou captura é persistido junto da ação;
+  reabrir explicitamente a conta ou desfazer a captura gera estado novo.
+- **Caixa como rota:** ícone no topo de todas as telas e intent de notificação financeira;
+  grupos Para confirmar / Agir até o dia / Acompanhar, contagem de pendentes, estado vazio,
+  dispensa e Desfazer tudo. O ponto do cabeçalho é derivado dos não vistos no Room;
+  abrir a Caixa marca vistos. Sai o painel antigo e a pílula “N para confirmar” das telas.
+- **Capturas preservadas:** Salvar direto apenas com dados completos e sem possível duplicata;
+  caso contrário, revisão existente. Editar abre o formulário preenchido. Ignorar e Desfazer
+  mantêm a gravação transacional/idempotente e a regra de não gravar sem confirmação.
+  O quadro Movimentação encontrada continua disponível fora da Caixa.
+- **Um catálogo para tela/worker:** `InboxCatalog` + `InboxRules`, incluindo pontos de metas
+  (saem de Objetivos) e coach novo. Worker respeita visto/dispensa/resolução/adiamento,
+  mantém dedupe diário e só marca envio quando publicado. “Já sei” também o silencia.
+  Notificações já entregues são canceladas ao pagar/dispensar/adiar.
+- **Backup e limpeza:** estados incluídos no arquivo e no reset; sugestões de teste continuam
+  fora do backup. Sincronização confere o snapshot antes de persistir, para não recriar avisos
+  antigos durante uma limpeza/restauração. Cenário debug também limpa os estados da fase 3.
+- **Validação:** builds debug/androidTest e 461 JVM verdes; 14 instrumentados direcionados
+  passaram (Caixa, migração 16→17 e cadeia anterior, captura e reset). Smoke do app completo
+  passou em 390 dp e 320 dp/fonte 150%, nos dois temas, com capturas. Ações empilhadas com
+  fonte ampliada corrigem a quebra de palavras encontrada na conferência visual.
+  Resultados, capturas e roteiro: `docs/v2-qa/fase-3/README.md`.
+
+#### Ressalvas da fase 3 para regularização posterior
+
+1. **Destinos e planejamento antigos:** Ver gastos abre Limites; metas/dívidas usam as telas
+   atuais. Gastos e Planos, com cálculos/conteúdo novos, continuam nas fases 6–7.
+2. **“Já sei” e decisões permanentes:** coach continua em DataStore, sincronizado com a Caixa
+   e o worker; memória consultável do assistente fica para a fase 9. Desfazer tudo da Caixa
+   não limpa os padrões que o usuário confirmou conhecer.
+3. **Migração de dispensas:** o app antigo não gravava valor de referência. A migração mantém
+   a dispensa e estabelece a referência na primeira observação; não reconstitui o valor histórico.
+4. **Adiamento não é alarme exato:** volta na data ao abrir/retomar o app; entrega fora dele
+   depende de WorkManager e permissão do Android. Sem promessa de horário fixo.
+5. **Diferenças visuais deliberadas:** botões verdes/cabeçalho do app; valor em linha própria
+   para acomodar fonte grande; Editar/Dispensar explícitos. Comparação por hierarquia e ordem,
+   conforme §5, sem reprodução por pixel.
+6. **Não validados:** aparelho físico, TalkBack real, APIs antigas, notificações reais de banco,
+   entrega durante 24 horas, IA com chave real e suíte instrumentada completa. M1 permanece
+   pendente; M2 só termina com as fases 3–5 e uso no celular.
+7. **APK pessoal:** não regenerado nesta fase; o APK pessoal da fase 2 não contém a Caixa nova.
+   O build debug desta fase está em `app/build/outputs/apk/debug/app-debug.apk`.
+
+As pendências da fase 2 sobre painel antigo, ponto em memória, dispensa própria em Objetivos
+e worker com coach antigo foram regularizadas acima. As demais ressalvas anteriores continuam.
+
+### Fase 4 — Agenda (08/11/2026)
+
+- **Referência lida antes de implementar:** `project/v2/Agenda.dc.html` e `v2/Logicas` do mesmo
+  artefato (lidos pelos arquivos do canvas; o navegador pedia login). Abas "A seguir" e "Novembro".
+- **Domínio:** `AgendaBalance.build` passou a seguir as regras do livre (`FreeToSpend`): pagamento
+  atrasado **de qualquer mês** cai hoje (resolve a ressalva 6 das fases 0–1); entrada atrasada aparece
+  mas não entra no saldo (`unconfirmedInflows`); conta paga adiantada fica no lugar
+  (`settledAhead`) e já está no saldo de hoje; `lowestBeforeIncome` = menor saldo até a véspera da
+  próxima renda (o mesmo da Hoje). `AgendaAhead.rows` monta as linhas (marca "HOJE · em conta",
+  divisor "começa com R$ X · nada zera", cabeçalho do dia da renda, menor saldo).
+  `AgendaMonth.movements` monta a aba do mês (mesmas regras + transferências neutras).
+  `MonthCashFlow` ganhou `entraCents`/`saiCents`/`competenceShifted` (Sobra = `fechamentoCents`,
+  o antigo balanço da Início).
+- **UI:** abas "A seguir" | <nome do mês>; as duas usam `MoneyRow` (sem caixinha, selo
+  "Pago"/"Recebido", valor esmaecido, estado lido pelo TalkBack). "A seguir": texto de abertura,
+  "fica R$ X" por linha, menor saldo em âmbar, renda com fundo verde, entradas extras na lista,
+  bloco recolhido de anteriores (linhas tocáveis). "Mês": navegação como antes, Entra / Sai /
+  Sobra, grupos "Já passou" e "A partir de hoje". Tocar conta paga/reabre; parcela abre a folha
+  (as duas abas); lançamento abre a folha. **Segurar** a conta abre `BillSheet` (itens da fatura,
+  editar, excluir), que substitui o menu ⋮ das linhas; a dica `agenda.bill` diz isso.
+  `MoneyRow` ganhou fundo (cartão/renda/menor saldo), toque longo, rótulos de ação e título/
+  subtítulo em até 2 linhas (melhora a compressão com fonte 150% citada na fase 2).
+  O cartão de parcelamentos saiu da Agenda e foi para **Dívidas** (único acesso à tela de
+  Parcelamentos até Compromissos, fase 7).
+- **Validação:** `assembleDebug`, `assembleDebugAndroidTest` e `testDebugUnitTest` verdes;
+  **470 testes JVM**, zero falhas (novos: `AgendaBalanceTest` 7, `AgendaV2DemoTest` 2). Com o
+  cenário de demonstração os números batem com o quadro: em conta R$ 3.480 → fica 2.160 → 2.050
+  → 1.930 → menor saldo 1.520 (18/11) → 3.920 → 2.520; dezembro começa com R$ 2.520.
+  Instrumentado novo `AgendaV2Test` (tocar paga/reabre, selo, `stateDescription`, sem caixinha nas
+  duas abas, três números, toque longo). Rodada inicial no emulador (antes do pedido para parar):
+  `AgendaV2Test` 3/3 verdes; `HomeV2Test.paidRowReopensAndPersistsInRoom` falhou uma vez por
+  corrida (checava a tela no mesmo quadro da gravação; passou 2× isolado) e foi endurecido, junto
+  com o `AgendaV2Test`; `TransactionEntryFlowTest.transferRoomAndAgenda` falha como antes desta
+  fase (já registrado no CLAUDE.md). **A pedido do usuário, a validação no emulador parou aqui**:
+  os testes endurecidos foram só compilados, e não houve smoke, capturas nem comparação visual.
+
+#### Ressalvas da fase 4 para regularização posterior
+
+1. **Validação visual pendente (feita pelo usuário depois):** smoke em 390 dp e 320 dp/fonte 150%,
+   tema claro/escuro, capturas em `docs/v2-qa/fase-4/` e o checklist da §6 não foram feitos.
+   Os instrumentados endurecidos (`AgendaV2Test`, `HomeV2Test`) não foram reexecutados.
+2. **Busca no topo** do quadro não entrou: leva a Gastos com o campo focado, que é a fase 6.
+3. **Números da aba do mês diferem do quadro** (R$ 6.000 / 5.180 / 820): o app mostra
+   R$ 6.000 / 3.360 / 2.640 no cenário, porque Sai é o que está lançado (contas, gastos, parcelas,
+   aportes), sem gasto médio variável nem o "Mercado 02/11" do quadro, que o cenário não tem.
+   Entra é pela competência (o saldo do salário que cai em 05/12 conta em novembro; nota
+   "Salário conta no mês trabalhado" aparece embaixo).
+4. **13º (1ª parcela) não está no cenário de demonstração**; a regra de entrada extra na lista está
+   coberta por `AgendaBalanceTest`. Adicioná-lo mudaria as projeções de metas da Hoje.
+5. **Diferenças deliberadas de desenho:** a data entra sempre no subtítulo ("10/11 · cartão · N
+   compras"); o dia do salário dividido ganha cabeçalho também em dezembro ("saldo"); a nota de
+   menor saldo usa a janela até a próxima renda; selos antigos (Recorrente, Importado,
+   Notificação) viraram texto no subtítulo; o cartão "Saldo hoje → Fim de dezembro" saiu
+   (substituído pela marca "HOJE · em conta").
+6. **Ações escondidas no toque longo:** editar/excluir conta e "Ver itens da fatura" só aparecem
+   segurando a linha (e pela ação do TalkBack). Conferir no celular se fica fácil de achar.
+7. Conta paga **depois** do vencimento vai para o bloco recolhido; tocar nela lá reabre e ela volta
+   como atrasada (hoje). Entrada atrasada não recebida mostra "fora do saldo".
+8. Celular, TalkBack real, APIs antigas e suíte instrumentada completa não executados; APK pessoal
+   não regenerado. Marco M2 segue dependente das fases 3–5 no celular.
+
 ### Ressalvas (leia antes de testar no celular)
-1. **Comparação visual com o protótipo não foi feita.** O artefato
-   `claude.ai/artifact/Tzb24N1BzGMR8buHwVAtL9` devolveu "not found" nas duas tentativas (08/11), não aparece
-   na lista de artefatos da conta logada no Claude Code e nenhum projeto do Claude Design tem a v2. A
-   conferência foi pelos números do próprio planning (R$ 3.480 / R$ 1.520 / R$ 1.220 / R$ 101).
-   **Os valores de academia (180), condomínio (340) e internet (120) do cenário são palpites** que somam os
-   R$ 1.960 do quadro; se o quadro tiver outros, ajustar `DemoScenarioV2` e o teste.
+1. **Acesso ao protótipo regularizado após login (08/11).** As tentativas anteriores sem acesso
+   ficam como histórico, não como bloqueio atual. A referência real confirmou os totais e
+   revelou divergências na composição do cenário, corrigidas na fase 2 (ver registro acima).
+   Comparações e limitações por fase estão em `docs/v2-qa/fase-0/` e `docs/v2-qa/fase-1/`.
 2. **O saldo agora parte do primeiro lançamento (até 24 meses), não do dia 1º do mês.** Quem já usa o app
    vai ver o "saldo em conta" mudar na primeira abertura (o histórico passa a contar). Conciliar com o banco
    (ajuste) reancora. É a decisão A4, mas é a mudança de maior efeito destas duas fases:
@@ -64,18 +243,23 @@ O Room continua na v16 (nenhuma migração nas fases 0–1).
    por ciclo sem margem nos seguintes, até a Fase 8 trocá-lo.
 6. **Conta vencida e não paga sai hoje; entrada vencida e não recebida não conta** (não há como saber
    quando cai). Na Agenda "A seguir" a conta vencida de mês passado continua escondida (Fase 4).
-7. **`MoneyRow` ainda não está ligado a nenhuma tela** (entra na Início e na Agenda nas Fases 2 e 4).
+7. **`MoneyRow` ligado à Hoje na fase 2.** A Agenda ainda usa suas linhas antigas até a fase 4.
 8. **Testes antigos ajustados por causa da regra nova:** `FinancialPlanTest`, `GoalPlanningTest` e
    `CashFlowTimelineTest` (salário recorrente passou a começar no último ciclo e margem 0, porque o saldo
    contínuo somaria os meses anteriores); `PayCycleTest` (margem 0); `ScenarioSimulatorTest` (margem 0 no
    snapshot); `ReconciliationTest` (sem ajuste o saldo já parte do primeiro lançamento: R$ 8.800, antes
    R$ 5.000); `EntryOptionsTest` (10 categorias).
-9. **Não executados:** instrumentados (`connectedDebugAndroidTest`), tema claro, 320 dp com fonte 150%,
-   TalkBack, Agenda/chat na tela. O R$ 101 por dia foi corrigido depois da captura e não foi recapturado.
+9. **Pendências da sessão das fases 0–1, atualizadas na fase 2:** R$ 101/dia foi recapturado,
+   tema claro foi conferido e quatro fluxos instrumentados passaram. Há ressalva na barra antiga
+   em 320 dp/fonte 150%. Permanecem pendentes TalkBack real, Agenda/chat na tela, celular e suíte
+   instrumentada completa (`connectedDebugAndroidTest`); ver evidências atuais no QA da fase 2.
 
 ## 1. Fontes
 
-- **Protótipo v2 (referência visual de cada fase):** https://claude.ai/artifact/Tzb24N1BzGMR8buHwVAtL9
+- **Protótipo v2 (endereço atualizado pelo usuário em 08/11/2026):** https://claude.ai/code/artifact/da97f6eb-cc62-4dac-9696-e7932729f96a#page-5634c5cea0db
+  - Acesso autenticado confirmado após login do usuário; quadros conferidos na página Protótipo v2.
+  - Endereço anterior: https://claude.ai/artifact/Tzb24N1BzGMR8buHwVAtL9.
+  - Descrição dos quadros abaixo preservada do planejamento anterior, sem nova verificação visual.
   - Página **"Protótipo v2"**: 11 telas de 390 × 844 dp, navegáveis em Play.
     `v2/Hoje`, `v2/Livre`, `v2/Caixa`, `v2/Agenda`, `v2/Gastos`, `v2/Metas`, `v2/Compromissos`,
     `v2/Lancar`, `v2/Assistente`, `v2/Simular`, `v2/Fechamento`.
@@ -350,9 +534,9 @@ na data; id estável), `Migration16To17Test`, instrumentado do fluxo dispensar �
 continua dispensado.
 
 **Comparação visual**
-- [ ] `v2/Caixa`: três grupos com cores, dois botões por item, item some ao agir, estado vazio,
+- [x] `v2/Caixa`: três grupos com cores, dois botões por item, item some ao agir, estado vazio,
       rodapé de dispensados.
-- [ ] Reabrir o app não mostra ponto vermelho para o que já foi visto.
+- [x] Reabrir o app não mostra ponto vermelho para o que já foi visto.
 
 ---
 
@@ -375,9 +559,10 @@ continua dispensado.
 novo reabre, selo aparece, TalkBack lê "pago".
 
 **Comparação visual**
-- [ ] Nenhuma caixinha nas duas abas.
-- [ ] "A seguir": "fica R$" por linha, menor saldo destacado, divisor de mês sem zerar.
-- [ ] "Mês": três números no topo, balanço igual ao que a Início mostrava antes.
+- [x] Nenhuma caixinha nas duas abas (instrumentado `AgendaV2Test`; conferência visual pendente).
+- [x] "A seguir": "fica R$" por linha, menor saldo destacado, divisor de mês sem zerar (`AgendaV2DemoTest`).
+- [x] "Mês": três números no topo, Sobra = `fechamentoCents` (o antigo balanço da Início).
+- [ ] Capturas lado a lado com o quadro, tema claro e 320 dp/fonte 150% (usuário fará).
 
 ---
 

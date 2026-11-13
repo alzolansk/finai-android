@@ -364,3 +364,52 @@ private fun DayGrid(selected: Int?, onPick: (Int) -> Unit) {
         }
     }
 }
+
+/**
+ * Conta com vencimento (fase 4): o toque na linha já paga ou reabre; segurar abre esta folha com o
+ * resto (itens da fatura, editar, excluir), que antes ficava no menu ⋮ de cada linha.
+ */
+@Composable
+internal fun BillSheet(
+    conta: com.finai.app.data.local.entity.ContaEntity,
+    invoiceItems: Int,
+    today: LocalDate,
+    onDismiss: () -> Unit,
+    onTogglePaid: () -> Unit,
+    onOpenItems: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val receber = conta.tipo == "a_receber"
+    val paid = conta.status == "pago"
+    val due = conta.vencimento.toLocalDate()
+    EntrySheet(conta.nome, onDismiss) {
+        Column(Modifier.fillMaxWidth()) {
+            SheetAmount(conta.valorCentavos, if (receber) 1 else -1)
+            SheetLine(
+                listOfNotNull(
+                    if (invoiceItems > 0) "Fatura do cartão · $invoiceItems ${if (invoiceItems == 1) "compra" else "compras"}" else if (receber) "Conta a receber" else "Conta a pagar",
+                    (if (due.isBefore(today) && !paid) "venceu em " else "vence em ") + dayMonth(due),
+                    when {
+                        paid && receber -> "recebida"
+                        paid -> "paga"
+                        else -> null
+                    },
+                ).joinToString(" · "),
+            )
+            SheetDivider()
+            SheetAction(
+                "check",
+                when {
+                    paid -> "Reabrir"
+                    receber -> "Marcar como recebida"
+                    else -> "Marcar como paga"
+                },
+                primary = !paid,
+            ) { onTogglePaid(); onDismiss() }
+            if (invoiceItems > 0) SheetAction("card", "Ver itens da fatura", "Para onde foi, parcelamentos e compras") { onDismiss(); onOpenItems() }
+            SheetAction("edit", "Editar", "Nome, valor ou vencimento") { onDismiss(); onEdit() }
+            SheetAction("trash", "Excluir", destructive = true) { onDismiss(); onDelete() }
+        }
+    }
+}

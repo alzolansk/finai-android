@@ -11,7 +11,8 @@ package com.finai.app.navigation
  */
 enum class FinaiDestination(val route: String, val headerTitle: String) {
     AiSettings("configuracoes-ia", "Configurações"),
-    Home("home", "Início"),
+    Home("home", "Hoje"),
+    Inbox("caixa", "Caixa"),
     Agenda("agenda", "Agenda"),
     Goals("metas", "Objetivos"),
     Debts("dividas", "Dívidas"),

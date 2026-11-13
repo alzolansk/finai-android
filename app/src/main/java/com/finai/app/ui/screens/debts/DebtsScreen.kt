@@ -80,6 +80,9 @@ fun DebtsScreen(
     onRehearseCall: () -> Unit,
     paidDebts: List<PaidDebt> = emptyList(),
     onDeletePaidDebt: (PaidDebt) -> Unit = {},
+    /** Compras parceladas no cartão: o cartão saiu da Agenda na fase 4 e mora aqui até Compromissos (fase 7). */
+    installments: com.finai.app.domain.InstallmentsSummary? = null,
+    onOpenInstallments: () -> Unit = {},
 ) {
     var pendingDelete by remember { mutableStateOf<Debt?>(null) }
     // Confirmação antes de pagar: um toque por engano em "Paguei a parcela" avançava a dívida.
@@ -98,6 +101,13 @@ fun DebtsScreen(
                 subtitle = "Estratégia de quitação e negociação",
                 trailing = { ActionButton("+ Nova", onNewDebt, primary = true) },
             )
+        }
+
+        val thisMonth = java.time.YearMonth.now()
+        if (installments != null && (installments.monthCents(thisMonth) > 0 || installments.active.isNotEmpty())) {
+            item(key = "parcelamentos") {
+                com.finai.app.ui.screens.installments.InstallmentsAgendaCard(installments, thisMonth, onOpenInstallments)
+            }
         }
 
         if (debts.isEmpty()) {

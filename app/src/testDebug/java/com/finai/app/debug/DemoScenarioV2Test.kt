@@ -45,7 +45,10 @@ class DemoScenarioV2Test {
         assertEquals(e.steps.last().cents, e.steps.filterNot { it.total }.sumOf { it.cents })
     }
 
-    @Test fun picpayInstallmentIsOutsideThisWindow() {
-        assertTrue(free.movements.none { it.descricao == "Picpay" })
+    @Test fun prototypeOutflowsMatchTheActualReference() {
+        assertEquals(listOf(-132_000L, -11_000L, -12_000L, -41_000L), free.movements.map { it.cents })
+        assertEquals(listOf(10, 12, 15, 18), free.movements.map { it.date.dayOfMonth })
+        assertTrue(free.movements.last().descricao.contains("Picpay"))
+        assertEquals(196_000L, free.outflowsCents)
     }
 }
