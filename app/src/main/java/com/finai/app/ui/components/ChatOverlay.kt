@@ -185,12 +185,11 @@ fun ChatOverlay(
         }
 
         if (!showHistory) MemoryChip(memory.size + watchRules.size, open = showMemory) { showMemory = !showMemory }
+        // Não sair da lambda inline de Column: esses retornos desbalanceavam os
+        // grupos do Compose ao trocar de painel (Stack.pop / ComposerImpl.exitGroup).
         if (showMemory && !showHistory) {
             MemoryPanel(memory, onForget, watchRules, onWatchState, Modifier.weight(1f).fillMaxWidth())
-            return@Column
-        }
-
-        if (showHistory) {
+        } else if (showHistory) {
             ConversationHistory(
                 conversations = conversations,
                 currentConversationId = currentConversationId,
@@ -198,87 +197,86 @@ fun ChatOverlay(
                 onDelete = onDeleteConversation,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
-            return@Column
-        }
-
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (messages.isEmpty() && !thinking) {
-                item { EmptyChatIntro() }
-            }
-            items(messages) { message ->
-                ChatBubble(message, undoableActionId, onUndoAction, onOptionSend, onOpenAgenda, enabled = !thinking)
-            }
-            if (thinking) item { ThinkingBubble() }
-            if (!thinking && (pendingEntry != null || entrySaved)) {
-                item { ReadyEntryCard(pendingEntry, entrySaved, onSaveEntry, onEditEntry, onDiscardEntry, onUndoEntry) }
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(FinaiColors.Surface.copy(alpha = 0.8f))
-                .navigationBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 16.dp),
-        ) {
-            LazyRow(modifier = Modifier.tipTarget("chat.suggestions"), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                items(FinaiFixtures.chatSuggestions) { suggestion ->
-                    Box(
-                        modifier = Modifier
-                            .heightIn(min = 44.dp)
-                            .clip(RoundedCornerShape(99.dp))
-                            .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
-                            .background(FinaiColors.Surface)
-                            .clickable { onSuggestion(suggestion) }
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(suggestion, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextBody)
-                    }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (messages.isEmpty() && !thinking) {
+                    item { EmptyChatIntro() }
+                }
+                items(messages) { message ->
+                    ChatBubble(message, undoableActionId, onUndoAction, onOptionSend, onOpenAgenda, enabled = !thinking)
+                }
+                if (thinking) item { ThinkingBubble() }
+                if (!thinking && (pendingEntry != null || entrySaved)) {
+                    item { ReadyEntryCard(pendingEntry, entrySaved, onSaveEntry, onEditEntry, onDiscardEntry, onUndoEntry) }
                 }
             }
-            Row(
+
+            Column(
                 modifier = Modifier
-                    .padding(top = 9.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(99.dp))
-                    .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
-                    .background(FinaiColors.Surface)
-                    .padding(start = 16.dp, end = 7.dp, top = 7.dp, bottom = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp),
+                    .background(FinaiColors.Surface.copy(alpha = 0.8f))
+                    .navigationBarsPadding()
+                    .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 16.dp),
             ) {
-                androidx.compose.material3.TextField(
-                    value = draft,
-                    onValueChange = onDraftChange,
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Pergunte sobre suas finanças...", fontSize = 12.5.sp, color = FinaiColors.TextMuted) },
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.5.sp, color = FinaiColors.TextPrimary),
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        disabledIndicatorColor = Color.Transparent,
-                    ),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { onSend() }),
-                )
-                Box(
+                LazyRow(modifier = Modifier.tipTarget("chat.suggestions"), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    items(FinaiFixtures.chatSuggestions) { suggestion ->
+                        Box(
+                            modifier = Modifier
+                                .heightIn(min = 44.dp)
+                                .clip(RoundedCornerShape(99.dp))
+                                .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
+                                .background(FinaiColors.Surface)
+                                .clickable { onSuggestion(suggestion) }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(suggestion, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextBody)
+                        }
+                    }
+                }
+                Row(
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(FinaiColors.Emerald)
-                        .clickable(onClick = onSend),
-                    contentAlignment = Alignment.Center,
+                        .padding(top = 9.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(99.dp))
+                        .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
+                        .background(FinaiColors.Surface)
+                        .padding(start = 16.dp, end = 7.dp, top = 7.dp, bottom = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(9.dp),
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar", tint = Color.White, modifier = Modifier.size(16.dp))
+                    androidx.compose.material3.TextField(
+                        value = draft,
+                        onValueChange = onDraftChange,
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Pergunte sobre suas finanças...", fontSize = 12.5.sp, color = FinaiColors.TextMuted) },
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.5.sp, color = FinaiColors.TextPrimary),
+                        colors = androidx.compose.material3.TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent,
+                        ),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = { onSend() }),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(FinaiColors.Emerald)
+                            .clickable(onClick = onSend),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar", tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
                 }
             }
         }

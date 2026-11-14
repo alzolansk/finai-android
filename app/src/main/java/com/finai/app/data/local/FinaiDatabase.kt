@@ -36,7 +36,7 @@ import com.finai.app.data.local.entity.TesteNotificacaoEntity
  * per planning.md §4's privacy-first requirement.
  */
 /** Versão do schema do Room — também é a que o backup exportado carrega (Fase 7, item 12). */
-const val FINAI_DB_VERSION = 20
+const val FINAI_DB_VERSION = 21
 
 @Database(
     entities = [
@@ -327,7 +327,27 @@ abstract class FinaiDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
+        /**
+         * Um APK anterior deixou bancos com user_version 20, mas ainda com o schema 19
+         * (hash 494b9b00…). Nesse estado o Room não executa 19→20 e fecha na abertura.
+         * A nova versão permite completar a migração dentro da transação do Room e validar
+         * o schema antes de atualizar o hash. Bancos 20 completos conservam seus dados.
+         */
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val hasStructure = db.query("PRAGMA table_info(`mensagens_chat`)").use { columns ->
+                    val nameIndex = columns.getColumnIndexOrThrow("name")
+                    var found = false
+                    while (columns.moveToNext()) {
+                        if (columns.getString(nameIndex) == "estrutura") found = true
+                    }
+                    found
+                }
+                if (!hasStructure) MIGRATION_19_20.migrate(db)
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
 
         @Volatile private var instance: FinaiDatabase? = null
 
