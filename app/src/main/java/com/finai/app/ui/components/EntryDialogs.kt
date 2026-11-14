@@ -93,16 +93,3 @@ fun AddContaDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }
-
-@Composable
-fun BudgetLimitDialog(categoria: String, currentLimitReais: Double, onDismiss: () -> Unit, onConfirm: (Double) -> Unit) {
-    var valor by remember { mutableStateOf(if (currentLimitReais > 0) currentLimitReais.toString() else "") }
-    val ok = parseAmountOrNull(valor) != null && (parseAmountOrNull(valor) ?: 0.0) > 0
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Limite de $categoria") },
-        text = { OutlinedTextField(valor, { valor = it }, label = { Text("Limite mensal (R$)") }, singleLine = true, isError = valor.isNotEmpty() && !ok) },
-        confirmButton = { TextButton(enabled = ok, onClick = { onConfirm(parseAmountOrNull(valor)!!) }) { Text("Salvar") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
-    )
-}

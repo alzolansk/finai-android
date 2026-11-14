@@ -107,7 +107,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.DisposableEffect
 import com.finai.app.ui.components.InitialSetupWizard
-import com.finai.app.ui.components.TopBarContentHeight
 import com.finai.app.ui.components.TipOverlay
 import com.finai.app.ui.components.TipTargetRegistry
 import com.finai.app.ui.components.LocalTipTargets

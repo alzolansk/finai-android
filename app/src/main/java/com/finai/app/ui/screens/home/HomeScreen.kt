@@ -42,10 +42,10 @@ fun HomeScreen(
     onOpenGoals: () -> Unit, onNewGoal: () -> Unit, onOpenSimulator: () -> Unit, onExplainSafe: () -> Unit,
     onOpenAgenda: () -> Unit, onNewEntry: () -> Unit, onAddMainIncome: () -> Unit,
     onMovement: (TimelineMovement) -> Unit, onDismissCoach: (String) -> Unit, onCoachDetails: () -> Unit,
+    today: LocalDate = LocalDate.now(),
     /** Fechamento do mês (fase 10): cartão no fim da Hoje do dia 1 ao 7, ou enquanto houver passo pendente. */
     closing: com.finai.app.domain.closing.MonthClosing? = null,
     onOpenClosing: () -> Unit = {},
-    today: LocalDate = LocalDate.now(),
 ) {
     LazyColumn(Modifier.fillMaxWidth(), state = listState, contentPadding = ScreenContentPadding, verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item("title") {

@@ -9,9 +9,6 @@ import com.finai.app.data.local.FinaiDatabase
 import com.finai.app.data.repository.FinanceRepository
 import com.finai.app.ui.components.TransactionEntryScreen
 import com.finai.app.domain.InstallmentsSummary
-import com.finai.app.ui.screens.installments.InstallmentsAgendaCard
-import com.finai.app.ui.screens.installments.InstallmentsScreen
-import java.time.YearMonth
 import com.finai.app.ui.theme.FinaiTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -28,16 +25,10 @@ class CardPurchaseFlowTest {
         try {
             compose.setContent {
                 var visible by remember { mutableStateOf(true) }
-                var installmentsVisible by remember { mutableStateOf(false) }
                 val entries by repository.transacoes.collectAsState(emptyList())
                 val invoices by repository.faturasCartao.collectAsState(emptyList())
                 val accounts by repository.contas.collectAsState(emptyList())
                 FinaiTheme {
-                    val summary = InstallmentsSummary.of(entries, invoices, accounts)
-                    if (!visible) {
-                        InstallmentsAgendaCard(summary, YearMonth.now(), onOpen = { installmentsVisible = true })
-                        InstallmentsScreen(installmentsVisible, summary, onBack = { installmentsVisible = false })
-                    }
                     TransactionEntryScreen(visible, emptyList(), onDismiss = {}, onSave = { error("Expected card") },
                         onSaveCard = repository::salvarCompraCartao, cards = listOf("Nubank"), onViewEntry = { visible = false },
                         faturas = invoices, contas = accounts)
@@ -64,17 +55,17 @@ class CardPurchaseFlowTest {
             compose.onNodeWithText("Salvar gasto").assertIsDisplayed().assertIsEnabled().performClick()
             compose.waitUntil(10000) { compose.onAllNodesWithText("Ver na agenda").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Ver na agenda").performClick()
-            compose.onNodeWithText("Parcelamentos").assertExists()
-            compose.onNodeWithText("Parcelamentos").performClick()
-            compose.onNodeWithText("Comprometido por mês").assertExists()
+            // A tela de Parcelamentos virou Planos › Compromissos (v2, fase 7), que lê o mesmo resumo.
             runBlocking {
                 assertEquals(6, repository.faturasCartao.first().size)
                 assertEquals(60000L, repository.contas.first().sumOf { it.valorCentavos })
                 assertTrue(repository.transacoes.first().all { it.parcelasTotal == 6 && it.faturaId != null })
-                val account = repository.contas.first().first()
+                fun summary() = runBlocking { InstallmentsSummary.of(repository.transacoes.first(), repository.faturasCartao.first(), repository.contas.first()) }
+                assertEquals(6, summary().active.single().openCount)
+                val account = repository.contas.first().minByOrNull { it.vencimento }!!
                 repository.salvarConta(account.copy(status = "pago"))
+                assertEquals(5, summary().active.single().openCount)
             }
-            compose.waitUntil(5000) { compose.onAllNodesWithText("5 parcelas restantes", substring = true).fetchSemanticsNodes().isNotEmpty() }
         } finally { db.close() }
     }
 }
