@@ -28,7 +28,7 @@ data class FinanceAlert(
  * Tudo aqui é regra determinística sobre o que já está no Room (planning.md
  * §6): nenhuma chamada de IA e nenhum texto fixo de protótipo — a IA só entra
  * depois, redigindo o texto final da notificação
- * ([com.finai.app.data.notifications.NotificationContentBuilder]), nunca
+ * ([com.finai.app.domain.notify.NotificationPlanner]), nunca
  * decidindo se um evento existe. [FinanceAlert.id] é estável por evento (não
  * inclui a data) — é a chave que a Fase 5 usa para não notificar duas vezes o
  * mesmo evento no mesmo dia.

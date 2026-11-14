@@ -190,7 +190,11 @@ object QuickEntryParser {
 
         val words = rest.split(Regex("""\s+""")).filter { it.isNotBlank() && it !in STOP && !it.all { c -> c.isDigit() } }
         val descriptionRaw = words.joinToString(" ").trim().take(40)
-        val description = descriptionRaw.replaceFirstChar { it.uppercase() }
+        // A descrição volta com a grafia da frase ("pão", não "pao"): cada palavra dobrada é
+        // trocada pela original que dobra igual.
+        val original = text.split(Regex("""\s+""")).map { it.trim(',', '.', '!', '?', ';', ':') }.filter { it.isNotBlank() }
+            .associateBy { fold(it) }
+        val description = words.joinToString(" ") { w -> original[w]?.lowercase() ?: w }.trim().take(40).replaceFirstChar { it.uppercase() }
 
         val category = if (type != TransactionType.Gasto || descriptionRaw.isBlank()) null else {
             val key = MerchantClassifier.normalizeMerchant(descriptionRaw)

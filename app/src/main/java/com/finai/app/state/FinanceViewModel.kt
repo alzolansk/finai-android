@@ -900,11 +900,13 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun dismissInbox(item: com.finai.app.domain.inbox.InboxItem) = launchSafely("dispensar o aviso") {
         inbox.dismiss(item, LocalDate.now())
         FinaiNotifier(getApplication()).cancelFinanceAlerts()
+        com.finai.app.data.notifications.RichNotifier(getApplication()).cancel(item.id)
         if (item.kind == "coach") prefs.dismissInsight(item.id)
     }
     fun snoozeInbox(item: com.finai.app.domain.inbox.InboxItem, until: LocalDate) = launchSafely("adiar o aviso") {
         inbox.snooze(item, until, LocalDate.now())
         FinaiNotifier(getApplication()).cancelFinanceAlerts()
+        com.finai.app.data.notifications.RichNotifier(getApplication()).cancel(item.id)
     }
     fun restoreInbox() = launchSafely("mostrar os avisos dispensados") { inbox.restoreDismissed() }
 

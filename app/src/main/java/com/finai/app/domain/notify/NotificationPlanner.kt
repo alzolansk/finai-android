@@ -178,6 +178,7 @@ object NotificationPlanner {
             "R$ 1.320,00", "a pagar", buttons = listOf(NotifyButton("Já paguei", NotifyAction.OpenInbox, true), NotifyButton("Lembrar amanhã", NotifyAction.OpenInbox))),
         NotifySpec("exemplo-limite", NotifyLook.Limit, "QUASE NO LIMITE", "Lazer está no fim do limite", "Ainda dá tempo de fechar o mês dentro do limite.",
             "R$ 270,00", "de R$ 300,00", 90, buttons = listOf(NotifyButton("Ver gastos", NotifyAction.OpenSpending, true), NotifyButton("Dispensar", NotifyAction.OpenInbox))),
-        daily(today, 5, 122_000).copy(key = "exemplo-diario"),
+        // "Nada hoje" do lembrete de verdade grava o dia; no exemplo os botões só abrem o app.
+        daily(today, 5, 122_000).let { d -> d.copy(key = "exemplo-diario", buttons = d.buttons.map { b -> if (b.action.opensApp) b else b.copy(action = NotifyAction.OpenInbox) }) },
     )
 }

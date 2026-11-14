@@ -9,7 +9,6 @@ import androidx.work.WorkerParameters
 import com.finai.app.data.ai.AiRouter
 import com.finai.app.data.local.FinaiDatabase
 import com.finai.app.data.notifications.FinaiNotifier
-import com.finai.app.data.notifications.NotificationContentBuilder
 import com.finai.app.data.notifications.NotificationDedupeStore
 import com.finai.app.data.repository.FinanceRepository
 import com.finai.app.domain.AlertCalculator
@@ -34,7 +33,7 @@ import kotlinx.coroutines.flow.first
  *
  * Camadas separadas de propósito (nenhuma regra de detecção mora aqui):
  * detecção → [AlertCalculator]/[BehaviorCoach]; conteúdo →
- * [NotificationContentBuilder]; entrega → [FinaiNotifier]; deduplicação →
+ * [com.finai.app.domain.notify.NotificationPlanner] (modelos fixos, sem IA); entrega → [com.finai.app.data.notifications.RichNotifier]; deduplicação →
  * [NotificationDedupeStore]. Este arquivo só orquestra as quatro, na ordem
  * certa, e decide o que é "novo o bastante para chamar IA" — nunca a IA.
  */
@@ -153,8 +152,8 @@ class FinanceCheckWorker(
          * a janela de 24h nem perde o histórico de retry.
          *
          * Sem restrição de rede: a detecção é 100% local (planning.md §4 — "funcionamento offline
-         * parcial") e deve rodar mesmo sem internet; só o texto da IA depende de rede, e já degrada
-         * graciosamente sozinho (ver [com.finai.app.data.notifications.NotificationContentBuilder]).
+         * parcial") e deve rodar mesmo sem internet; o texto das notificações vem de modelos fixos
+         * ([com.finai.app.domain.notify.NotificationPlanner]), sem chamada de IA.
          */
         fun schedule(context: Context) {
             val request = PeriodicWorkRequestBuilder<FinanceCheckWorker>(24, TimeUnit.HOURS, 4, TimeUnit.HOURS)
