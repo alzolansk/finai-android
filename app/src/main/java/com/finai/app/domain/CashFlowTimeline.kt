@@ -300,13 +300,30 @@ data class CashFlowTimeline(
             months: Int,
             /** Primeiro mês da lista; antes de hoje quando o saldo é contado desde uma conciliação. */
             from: YearMonth = YearMonth.from(today),
+            /**
+             * Conta paga entra no dia em que foi paga ([paidOn]), com `movedFrom` = vencimento, em vez
+             * do mês do vencimento. É o que o saldo em conta precisa: uma fatura de dezembro paga hoje
+             * já saiu hoje. Antes ela só contava quando a janela do saldo chegava a dezembro, e sumia
+             * da "A seguir" e do livre até lá. A aba do mês continua pelo vencimento (padrão).
+             */
+            paidOnPaymentDay: Boolean = false,
         ): List<TimelineMovement> {
+            fun contaEntry(conta: ContaEntity, date: LocalDate): CycleEntry {
+                val sign = if (conta.tipo == "a_receber") 1 else -1
+                val due = conta.vencimento.toLocalDate()
+                return CycleEntry(date, conta.nome, sign * conta.valorCentavos, conta.status == "pago", CycleSource.Conta(conta), due.takeIf { it != date })
+            }
             val entries = (0L until months.toLong()).map { from.plusMonths(it) }.flatMap { m ->
                 val flow = MonthCashFlow.of(contas, transacoes, dividas, m, today)
                 buildList {
-                    (flow.payable + flow.receivable).forEach { conta ->
-                        val sign = if (conta.tipo == "a_receber") 1 else -1
-                        add(CycleEntry(conta.vencimento.toLocalDate(), conta.nome, sign * conta.valorCentavos, conta.status == "pago", CycleSource.Conta(conta)))
+                    (flow.payable + flow.receivable)
+                        .filter { !paidOnPaymentDay || it.status != "pago" }
+                        .forEach { conta -> add(contaEntry(conta, conta.vencimento.toLocalDate())) }
+                    if (paidOnPaymentDay) {
+                        contas.forEach { conta ->
+                            val paid = conta.paidOn(today) ?: return@forEach
+                            if (YearMonth.from(paid) == m) add(contaEntry(conta, paid))
+                        }
                     }
                     (flow.recorrentes + flow.avulsas).filter { it.freeCashSign != 0 }.forEach { t ->
                         val d = t.data.toLocalDate()
@@ -318,7 +335,7 @@ data class CashFlowTimeline(
                 }
             }
             return entries.sortedWith(compareBy<CycleEntry> { it.date }.thenByDescending { it.cents }).map { e ->
-                TimelineMovement(e.date, e.descricao, e.cents, statusOf(e, today), balanceAfterCents = null, source = e.source)
+                TimelineMovement(e.date, e.descricao, e.cents, statusOf(e, today), balanceAfterCents = null, source = e.source, movedFrom = e.movedFrom)
             }
         }
 

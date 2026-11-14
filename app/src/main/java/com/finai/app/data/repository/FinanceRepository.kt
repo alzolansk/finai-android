@@ -277,8 +277,9 @@ class FinanceRepository(private val db: FinaiDatabase) {
         transacoes.forEach { transacaoDao.upsert(it) }
     }
 
-    suspend fun salvarConta(conta: ContaEntity): Long = db.withTransaction {
-        val previous = contaDao.getAll().firstOrNull { it.id == conta.id }
+    suspend fun salvarConta(input: ContaEntity): Long = db.withTransaction {
+        val previous = contaDao.getAll().firstOrNull { it.id == input.id }
+        val conta = withPaymentDate(input, previous, System.currentTimeMillis())
         val id = if (conta.id == 0L) contaDao.upsert(conta) else contaDao.update(conta).let { conta.id }
         val avisoId = "conta-$id-${YearMonth.from(conta.vencimento.toLocalDate())}"
         val aviso = db.avisoDao().getAll().firstOrNull { it.id == avisoId }
@@ -415,6 +416,20 @@ class FinanceRepository(private val db: FinaiDatabase) {
             db.avisoDao().deleteAll()
             sugestaoDao.deleteAll()
             testeNotificacaoDao.deleteAll()
+        }
+    }
+
+    companion object {
+        /**
+         * O dia do pagamento ([ContaEntity.pagoEm]) mora aqui, para valer em todo caminho que grava
+         * a conta (Agenda, fatura, formulário de edição): virou paga agora → hoje; já era paga →
+         * mantém o dia de antes (editar o nome não muda a data); em aberto → nenhum.
+         */
+        fun withPaymentDate(conta: ContaEntity, previous: ContaEntity?, nowMillis: Long): ContaEntity = when {
+            conta.status != "pago" -> conta.copy(pagoEm = null)
+            conta.pagoEm != null -> conta
+            previous?.status == "pago" -> conta.copy(pagoEm = previous.pagoEm)
+            else -> conta.copy(pagoEm = nowMillis)
         }
     }
 }

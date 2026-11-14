@@ -282,6 +282,7 @@ fun FinaiApp(
     var openedInvoiceContaId by rememberSaveable { mutableStateOf<Long?>(null) }
     /** Tela de Parcelamentos: camada por cima de tudo (entra da direita), não rota do NavHost. */
     var showInstallments by rememberSaveable { mutableStateOf(false) }
+    var showPaymentHistory by rememberSaveable { mutableStateOf(false) }
     var showIncome by rememberSaveable { mutableStateOf(false) }
     var showReconcile by rememberSaveable { mutableStateOf(false) }
     var homeMovement by remember { mutableStateOf<com.finai.app.domain.TimelineMovement?>(null) }
@@ -326,6 +327,11 @@ fun FinaiApp(
     val invoiceItemCounts = remember(financeState.rawTransacoes, financeState.rawFaturasCartao) {
         val contaDaFatura = financeState.rawFaturasCartao.associate { it.id to it.contaId }
         financeState.rawTransacoes.mapNotNull { t -> t.faturaId?.let { contaDaFatura[it] } }.groupingBy { it }.eachCount()
+    }
+    val paymentHistory = remember(financeState.rawTransacoes, financeState.rawFaturasCartao, financeState.rawContas) {
+        com.finai.app.domain.PaymentHistory.build(
+            financeState.rawContas, financeState.rawTransacoes, financeState.rawFaturasCartao.map { it.contaId }.toSet(),
+        )
     }
     val installments = remember(financeState.rawTransacoes, financeState.rawFaturasCartao, financeState.rawContas) {
         InstallmentsSummary.of(financeState.rawTransacoes, financeState.rawFaturasCartao, financeState.rawContas)
@@ -462,6 +468,7 @@ fun FinaiApp(
                             sequential = uiState.agendaSequential,
                             onSequentialChange = viewModel::setAgendaSequential,
                             agendaBalance = financeState.agendaBalance,
+                            onOpenPaymentHistory = { showPaymentHistory = true },
                             today = java.time.LocalDate.now(),
                             highlight = agendaHighlight,
                             onHighlightShown = { agendaHighlight = null },
@@ -977,7 +984,7 @@ fun FinaiApp(
         // (formulário, edição, confirmação, outra camada, telas com campos); senão a sugestão
         // espera na fila com um aviso passageiro. Aberto pelo toque na notificação, abre sempre.
         val captureBlocked = homeMovement != null || homeDelete != null || uiState.chatOpen || uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen ||
-            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showIncome || showReconcile ||
+            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showPaymentHistory || showIncome || showReconcile ||
             showAddDivida || editingDivida != null || showAddGoal || editingObjetivo != null || editingConta != null ||
             contributionTarget != null || budgetLimitTarget != null || initialSetupComplete != true ||
             editSuggestionId != null ||
@@ -1093,6 +1100,14 @@ fun FinaiApp(
         )
 
         InstallmentsScreen(visible = showInstallments, summary = installments, onBack = { showInstallments = false })
+
+        com.finai.app.ui.screens.payments.PaymentHistoryScreen(
+            visible = showPaymentHistory,
+            records = paymentHistory,
+            onBack = { showPaymentHistory = false },
+            onReopenConta = { id -> financeViewModel.marcarContaPaga(id, false) },
+            onUndoInstallment = financeViewModel::deleteTransacao,
+        )
 
         homeMovement?.let { movement ->
             when (val source = movement.source) {
@@ -1229,7 +1244,7 @@ fun FinaiApp(
             else -> null
         }
         val tipsBlocked = homeMovement != null || homeDelete != null || uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen ||
-            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showIncome || showReconcile || showAddDivida ||
+            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showPaymentHistory || showIncome || showReconcile || showAddDivida ||
             editingDivida != null || showAddGoal || editingObjetivo != null || editingConta != null ||
             contributionTarget != null || budgetLimitTarget != null || initialSetupComplete != true ||
             openSuggestionId != null || editSuggestionId != null
@@ -1249,7 +1264,7 @@ fun FinaiApp(
         // Segunda trava, independente da ordem em que os tratadores foram
         // registrados: com qualquer camada aberta por cima, a navegação entre
         // telas não reage ao voltar.
-        val anyLayerOpen = homeMovement != null || homeDelete != null || overlayOpen || celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showIncome || showReconcile ||
+        val anyLayerOpen = homeMovement != null || homeDelete != null || overlayOpen || celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showPaymentHistory || showIncome || showReconcile ||
             showAddDivida || editingDivida != null || activeTips != null || initialSetupComplete == false ||
             showAddGoal || editingObjetivo != null || contributionTarget != null ||
             editSuggestionId != null

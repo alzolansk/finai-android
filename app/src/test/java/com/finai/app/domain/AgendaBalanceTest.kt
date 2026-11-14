@@ -57,7 +57,7 @@ class AgendaBalanceTest {
         assertEquals(LocalDate.of(2026, 11, 3), move.movement.movedFrom)
     }
 
-    @Test fun billPaidAheadStaysInPlaceAndIsAlreadyInTheBalance() {
+    @Test fun billPaidAheadWithoutPaymentDayShowsTodayAndIsAlreadyInTheBalance() {
         val contas = listOf(
             conta(1, "Internet", 12_000, LocalDate.of(2026, 11, 15), status = "pago"),
             conta(2, "Aluguel", 100_000, LocalDate.of(2026, 11, 25)),
@@ -71,6 +71,47 @@ class AgendaBalanceTest {
         assertEquals(AgendaAhead.MoveKind.SettledAhead, moves[0].kind)
         // Pagar adiantado não muda o saldo depois do vencimento.
         assertEquals(188_000L, moves[1].movement.balanceAfterCents)
+    }
+
+    /**
+     * Relato de 14/11: na "A seguir", tocar sem querer em duas faturas de dezembro as fazia sumir. A
+     * conta paga só existia no mês do vencimento, e o saldo/livre olhavam só até a próxima renda.
+     * Agora ela sai no dia do pagamento: aparece paga em "Hoje" e o saldo de hoje já a desconta,
+     * igual na Agenda, no saldo em conta e no livre.
+     */
+    @Test fun decemberInvoicesPaidTodayShowAsPaidTodayAndLeaveTheBalance() {
+        val now = today.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val contas = listOf(
+            conta(1, "Fatura Nubank", 80_000, LocalDate.of(2026, 12, 5), status = "pago").copy(pagoEm = now),
+            conta(2, "Fatura Inter", 30_000, LocalDate.of(2026, 12, 10), status = "pago").copy(pagoEm = now),
+            conta(3, "Aluguel", 100_000, LocalDate.of(2026, 11, 25)),
+        )
+        val tx = listOf(adjust(300_000), salary)
+        val b = AgendaBalance.build(tx, contas, emptyList(), today)
+        assertEquals(190_000L, b.todayCents)
+        val moves = AgendaAhead.rows(b).filterIsInstance<AgendaAhead.Row.Move>()
+        val faturas = moves.filter { it.movement.descricao.startsWith("Fatura") }
+        assertEquals(setOf("Fatura Nubank", "Fatura Inter"), faturas.map { it.movement.descricao }.toSet())
+        assertTrue(faturas.all { it.kind == AgendaAhead.MoveKind.SettledAhead && it.movement.date == today })
+        assertEquals(LocalDate.of(2026, 12, 5), faturas.single { it.movement.descricao == "Fatura Nubank" }.movement.movedFrom)
+        // Nada some nem volta: 1.900 + salário 3.000 (20/11) − aluguel 1.000, e dezembro não cobra as faturas de novo.
+        assertEquals(390_000L, moves.first { it.movement.descricao == "Aluguel" }.movement.balanceAfterCents)
+        assertTrue(moves.none { it.kind == AgendaAhead.MoveKind.Counted && it.movement.descricao.startsWith("Fatura") })
+        // Mesmo número no saldo em conta da Hoje e no livre, que antes não viam dezembro.
+        assertEquals(190_000L, com.finai.app.domain.balance.AccountBalance.todayCents(contas, tx, emptyList(), today))
+        val free = FreeToSpend.of(contas, tx, emptyList(), today, marginCents = 0)!!
+        assertEquals(b.lowestBeforeIncome.cents, free.lowest.cents)
+    }
+
+    @Test fun billPaidEarlierThisMonthGoesToThePastBlockWithItsDueDate() {
+        val paidDay = LocalDate.of(2026, 11, 3)
+        val contas = listOf(conta(1, "Fatura Nubank", 80_000, LocalDate.of(2026, 12, 5), status = "pago")
+            .copy(pagoEm = paidDay.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()))
+        val b = AgendaBalance.build(listOf(adjust(300_000)), contas, emptyList(), today)
+        val fatura = b.past.single { it.descricao == "Fatura Nubank" }
+        assertEquals(paidDay, fatura.date)
+        assertEquals(LocalDate.of(2026, 12, 5), fatura.movedFrom)
+        assertTrue(b.settledAhead.isEmpty())
     }
 
     @Test fun billPaidAfterDueGoesToThePastBlock() {

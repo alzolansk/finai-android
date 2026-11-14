@@ -29,8 +29,9 @@ fun balanceTone(cents: Long): BalanceTone = when {
  * - pagamento atrasado, de qualquer mês, cai **hoje** (`movedFrom` = vencimento);
  * - entrada atrasada (ou conta a receber de hoje ainda não recebida) aparece, mas **não entra no
  *   saldo** ([unconfirmedInflows]) até ser marcada recebida;
- * - conta paga (ou recebida) adiantada já está no saldo de hoje e fica no lugar dela ([settledAhead]),
- *   para tocar de novo e reabrir.
+ * - conta paga (ou recebida) entra no saldo no dia em que foi paga ([ContaEntity.pagoEm]), não no
+ *   vencimento. Paga hoje, aparece logo abaixo de "Hoje" ([settledAhead]) com o vencimento ao lado,
+ *   para tocar de novo e reabrir; paga antes, vai para as movimentações anteriores do mês.
  */
 data class AgendaBalance(
     val today: LocalDate,
@@ -50,7 +51,7 @@ data class AgendaBalance(
     val lowest: LowestBalance = LowestBalance(todayCents, today),
     /** Saldo no último dia de cada mês, do mês de hoje em diante (o saldo de um é o inicial do seguinte). */
     val monthEnds: List<MonthEnd> = emptyList(),
-    /** Contas já pagas/recebidas que vencem de hoje em diante: já estão em [todayCents]. */
+    /** Contas pagas/recebidas hoje (no dia do pagamento): já estão em [todayCents]. */
     val settledAhead: List<TimelineMovement> = emptyList(),
     /** Entradas atrasadas ainda não recebidas: aparecem hoje, sem mexer no saldo. */
     val unconfirmedInflows: List<TimelineMovement> = emptyList(),
@@ -81,7 +82,7 @@ data class AgendaBalance(
             val current = YearMonth.from(today)
             val start = startMonthFor(transacoes, contas, today)
             val span = (start.until(current, java.time.temporal.ChronoUnit.MONTHS)).toInt() + months
-            val all = CashFlowTimeline.monthMovements(contas, transacoes, dividas, today, span, from = start)
+            val all = CashFlowTimeline.monthMovements(contas, transacoes, dividas, today, span, from = start, paidOnPaymentDay = true)
             val (settled, open) = all.partition { AccountBalance.settled(it, today) }
             val todayCents = settled.sumOf { it.cents }
 
@@ -116,8 +117,8 @@ data class AgendaBalance(
                 ?.let { income -> lowestOf(todayCents, today, inHorizon.filter { it.date.isBefore(income.date) }) }
                 ?: low
 
-            // Conta paga adiantada (ou paga hoje, vencendo hoje) continua no lugar dela; o resto do
-            // que foi efetivado no mês vai para o bloco recolhido.
+            // Conta paga hoje (a linha já está no dia do pagamento) fica à vista, logo abaixo de "Hoje";
+            // o resto do que foi efetivado no mês vai para o bloco recolhido.
             fun aheadConta(m: TimelineMovement) = m.source is CycleSource.Conta && !m.date.isBefore(today)
             val settledAhead = settled
                 .filter { aheadConta(it) && YearMonth.from(it.date) <= horizon.last() }

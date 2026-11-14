@@ -85,6 +85,7 @@ object BackupCodec {
         put("contas", JSONArray(b.contas.map { c ->
             JSONObject().put("id", c.id).put("nome", c.nome).put("valorCentavos", c.valorCentavos).put("vencimento", c.vencimento)
                 .put("status", c.status).put("tipo", c.tipo).put("recorrente", c.recorrente)
+                .apply { c.pagoEm?.let { put("pagoEm", it) } }
         }))
         put("objetivos", JSONArray(b.objetivos.map { o ->
             JSONObject().put("id", o.id).put("tipo", o.tipo).put("nome", o.nome).put("valorAlvoCentavos", o.valorAlvoCentavos)
@@ -171,6 +172,7 @@ object BackupCodec {
                         id = o.getLong("id"), nome = o.getString("nome"), valorCentavos = o.getLong("valorCentavos"),
                         vencimento = o.getLong("vencimento"), status = o.optString("status", "pendente"),
                         tipo = o.optString("tipo", "a_pagar"), recorrente = o.optBoolean("recorrente"),
+                        pagoEm = o.longOrNull("pagoEm"),
                     )
                 },
                 objetivos = root.list("objetivos") { o ->
