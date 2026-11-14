@@ -6,6 +6,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -624,7 +626,67 @@ private fun NotificationsPage(notificationsEnabled: Boolean, onRunCheck: () -> U
         null,
         "Uma vez por dia o FinAI recalcula seus dados e só avisa quando há algo relevante: conta vencendo ou " +
             "atrasada, limite de categoria perto de estourar, objetivo que precisa de atenção ou um padrão de gasto. " +
+            "Cada aviso traz botões para resolver ali mesmo (Já paguei, Lembrar amanhã, Dispensar), sem abrir o app. " +
             "O mesmo aviso não se repete no mesmo dia.",
+    )
+
+    // Lembrete do dia e exemplos: preferências simples, lidas e gravadas aqui mesmo.
+    val prefs = remember { com.finai.app.data.prefs.FinaiPreferences(context) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val reminderOn by prefs.dailyReminder.collectAsState(initial = true)
+    val reminderHour by prefs.dailyReminderHour.collectAsState(initial = 20)
+    var samplesSent by remember { mutableStateOf(false) }
+    SettingsGroup {
+        SettingsRow(
+            icon = Icons.Filled.Notifications,
+            title = "Lembrete do dia",
+            status = if (reminderOn) StatusLine("Ligado · por volta das ${reminderHour}h, só se nada foi lançado no dia", StatusTone.Ok)
+            else StatusLine("Desligado — toque para ligar", StatusTone.Neutral),
+            onClick = {
+                scope.launch {
+                    prefs.setDailyReminder(!reminderOn)
+                    if (reminderOn) com.finai.app.data.work.DailyReminderWorker.cancel(context)
+                    else com.finai.app.data.work.DailyReminderWorker.schedule(context, reminderHour, replace = true)
+                }
+            },
+            showChevron = false,
+        )
+        if (reminderOn) {
+            RowDivider()
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(12, 18, 20, 22).forEach { hour ->
+                    SelectChip("${hour}h", reminderHour == hour) {
+                        scope.launch {
+                            prefs.setDailyReminderHour(hour)
+                            com.finai.app.data.work.DailyReminderWorker.schedule(context, hour, replace = true)
+                        }
+                    }
+                }
+            }
+        }
+        RowDivider()
+        SettingsRow(
+            icon = Icons.Filled.PlayCircleOutline,
+            title = "Ver exemplos",
+            status = if (samplesSent) StatusLine("Três exemplos enviados — abra a barra de notificações e expanda cada um", StatusTone.Ok)
+            else StatusLine("Envia três notificações de exemplo, com os botões", StatusTone.Neutral),
+            onClick = {
+                val notifier = com.finai.app.data.notifications.RichNotifier(context)
+                com.finai.app.domain.notify.NotificationPlanner.samples(java.time.LocalDate.now()).forEach {
+                    notifier.post(it, com.finai.app.data.notifications.FinaiNotificationChannels.ALERTS_CHANNEL_ID)
+                }
+                samplesSent = true
+            },
+            showChevron = false,
+        )
+    }
+    FootNote(
+        null,
+        "O lembrete traz \"Lançar gasto\" e \"Nada hoje\". Dias seguidos com registro contam como sequência. " +
+            "O horário é aproximado: o Android pode atrasar a entrega para economizar bateria.",
     )
 }
 

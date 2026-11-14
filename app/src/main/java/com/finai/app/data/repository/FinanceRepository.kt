@@ -365,6 +365,9 @@ class FinanceRepository(private val db: FinaiDatabase) {
             // Só as reais; o texto original não sai do aparelho (o codec também o descarta).
             sugestoes = realSuggestions.map { it.copy(textoOriginal = null) },
             avisos = db.avisoDao().getAll().filterNot { it.id.startsWith("captura-") && it.id.removePrefix("captura-").toLongOrNull() !in realSuggestionIds },
+            memoria = db.memoriaDao().getAll(),
+            regrasCategoria = db.regraCategoriaDao().getAll(),
+            fechamentos = db.fechamentoDao().getAll(),
         )
     }
 
@@ -385,6 +388,9 @@ class FinanceRepository(private val db: FinaiDatabase) {
             mensagemChatDao.deleteAll()
             notificacaoEnviadaDao.deleteAll()
             db.avisoDao().deleteAll()
+            db.memoriaDao().deleteAll()
+            db.regraCategoriaDao().deleteAll()
+            db.fechamentoDao().deleteAll()
             sugestaoDao.deleteAll()
             testeNotificacaoDao.deleteAll()
             backup.contas.forEach { contaDao.upsert(it) }
@@ -397,6 +403,9 @@ class FinanceRepository(private val db: FinaiDatabase) {
             backup.mensagens.forEach { mensagemChatDao.insert(it) }
             backup.sugestoes.forEach { sugestaoDao.insert(it.copy(textoOriginal = null, testeId = null)) }
             backup.avisos.forEach { db.avisoDao().upsert(it) }
+            backup.memoria.forEach { db.memoriaDao().insert(it) }
+            backup.regrasCategoria.forEach { db.regraCategoriaDao().upsert(it) }
+            backup.fechamentos.forEach { db.fechamentoDao().upsert(it) }
         }
     }
 
@@ -413,8 +422,29 @@ class FinanceRepository(private val db: FinaiDatabase) {
             notificacaoEnviadaDao.deleteAll()
             // Lançamento por notificações: sugestões (e os vínculos que elas guardam) e testes.
             db.avisoDao().deleteAll()
+            db.memoriaDao().deleteAll()
+            db.regraCategoriaDao().deleteAll()
+            db.fechamentoDao().deleteAll()
             sugestaoDao.deleteAll()
             testeNotificacaoDao.deleteAll()
         }
     }
+
+    // ── Fases 9–10: memória, regras de categoria aprendidas e fechamento do mês ──
+    val memoria = db.memoriaDao().observeAll()
+    val regrasCategoria = db.regraCategoriaDao().observeAll()
+    val fechamentos = db.fechamentoDao().observeAll()
+
+    suspend fun lembrar(texto: String, tipo: String, origem: String, now: Long = System.currentTimeMillis()) = db.withTransaction {
+        // A mesma origem (um padrão, uma decisão) guarda um fato só: confirmar de novo atualiza o texto.
+        if (origem.isNotBlank() && origem != "chat") db.memoriaDao().deleteByOrigin(origem)
+        db.memoriaDao().insert(com.finai.app.data.local.entity.MemoriaEntity(texto = texto.take(160), tipo = tipo, criadoEm = now, origem = origem))
+    }
+    suspend fun esquecer(id: Long) = db.memoriaDao().delete(id)
+    suspend fun aprenderCategoria(estabelecimento: String, categoria: String) {
+        val key = com.finai.app.domain.importer.MerchantClassifier.normalizeMerchant(estabelecimento)
+        if (key.length >= 3) db.regraCategoriaDao().upsert(com.finai.app.data.local.entity.RegraCategoriaEntity(key, categoria))
+    }
+    suspend fun responderFechamento(mes: String, passo: String, resposta: String, now: Long = System.currentTimeMillis()) =
+        db.fechamentoDao().upsert(com.finai.app.data.local.entity.FechamentoEntity(mes, passo, resposta, now))
 }

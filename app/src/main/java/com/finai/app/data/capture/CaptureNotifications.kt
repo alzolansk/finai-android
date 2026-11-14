@@ -33,50 +33,19 @@ object CaptureNotifications {
     private fun suggestionNotificationId(id: Long) = SUGGESTION_BASE_ID + (id % 100_000).toInt()
 
     /** "Movimentação encontrada", quando o FinAI não está na tela. Tocar abre exatamente esta sugestão. */
-    fun notifySuggestion(context: Context, s: SugestaoLancamentoEntity) {
-        if (!FinaiNotifier(context).hasNotificationPermission()) return
-        val open = Intent(context, MainActivity::class.java).apply {
-            action = ACTION_OPEN_SUGGESTION
-            putExtra(EXTRA_SUGGESTION_ID, s.id)
-            // App aberto: volta à mesma tela (onNewIntent); fechado: abre direto na sugestão.
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val pending = PendingIntent.getActivity(
-            context, suggestionNotificationId(s.id), open,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    fun notifySuggestion(context: Context, s: SugestaoLancamentoEntity, canSaveDirectly: Boolean = false) {
+        // Mesmo desenho das outras notificações do app, com os botões na própria notificação:
+        // "Salvar" grava sem abrir o app quando nada falta; senão "Conferir" abre a sugestão.
+        com.finai.app.data.notifications.RichNotifier(context).post(
+            com.finai.app.domain.notify.NotificationPlanner.forCapture(s.id, s.descricao, s.valorCentavos, s.appNome, canSaveDirectly, s.isTest),
+            FinaiNotificationChannels.CAPTURE_CHANNEL_ID,
         )
-        val value = s.valorCentavos?.let(::brl2) ?: "Valor a confirmar"
-        val detail = listOf(value, s.descricao).filter { it.isNotBlank() }.joinToString(" · ")
-        val prefix = if (s.isTest) "Teste do FinAI · " else ""
-        val title = "${prefix}Movimentação encontrada"
-        // Na tela bloqueada aparece só o título: valor e estabelecimento ficam para depois de desbloquear.
-        val public = NotificationCompat.Builder(context, FinaiNotificationChannels.CAPTURE_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_finai)
-            .setContentTitle(title)
-            .setContentText("Toque para conferir")
-            .build()
-        val notification = NotificationCompat.Builder(context, FinaiNotificationChannels.CAPTURE_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_finai)
-            .setContentTitle(title)
-            .setContentText("$detail — toque para conferir")
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$detail\nNada foi lançado ainda: confira e salve no FinAI."))
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-            .setPublicVersion(public)
-            .setGroup(SUGGESTION_GROUP)
-            .setAutoCancel(true)
-            .setOnlyAlertOnce(true)
-            .setContentIntent(pending)
-            .build()
-        try {
-            NotificationManagerCompat.from(context).notify(suggestionNotificationId(s.id), notification)
-        } catch (_: SecurityException) {
-            // Permissão revogada no meio: a sugestão continua em "Para confirmar" dentro do app.
-        }
     }
 
-    fun cancelSuggestion(context: Context, id: Long) =
+    fun cancelSuggestion(context: Context, id: Long) {
         NotificationManagerCompat.from(context).cancel(suggestionNotificationId(id))
+        com.finai.app.data.notifications.RichNotifier(context).cancel("captura-$id")
+    }
 
     /**
      * Uma notificação real "Teste do FinAI". Não finge ser banco: sai com o nome e o ícone do

@@ -36,6 +36,7 @@ data class FinanceUiState(
     val rawObjetivos: List<ObjetivoEntity> = emptyList(),
     val rawDividas: List<DividaEntity> = emptyList(),
     val rawOrcamentos: List<OrcamentoCategoriaEntity> = emptyList(),
+    val rawAssinaturas: List<com.finai.app.data.local.entity.AssinaturaEntity> = emptyList(),
     val rawTransacoesDoMes: List<TransacaoEntity> = emptyList(),
     /** Todas as transações, sem filtro de mês — usado pela Agenda para o mês que o usuário estiver navegando (planning.md §3.2/§3.6). */
     val rawTransacoes: List<TransacaoEntity> = emptyList(),
@@ -133,7 +134,31 @@ data class FinanceUiState(
     val inboxStates: List<com.finai.app.data.local.entity.AvisoEntity> = emptyList(),
     val unreadInbox: Int = 0,
     val dismissedInbox: Int = 0,
+    /** Gastos, Planos, simulador, fechamento e memória (fases 5–10). */
+    val v2: V2State? = null,
 )
+
+data class V2State(
+    val capacity: com.finai.app.domain.plans.SavingsCapacity,
+    val asks: List<com.finai.app.domain.plans.GoalAsk>,
+    /** O único conflito de metas da vez; nulo quando todas cabem. */
+    val conflict: com.finai.app.domain.plans.GoalConflict?,
+    /** O usuário escolheu "Manter" e a sobra não piorou: o conflito não aparece. */
+    val conflictKept: Boolean,
+    val installments: com.finai.app.domain.InstallmentsSummary,
+    val commitments: com.finai.app.domain.plans.CommitmentsSchedule,
+    val limits: Map<String, Long>,
+    val closing: com.finai.app.domain.closing.MonthClosing?,
+    /** Resumo do fechamento escrito pela IA e guardado; nulo = usa o texto calculado. */
+    val closingSummary: String?,
+    val showClosingCard: Boolean,
+    val memory: List<com.finai.app.data.local.entity.MemoriaEntity>,
+    /** Estabelecimento normalizado → categoria que o usuário escolheu. */
+    val learned: Map<String, String>,
+) {
+    val asksCents: Long get() = asks.sumOf { it.monthlyCents }
+    val visibleConflict: com.finai.app.domain.plans.GoalConflict? get() = conflict.takeIf { !conflictKept }
+}
 
 /**
  * Minimal-context summary sent to the AI for free-form chat (planning.md

@@ -89,34 +89,55 @@ class FinanceCheckWorker(
             budgetProgress, insights, db.sugestaoLancamentoDao().observeAll().first(), today, pattern,
             AlertCalculator.alerts(contas, budgetProgress, subscriptionInsights, goalPlans, today, plan.shortfall))
         inbox.synchronize(items, dismissed, today)
-        val alerts = com.finai.app.domain.inbox.InboxRules.visible(items, inbox.states.first(), today).mapNotNull { it.alert }
 
         // ── 3. Deduplicação — só o que ainda não foi notificado hoje ───────
-        val newAlerts = alerts.filter { dedupe.shouldSend(it.id, today) }
-
-        if (newAlerts.isEmpty()) {
-            FinaiLog.i(TAG, "Nada de novo para notificar hoje — nenhuma chamada de IA, nenhuma notificação.")
+        val visibleItems = com.finai.app.domain.inbox.InboxRules.visible(items, inbox.states.first(), today)
+        val specs = visibleItems.filter { dedupe.shouldSend(it.id, today) }
+            .mapNotNull { com.finai.app.domain.notify.NotificationPlanner.forInbox(it, today) }
+        val rich = com.finai.app.data.notifications.RichNotifier(context)
+        if (specs.isEmpty()) {
+            FinaiLog.i(TAG, "Nada de novo para notificar hoje.")
         } else {
-            // Router só é criado (e só é chamado) quando existe algo para redigir — planning.md §9's
-            // "evita gerar notificação, e gastar cota, todo dia à toa". No máximo 2 chamadas por
-            // execução: uma para o lote de alertas, uma para o coach — nunca uma por evento.
-            val aiRouter = AiRouter(context)
-            val contentBuilder = NotificationContentBuilder(aiRouter)
-            val notifier = FinaiNotifier(context)
-
-            if (newAlerts.isNotEmpty()) {
-                val content = contentBuilder.forAlerts(newAlerts)
-                // A dispensa pode acontecer enquanto a IA redige: conferir o Room de novo.
-                val currentIds = com.finai.app.domain.inbox.InboxRules.visible(items, inbox.states.first(), today).map { it.id }.toSet()
-                val stillActive = newAlerts.filter { it.id in currentIds }
-                if (stillActive.size == newAlerts.size && notifier.notifyAlerts(content, FinaiNotifier.ALERTS_NOTIFICATION_ID)) {
-                    newAlerts.forEach { dedupe.markSent(it.id, today) }
-                }
+            // Uma notificação por evento, com os botões dele, até MAX_PER_RUN; o resto fica na Caixa.
+            // Sem chamada de IA: o texto vem do planner, e o número, do item da Caixa.
+            specs.take(com.finai.app.domain.notify.NotificationPlanner.MAX_PER_RUN).forEach { spec ->
+                val channel = if (spec.look == com.finai.app.domain.notify.NotifyLook.Coach) com.finai.app.data.notifications.FinaiNotificationChannels.COACH_CHANNEL_ID
+                else com.finai.app.data.notifications.FinaiNotificationChannels.ALERTS_CHANNEL_ID
+                // A dispensa pode ter acontecido enquanto a rotina rodava: conferir o Room de novo.
+                val still = com.finai.app.domain.inbox.InboxRules.visible(items, inbox.states.first(), today).any { it.id == spec.key }
+                if (still && rich.post(spec, channel)) dedupe.markSent(spec.key, today)
             }
         }
 
+        // Fechamento do mês: um convite por mês, do dia 1 ao 7, enquanto houver passo pendente.
+        val limits = orcamentos.associate { it.categoria to it.limiteMensalCentavos }
+        val answers = db.fechamentoDao().getAll().filter { it.mes == com.finai.app.domain.closing.MonthClosing.monthFor(today).toString() }.associate { it.passo to it.resposta }
+        val closing = com.finai.app.domain.closing.MonthClosing.of(contas, transacoes, dividas, limits, null, plan.livreCents, answers, today)
+        val closingKey = "fechamento-${closing.key}"
+        if (!closing.empty && closing.pending && closing.doneCount == 0 && today.dayOfMonth <= com.finai.app.domain.closing.MonthClosing.VISIBLE_UNTIL_DAY &&
+            db.notificacaoEnviadaDao().find(closingKey) == null) {
+            if (rich.post(com.finai.app.domain.notify.NotificationPlanner.closing(closing.monthName, closing.leftCents, closing.key),
+                    com.finai.app.data.notifications.FinaiNotificationChannels.ALERTS_CHANNEL_ID)) dedupe.markSent(closingKey, today)
+        }
+
+        // "Lembrar depois da próxima entrada" do simulador de compra.
+        prefs.purchaseReminder.first()?.split('|')?.takeIf { it.size == 3 }?.let { (date, name, cents) ->
+            val due = runCatching { LocalDate.parse(date) }.getOrNull()
+            if (due != null && !today.isBefore(due)) {
+                val value = cents.toLongOrNull() ?: 0
+                rich.post(com.finai.app.domain.notify.NotifySpec(
+                    key = "compra-lembrete", look = com.finai.app.domain.notify.NotifyLook.Goal, eyebrow = "VOCÊ PEDIU PARA LEMBRAR",
+                    title = "${name.ifBlank { "Aquela compra" }}: ainda quer?", body = "A entrada que você esperava já passou. Simule de novo com o saldo de hoje.",
+                    amount = com.finai.app.util.formatBrl0(value / 100.0),
+                    buttons = listOf(com.finai.app.domain.notify.NotifyButton("Abrir o FinAI", com.finai.app.domain.notify.NotifyAction.OpenInbox, primary = true)),
+                ), com.finai.app.data.notifications.FinaiNotificationChannels.ALERTS_CHANNEL_ID)
+                prefs.setPurchaseReminder(null)
+            }
+        }
+        val alerts = visibleItems.mapNotNull { it.alert }
+
         // ── 4. Limpeza — some da lista o registro de evento resolvido ──────
-        val activeKeys = alerts.map { it.id } + listOfNotNull(pattern?.id)
+        val activeKeys = alerts.map { it.id } + listOfNotNull(pattern?.id) + closingKey
         dedupe.pruneExcept(activeKeys)
     }
 

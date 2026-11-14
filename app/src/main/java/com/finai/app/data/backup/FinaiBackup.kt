@@ -39,6 +39,9 @@ data class FinaiBackup(
     val sugestoes: List<SugestaoLancamentoEntity> = emptyList(),
     val capturaApps: Set<String> = emptySet(),
     val avisos: List<com.finai.app.data.local.entity.AvisoEntity> = emptyList(),
+    val memoria: List<com.finai.app.data.local.entity.MemoriaEntity> = emptyList(),
+    val regrasCategoria: List<com.finai.app.data.local.entity.RegraCategoriaEntity> = emptyList(),
+    val fechamentos: List<com.finai.app.data.local.entity.FechamentoEntity> = emptyList(),
 ) {
     /** Resumo para a confirmação "substitui tudo": o que o arquivo traz. */
     fun summary(): String = listOf(
@@ -126,6 +129,15 @@ object BackupCodec {
             JSONObject().put("id", a.id).put("tipo", a.tipo).put("estado", a.estado).put("valorRef", a.valorRef)
                 .putOpt("vistoEm", a.vistoEm).putOpt("resolvidoEm", a.resolvidoEm)
                 .putOpt("dispensadoEm", a.dispensadoEm).putOpt("adiadoAte", a.adiadoAte)
+        }))
+        put("memoria", JSONArray(b.memoria.map { m ->
+            JSONObject().put("id", m.id).put("texto", m.texto).put("tipo", m.tipo).put("criadoEm", m.criadoEm).put("origem", m.origem)
+        }))
+        put("regrasCategoria", JSONArray(b.regrasCategoria.map { r ->
+            JSONObject().put("estabelecimento", r.estabelecimentoNormalizado).put("categoria", r.categoria)
+        }))
+        put("fechamentos", JSONArray(b.fechamentos.map { f ->
+            JSONObject().put("mes", f.mes).put("passo", f.passo).put("resposta", f.resposta).put("em", f.em)
         }))
     }.toString(2)
 
@@ -228,6 +240,15 @@ object BackupCodec {
                     com.finai.app.data.local.entity.AvisoEntity(o.getString("id"), o.getString("tipo"),
                         o.getString("estado"), o.optLong("valorRef"), o.stringOrNull("vistoEm"),
                         o.stringOrNull("resolvidoEm"), o.stringOrNull("dispensadoEm"), o.stringOrNull("adiadoAte"))
+                },
+                memoria = root.list("memoria") { o ->
+                    com.finai.app.data.local.entity.MemoriaEntity(o.optLong("id"), o.getString("texto"), o.optString("tipo", "nota"), o.optLong("criadoEm"), o.optString("origem"))
+                },
+                regrasCategoria = root.list("regrasCategoria") { o ->
+                    com.finai.app.data.local.entity.RegraCategoriaEntity(o.getString("estabelecimento"), o.getString("categoria"))
+                },
+                fechamentos = root.list("fechamentos") { o ->
+                    com.finai.app.data.local.entity.FechamentoEntity(o.getString("mes"), o.getString("passo"), o.optString("resposta"), o.optLong("em"))
                 },
             )
         } catch (e: BackupFormatException) {

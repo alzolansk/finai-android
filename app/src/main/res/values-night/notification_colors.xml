@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="notif_emerald">#34D399</color>
+    <color name="notif_amber">#FBBF24</color>
+    <color name="notif_rose">#FB7185</color>
+    <color name="notif_sky">#60A5FA</color>
+    <color name="notif_button_secondary_bg">#24FFFFFF</color>
+    <color name="notif_button_secondary_text">#F4F4F5</color>
+    <color name="notif_track">#2EFFFFFF</color>
+    <color name="notif_amount">#FAFAFA</color>
+    <color name="notif_muted">#A1A1AA</color>
+</resources>

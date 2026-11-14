@@ -2,6 +2,7 @@ package com.finai.app.data.prefs
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -42,6 +43,10 @@ class FinaiPreferences(private val context: Context) {
         val RECON_DATE = stringPreferencesKey("reconciled_on")
         val RECON_BALANCE = longPreferencesKey("reconciled_balance_cents")
         val RECON_ADJUST = longPreferencesKey("reconciled_adjust_cents")
+        val DAILY_REMINDER = booleanPreferencesKey("daily_reminder")
+        val DAILY_REMINDER_HOUR = intPreferencesKey("daily_reminder_hour")
+        val QUIET_DAYS = stringSetPreferencesKey("quiet_days")
+        val REMIND_PURCHASE = stringPreferencesKey("remind_purchase")
     }
 
     /**
@@ -100,6 +105,28 @@ class FinaiPreferences(private val context: Context) {
      * Apagado com "Apagar todos os dados", junto com as metas a que se refere.
      */
     val dismissedInsights: Flow<Set<String>> = context.dataStore.data.map { it[Keys.DISMISSED_INSIGHTS] ?: emptySet() }
+
+    // ── Lembrete diário (notificações com botões) ────────────────
+    /** Ligado por padrão: um lembrete por dia, só se nada foi lançado nem marcado como "Nada hoje". */
+    val dailyReminder: Flow<Boolean> = context.dataStore.data.map { it[Keys.DAILY_REMINDER] ?: true }
+    val dailyReminderHour: Flow<Int> = context.dataStore.data.map { (it[Keys.DAILY_REMINDER_HOUR] ?: 20).coerceIn(0, 23) }
+    /** Dias em que o usuário respondeu "Nada hoje" (ISO); só os últimos 60 ficam guardados. */
+    val quietDays: Flow<Set<String>> = context.dataStore.data.map { it[Keys.QUIET_DAYS] ?: emptySet() }
+
+    suspend fun setDailyReminder(enabled: Boolean) { context.dataStore.edit { it[Keys.DAILY_REMINDER] = enabled } }
+    suspend fun setDailyReminderHour(hour: Int) { context.dataStore.edit { it[Keys.DAILY_REMINDER_HOUR] = hour.coerceIn(0, 23) } }
+    suspend fun markQuietDay(day: java.time.LocalDate) {
+        context.dataStore.edit { p ->
+            val limit = day.minusDays(60).toString()
+            p[Keys.QUIET_DAYS] = ((p[Keys.QUIET_DAYS] ?: emptySet()) + day.toString()).filter { it >= limit }.toSet()
+        }
+    }
+
+    /** "Lembrar depois da próxima entrada" do simulador: "data|nome|centavos"; uma compra por vez. */
+    val purchaseReminder: Flow<String?> = context.dataStore.data.map { it[Keys.REMIND_PURCHASE] }
+    suspend fun setPurchaseReminder(value: String?) {
+        context.dataStore.edit { if (value == null) it.remove(Keys.REMIND_PURCHASE) else it[Keys.REMIND_PURCHASE] = value }
+    }
 
     suspend fun dismissInsight(key: String) {
         context.dataStore.edit { it[Keys.DISMISSED_INSIGHTS] = (it[Keys.DISMISSED_INSIGHTS] ?: emptySet()) + key }

@@ -38,7 +38,13 @@ class CaptureProcessor(private val context: Context) {
                     is CaptureRepository.Registered.Repeated -> null
                 } ?: return@forEach
                 repository.get(id)?.takeIf { it.state == com.finai.app.domain.capture.SuggestionState.Pending }
-                    ?.let { CaptureNotifications.notifySuggestion(context, it) }
+                    ?.let { s ->
+                        // "Salvar" direto na notificação só quando nada falta e não parece repetida (a mesma regra da Caixa).
+                        val draft = com.finai.app.domain.capture.SuggestionRules.draftOf(s.toMovement())
+                        val due = draft.card?.let { card -> EntryOptions.resolveCardDue(card, draft.date, db.faturaCartaoDao().getAll(), db.contaDao().getAll()) }
+                        val direct = !s.possivelRepeticao && com.finai.app.domain.capture.SuggestionRules.missing(draft, due).isEmpty()
+                        CaptureNotifications.notifySuggestion(context, s, direct)
+                    }
             }
         }
         return Report(outcomes, registered)

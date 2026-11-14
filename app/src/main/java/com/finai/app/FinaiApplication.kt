@@ -17,5 +17,7 @@ class FinaiApplication : Application() {
         super.onCreate()
         FinaiNotificationChannels.ensureCreated(this)
         FinanceCheckWorker.schedule(this)
+        // Lembrete do dia: mantém o agendamento que já existe; a hora muda em Configurações → Notificações.
+        com.finai.app.data.work.DailyReminderWorker.schedule(this, 20)
     }
 }

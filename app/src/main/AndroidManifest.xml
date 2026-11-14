@@ -102,6 +102,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Botões das notificações (pagar, adiar, salvar, "Nada hoje"): só intents do próprio app. -->
+        <receiver
+            android:name=".data.notifications.NotificationActionReceiver"
+            android:exported="false" />
+
         <service
             android:name=".data.capture.FinanceNotificationListener"
             android:label="@string/capture_listener_label"

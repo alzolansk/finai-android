@@ -76,7 +76,16 @@ class MainActivity : ComponentActivity() {
             com.finai.app.data.notifications.InboxLinks.request()
             intent.action = null
         }
+        if (intent?.action == com.finai.app.data.notifications.AppLinks.ACTION_OPEN) {
+            intent.getStringExtra(com.finai.app.data.notifications.AppLinks.EXTRA_ROUTE)?.let(com.finai.app.data.notifications.AppLinks::request)
+            // O botão abriu o app: a notificação já cumpriu o papel dela.
+            intent.getIntExtra(com.finai.app.data.notifications.NotificationActionReceiver.EXTRA_NOTIFICATION_ID, 0).takeIf { it != 0 }
+                ?.let { androidx.core.app.NotificationManagerCompat.from(this).cancel(it) }
+            intent.action = null
+        }
         if (intent?.action != CaptureNotifications.ACTION_OPEN_SUGGESTION) return
+        intent.getIntExtra(com.finai.app.data.notifications.NotificationActionReceiver.EXTRA_NOTIFICATION_ID, 0).takeIf { it != 0 }
+            ?.let { androidx.core.app.NotificationManagerCompat.from(this).cancel(it) }
         val id = intent.getLongExtra(CaptureNotifications.EXTRA_SUGGESTION_ID, -1L)
         if (id >= 0) CaptureLinks.request(id)
         intent.removeExtra(CaptureNotifications.EXTRA_SUGGESTION_ID)

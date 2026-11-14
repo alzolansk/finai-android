@@ -36,7 +36,7 @@ import com.finai.app.data.local.entity.TesteNotificacaoEntity
  * per planning.md §4's privacy-first requirement.
  */
 /** Versão do schema do Room — também é a que o backup exportado carrega (Fase 7, item 12). */
-const val FINAI_DB_VERSION = 17
+const val FINAI_DB_VERSION = 18
 
 @Database(
     entities = [
@@ -53,6 +53,9 @@ const val FINAI_DB_VERSION = 17
         SugestaoLancamentoEntity::class,
         TesteNotificacaoEntity::class,
         com.finai.app.data.local.entity.AvisoEntity::class,
+        com.finai.app.data.local.entity.MemoriaEntity::class,
+        com.finai.app.data.local.entity.RegraCategoriaEntity::class,
+        com.finai.app.data.local.entity.FechamentoEntity::class,
     ],
     version = FINAI_DB_VERSION,
     // Fase 6: o schema de cada versão passa a ser exportado para
@@ -76,6 +79,9 @@ abstract class FinaiDatabase : RoomDatabase() {
     abstract fun sugestaoLancamentoDao(): SugestaoLancamentoDao
     abstract fun testeNotificacaoDao(): TesteNotificacaoDao
     abstract fun avisoDao(): com.finai.app.data.local.dao.AvisoDao
+    abstract fun memoriaDao(): com.finai.app.data.local.dao.MemoriaDao
+    abstract fun regraCategoriaDao(): com.finai.app.data.local.dao.RegraCategoriaDao
+    abstract fun fechamentoDao(): com.finai.app.data.local.dao.FechamentoDao
 
     companion object {
 
@@ -282,7 +288,16 @@ abstract class FinaiDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+        /** Fases 9–10: memória do assistente, regras de categoria aprendidas e fechamento do mês. */
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `memoria` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `texto` TEXT NOT NULL, `tipo` TEXT NOT NULL, `criadoEm` INTEGER NOT NULL, `origem` TEXT NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `regras_categoria` (`estabelecimentoNormalizado` TEXT NOT NULL, `categoria` TEXT NOT NULL, PRIMARY KEY(`estabelecimentoNormalizado`))")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `fechamentos` (`mes` TEXT NOT NULL, `passo` TEXT NOT NULL, `resposta` TEXT NOT NULL, `em` INTEGER NOT NULL, PRIMARY KEY(`mes`, `passo`))")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
 
         @Volatile private var instance: FinaiDatabase? = null
 

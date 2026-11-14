@@ -24,6 +24,8 @@ object FinaiNotificationChannels {
      * listener aceita, e só com o marcador de teste: nenhum outro aviso do app é lido.
      */
     const val TEST_CHANNEL_ID = "finai_testes"
+    /** O lembrete do dia ("Gastou alguma coisa hoje?"), silenciável à parte. */
+    const val REMINDER_CHANNEL_ID = "finai_lembrete"
 
     fun ensureCreated(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -56,6 +58,16 @@ object FinaiNotificationChannels {
                 NotificationManager.IMPORTANCE_DEFAULT,
             ).apply {
                 description = "Compras e Pix lidos das notificações dos apps que você escolheu, esperando sua confirmação."
+            },
+        )
+
+        manager.createNotificationChannel(
+            NotificationChannel(
+                REMINDER_CHANNEL_ID,
+                "Lembrete do dia",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = "Um lembrete por dia para lançar os gastos, só quando nada foi lançado."
             },
         )
 

@@ -196,6 +196,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             alerts = visible.mapNotNull { it.alert },
             unreadInbox = visible.count { com.finai.app.domain.inbox.InboxRules.isNew(it, states) },
             dismissedInbox = states.count { it.estado == "dispensado" && !it.id.startsWith("coach:") })
+    }.combine(combine(repository.memoria, repository.regrasCategoria, repository.fechamentos) { m, r, f -> Triple(m, r, f) }) { state, (memory, rules, closings) ->
+        state.copy(v2 = buildV2(state, memory, rules, closings))
     }.catch { t ->
         // Uma exceção aqui (leitura do banco, ou um calculator diante de um dado
         // inesperado) cancelaria o StateFlow e levaria o app junto. Em vez disso
@@ -205,6 +207,97 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         FinaiLog.e(TAG, "Falha ao recalcular o estado financeiro", t)
         _persistenceError.value = "Não foi possível atualizar os números agora. Reabra o app se a tela continuar desatualizada."
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FinanceUiState())
+
+    /** Fases 6–10: o que Gastos, Planos, o simulador e o fechamento leem, calculado fora da tela. */
+    private fun buildV2(
+        state: FinanceUiState,
+        memory: List<com.finai.app.data.local.entity.MemoriaEntity>,
+        rules: List<com.finai.app.data.local.entity.RegraCategoriaEntity>,
+        closings: List<com.finai.app.data.local.entity.FechamentoEntity>,
+    ): V2State {
+        val today = LocalDate.now()
+        val contas = state.rawContas; val transacoes = state.rawTransacoes; val dividas = state.rawDividas
+        val capacity = com.finai.app.domain.plans.SavingsCapacity.of(contas, transacoes, dividas, today)
+        val conflict = com.finai.app.domain.plans.GoalConflictResolver.resolve(state.rawObjetivos, capacity.cabeGuardarCents, today)
+        // "Manter" vale enquanto a sobra não cair mais de 20% em relação à do dia da decisão.
+        val kept = conflict?.let { c ->
+            state.inboxStates.firstOrNull { it.id == c.decisionId && it.estado == "dispensado" }
+                ?.let { capacity.cabeGuardarCents * 10 >= it.valorRef * 8 }
+        } ?: false
+        val installments = com.finai.app.domain.InstallmentsSummary.of(transacoes, state.rawFaturasCartao, contas)
+        val commitments = com.finai.app.domain.plans.CommitmentsSchedule.of(contas, transacoes, dividas, installments, today,
+            state.rawFaturasCartao.map { it.contaId }.toSet())
+        val limits = state.rawOrcamentos.associate { it.categoria to it.limiteMensalCentavos }
+        val closingMonth = com.finai.app.domain.closing.MonthClosing.monthFor(today).toString()
+        val answers = closings.filter { it.mes == closingMonth }.associate { it.passo to it.resposta }
+        val surplusGoal = state.plan?.recommendations?.firstOrNull { it.target == com.finai.app.domain.RecommendationTarget.Goal }?.let { it.id to it.name }
+            ?: state.rawObjetivos.filter { it.concluidoEm == null }.minByOrNull { it.prioridade }?.let { it.id to it.nome }
+        val closing = com.finai.app.domain.closing.MonthClosing.of(contas, transacoes, dividas, limits, surplusGoal,
+            state.plan?.livreCents ?: 0, answers, today)
+        return V2State(
+            capacity = capacity, asks = com.finai.app.domain.plans.GoalConflictResolver.asks(state.rawObjetivos, today),
+            conflict = conflict, conflictKept = kept, installments = installments, commitments = commitments, limits = limits,
+            closing = closing.takeIf { !it.empty }, closingSummary = answers["resumo"],
+            showClosingCard = com.finai.app.domain.closing.MonthClosing.showCard(closing, today),
+            memory = memory, learned = rules.associate { it.estabelecimentoNormalizado to it.categoria },
+        )
+    }
+
+    // ── Fases 5–10: ações novas ─────────────────────────────────
+    /** "Manter" do conflito de metas: a decisão fica na Caixa (não volta sozinha) e na memória do assistente. */
+    fun keepGoalConflict(conflict: com.finai.app.domain.plans.GoalConflict) = launchSafely("guardar a decisão") {
+        db.avisoDao().upsert(com.finai.app.data.local.entity.AvisoEntity(conflict.decisionId, "meta-conflito", "dispensado",
+            conflict.fitsCents, vistoEm = LocalDate.now().toString(), dispensadoEm = LocalDate.now().toString()))
+        repository.lembrar("Decidiu manter o prazo de \"${conflict.goalName}\" mesmo pedindo mais do que cabe guardar.", "decisao", conflict.decisionId)
+    }
+
+    fun moveGoalDeadline(goalId: Long, month: java.time.YearMonth) = launchSafely("mudar o prazo") {
+        val goal = uiState.value.rawObjetivos.firstOrNull { it.id == goalId } ?: return@launchSafely
+        repository.salvarObjetivo(goal.copy(prazo = month.atEndOfMonth().toEpochMillis()))
+    }
+
+    fun applyLimits(proposals: List<com.finai.app.domain.spending.LimitProposal>) = launchSafely("aplicar os limites") {
+        proposals.forEach { repository.salvarLimiteOrcamento(OrcamentoCategoriaEntity(it.categoria, it.suggestedCents, monthKey())) }
+    }
+
+    fun setLimitCents(categoria: String, cents: Long) = launchSafely("salvar o limite") {
+        repository.salvarLimiteOrcamento(OrcamentoCategoriaEntity(categoria, cents.coerceAtLeast(0), monthKey()))
+    }
+
+    fun answerClosing(month: String, step: String, answer: String) = launchSafely("guardar a resposta") {
+        repository.responderFechamento(month, step, answer)
+    }
+
+    fun rememberFact(text: String, tipo: String, origem: String) = launchSafely("guardar na memória") { repository.lembrar(text, tipo, origem) }
+    fun forgetFact(id: Long) = launchSafely("apagar da memória") { repository.esquecer(id) }
+    fun learnCategory(merchant: String, categoria: String) = launchSafely("aprender a categoria") { repository.aprenderCategoria(merchant, categoria) }
+
+    /** "Já sei" do coach: silencia o padrão e vira um fato na memória do assistente (fase 9). */
+    fun acknowledgePattern(pattern: com.finai.app.domain.BehaviorPattern) = launchSafely("dispensar o aviso") {
+        prefs.dismissInsight(pattern.id)
+        repository.lembrar("Já sabe: ${pattern.title}", "padrao", pattern.id)
+    }
+
+    /** Grava um rascunho completo lido de uma frase (chat ou campo "Escrever"). Nulo se faltar dado. */
+    suspend fun saveQuickDraft(draft: com.finai.app.domain.quickentry.QuickDraft): com.finai.app.domain.EntryReceipt? {
+        val cents = draft.cents ?: return null
+        val base = TransacaoEntity(
+            data = draft.date.toEpochMillis(), descricao = draft.description, valorCentavos = cents, categoria = draft.category.orEmpty(),
+            contaOrigem = draft.account ?: com.finai.app.domain.EntryOptions.FALLBACK_ACCOUNT, recorrente = false, origem = "manual", tipo = draft.type.name,
+        )
+        return when (draft.type) {
+            com.finai.app.domain.TransactionType.Gasto -> {
+                if (draft.category == null || draft.payment?.isCard == true) return null
+                saveTransactionEntry(base.copy(descricao = base.descricao.ifBlank { draft.category }))
+            }
+            com.finai.app.domain.TransactionType.Receita -> saveTransactionEntry(base.copy(descricao = base.descricao.ifBlank { "Receita" }, categoria = "Receita"))
+            com.finai.app.domain.TransactionType.Transferencia -> {
+                val goal = uiState.value.rawObjetivos.firstOrNull { it.nome == draft.goalName } ?: return null
+                saveContribution(base.copy(descricao = "Aporte · ${goal.nome}", categoria = com.finai.app.domain.TransactionType.Transferencia.label,
+                    objetivoId = goal.id, contaDestino = goal.nome))
+            }
+        }
+    }
 
     private data class Snapshot(
         val contas: List<ContaEntity>,
@@ -299,6 +392,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             rawObjetivos = s.objetivos,
             rawDividas = s.dividas,
             rawOrcamentos = orcamentos,
+            rawAssinaturas = s.assinaturas,
             rawTransacoesDoMes = transacoesDoMes,
             rawTransacoes = s.transacoes,
             goals = goalPlans.filterNot { Completion.isDone(it.objetivo) }.map {
