@@ -3,13 +3,10 @@
 Atualizado em 14/11/2026, branch `claude/intelligent-curie-erx3os`. O handoff anterior (FinAI v2,
 fases 5–11) está mais abaixo, sem alteração.
 
-**Estado em uma frase:** o domínio, a camada de dados e o `AppViewModel` do assistente novo estão
-escritos, mas **nada foi compilado** (nem Gradle, nem kotlinc), a tela do chat e o `FinaiApp` ainda
-não foram ligados, nenhum teste novo existe e **não há APK**. O working tree **não compila** como está.
-
-O plano que guia o trabalho é o documento "Reestruturação do assistente financeiro do FinAI"
-(14/11/2026, etapas 0–7 e seção 5.10). **Ele não está no repositório**: foi colado pelo usuário na
-conversa. Peça para ele colar de novo ou salvar em `docs/`.
+**Estado em uma frase (atualizado após a sessão de compilação):** o assistente novo **compila, está ligado ao chat e à Caixa
+e tem 629 testes JVM verdes** (`assembleDebug`, `assemblePessoal` e `compileDebugAndroidTestKotlin` também). **Não foi
+visto em aparelho nem com modelo real**, e os testes instrumentados (`Migration19To20Test`, executor contra Room) estão
+escritos mas não executados. O `20.json` foi gerado e commitado. O plano está em `docs/PLANO-ASSISTENTE-FINANCEIRO.md`.
 
 ## O que foi escrito (tudo sem compilar)
 
@@ -57,31 +54,14 @@ Dados:
 
 ## O que falta, em ordem
 
-1. **Fazer compilar.** Erros certos hoje:
-   - `FinaiApp.kt` ainda chama `viewModel.setFinanceSnapshot`, `setAssistantContext`,
-     `onPurchaseRegistered`, `discardPendingPurchase` e lê `uiState.pendingPurchase` (removidos).
-   - `ChatOverlay.kt` ainda tem `pendingPurchase` e `SimulatedPurchaseCard`.
-   - `AssistantToolsTest.kt` usa `AssistantData`, `AssistantLoop.answer/reply` e `run(call, data, today)`.
-   - Falta `AssistantAnswer.explanation` (texto da IA dentro do cartão): acrescentar o campo, o
-     codec e o uso no orquestrador (hoje `answer = answer`).
-   - Esperar erros de tipo espalhados nos arquivos novos: nenhum passou pelo compilador.
-2. **Tela do chat** (`ChatOverlay.kt`): cartão para `message.answer` (título, destaque, métricas,
-   evidências, notas, botões de opção que enviam `option.send`, estado da ação, "Desfazer" quando
-   `action.actionId == uiState.undoableActionId`, "Ver na Agenda" com `action.agendaDate`); lista de
-   acompanhamentos (pausar, retomar, cancelar) junto de "Sei sobre você"; sugestões novas.
-   `FinaiApp.kt`: passar `onUndoAction = viewModel::undoAction`, `watchRules`, `onOpenAgenda`; abrir
-   o chat ao tocar num aviso `kind == "acompanhamento"`; rótulo desse aviso em `InboxScreen`.
-3. **Testes JVM** (plano §9 e critérios da §5.10): salário (mesmo mês, cruzando mês, dividido,
-   "caiu adiantado" ≠ adiantamento, já recebido, duas rendas, parcial), autorização (hipótese nunca
-   grava; ação da IA com valor não dito vira proposta), alvo ambíguo, conta/fatura, parcela, aporte,
-   meta, limite, série (sempre confirma), exclusão (sempre confirma), `FactGuard`, projeção igual ao
-   `FreeToSpend`, `PaymentWindow`, cenários, `SavedPlan`, `WatchRules`, orquestrador com fakes de
-   `ActionExecutor`/`SessionStore` (idempotência, confirmação, desfazer). `Migration19To20Test`
-   (instrumentado) e o executor contra Room.
-4. **Build e APK:** `./gradlew assembleDebug testDebugUnitTest assemblePessoal`; commitar o
-   `20.json`; enviar `app/build/outputs/apk/pessoal/app-pessoal.apk`.
-5. **Docs:** seção "Status atual" do `CLAUDE.md`, `PRIVACY.md` (o que as consultas mandam para a
-   IA), `planning-v2.md` (fase 9 ampliada).
+1. **Aparelho/emulador:** instalar o APK `pessoal` (mesma chave de debug desta máquina: instala por cima) e conferir o
+   cartão do chat, "Desfazer", "Ver na Agenda", a lista de acompanhamentos e o aviso `acompanhamento` na Caixa.
+   Frases para testar: "Meu salário caiu adiantado este mês, recebi hoje", "Paguei a fatura do Nubank hoje",
+   "Guarde R$ 200 na viagem", "Apague o uber de ontem" (pede sim), "Quando posso quitar o Picpay?", "Me avise quando couber quitar o Picpay".
+2. **Instrumentados:** `./gradlew connectedDebugAndroidTest` (principalmente `Migration19To20Test`) e um teste do
+   `AssistantActionExecutor` contra Room (idempotência por chave, revalidação, recibo, desfazer com conflito).
+3. **Modelos reais:** a escolha de ferramenta pela IA (linha JSON) só foi testada com fakes; conferir com o Gemini real.
+4. `planning-v2.md`: ampliar a fase 9 (consultas, decisões, memória e ações) e ligar a fase 10 aos planos aceitos.
 
 ## Limites conhecidos do que foi escrito
 

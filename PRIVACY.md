@@ -176,3 +176,18 @@ confirmação, substituindo todos os dados do aparelho numa transação.
   nem estabelecimento (tela bloqueada mostra só o título).
 - Sem `SYSTEM_ALERT_WINDOW`, acessibilidade, full-screen intent ou `QUERY_ALL_PACKAGES` (a lista
   de apps usa `<queries>` com o launcher).
+
+## Assistente com consultas e ações (14/11/2026)
+
+- **O que vai para a IA em cada pergunta:** o resumo agregado de sempre, a mensagem do usuário, até 10 fatos de "Sei sobre
+  você", o catálogo de consultas e ações (texto fixo) e, quando há consulta, o **resultado dela**: totais, datas e rótulos
+  já calculados no aparelho (`ToolResult.facts`). Estabelecimentos e nomes passam por `Fmt.clean` (sem sequência de 4+
+  dígitos, no máximo 32 caracteres). Nunca vai o banco, a lista completa de lançamentos, documento, CPF ou número de conta.
+- **A IA não grava e não se autoriza.** Ela devolve uma linha JSON com o nome de uma ação do catálogo; o app decide se
+  vale (`Authorization`), calcula o efeito (`ActionPlanner`) e grava (`AssistantActionExecutor`). Texto de lançamento,
+  notificação ou importação é dado, nunca instrução.
+- **O que fica no aparelho (Room, vai no backup, é apagado por "Apagar todos os dados"):** a estrutura das respostas do chat,
+  o estado da conversa (proposta pendente e registros em foco), os recibos das ações (antes/depois, só para Desfazer),
+  os acompanhamentos e os planos aceitos. Nada disso sai do aparelho.
+- **Acompanhamentos** são avaliados localmente (ao mudar os dados e na checagem diária); o aviso é uma notificação local.
+
