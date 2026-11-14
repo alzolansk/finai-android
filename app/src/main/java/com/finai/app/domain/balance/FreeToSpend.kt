@@ -134,29 +134,12 @@ data class FreeToSpend(
             marginCents: Long = DEFAULT_MARGIN_CENTS,
         ): FreeToSpend {
             val windowEnd = maxOf(minOf(nextIncome.date.minusDays(1), today.plusDays(MAX_DAYS)), today)
-            val start = AccountBalance.startMonthFor(transacoes, contas, today)
-            val months = ChronoUnit.MONTHS.between(start, YearMonth.from(windowEnd)).toInt() + 1
-            val all = CashFlowTimeline.monthMovements(contas, transacoes, dividas, today, months, from = start, paidOnPaymentDay = true)
-
-            val account = all.filter { AccountBalance.settled(it, today) }.sumOf { it.cents }
-            // O que ainda vai acontecer: pagamento atrasado cai hoje; entrada atrasada não conta.
-            val ahead = all.filterNot { AccountBalance.settled(it, today) }.mapNotNull { m ->
-                when {
-                    m.date.isAfter(windowEnd) -> null
-                    m.date.isBefore(today) -> if (m.cents < 0) m.copy(date = today, movedFrom = m.date) else null
-                    m.date == today && m.cents > 0 && m.source is CycleSource.Conta -> null
-                    else -> m
-                }
-            }.sortedWith(compareBy<TimelineMovement> { it.date }.thenByDescending { it.cents })
-
-            var running = account
-            val movements = ahead.map { m -> running += m.cents; m.copy(balanceAfterCents = running) }
-            val byDay = movements.groupBy { it.date }
-            var level = account
-            val series = generateSequence(today) { it.plusDays(1) }.takeWhile { !it.isAfter(windowEnd) }.map { d ->
-                level += byDay[d]?.sumOf { it.cents } ?: 0L
-                DayBalance(d, level)
-            }.toList()
+            // A série é a projeção única do app ([com.finai.app.domain.projection.CashFlowProjection])
+            // até a véspera da renda: assistente, cenários e Hoje partem da mesma conta.
+            val projection = com.finai.app.domain.projection.CashFlowProjection.of(contas, transacoes, dividas, today, windowEnd)
+            val account = projection.accountCents
+            val movements = projection.movements
+            val series = projection.series
 
             val min = series.minOf { it.cents }
             // Empate: o primeiro dia em que o saldo chega ao menor valor.

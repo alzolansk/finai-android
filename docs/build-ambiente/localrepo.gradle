@@ -1,0 +1,11 @@
+// Cache local de artefatos baixados do Maven Central (repo.maven.apache.org) com tentativas espaçadas:
+// o acesso direto do Gradle falha de forma intermitente neste ambiente.
+def local = "file:///opt/m2local/"
+def addLocal = { repos ->
+    def m = repos.maven { url local; name "localCentralCache" }
+    repos.remove(m); repos.addFirst(m)
+}
+settingsEvaluated { settings ->
+    addLocal(settings.pluginManagement.repositories)
+    addLocal(settings.dependencyResolutionManagement.repositories)
+}

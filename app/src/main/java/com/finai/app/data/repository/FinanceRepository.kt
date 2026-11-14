@@ -367,6 +367,8 @@ class FinanceRepository(private val db: FinaiDatabase) {
             sugestoes = realSuggestions.map { it.copy(textoOriginal = null) },
             avisos = db.avisoDao().getAll().filterNot { it.id.startsWith("captura-") && it.id.removePrefix("captura-").toLongOrNull() !in realSuggestionIds },
             memoria = db.memoriaDao().getAll(),
+            acompanhamentos = db.acompanhamentoDao().getAll(),
+            planos = db.planoDao().getAll(),
             regrasCategoria = db.regraCategoriaDao().getAll(),
             fechamentos = db.fechamentoDao().getAll(),
         )
@@ -390,6 +392,10 @@ class FinanceRepository(private val db: FinaiDatabase) {
             notificacaoEnviadaDao.deleteAll()
             db.avisoDao().deleteAll()
             db.memoriaDao().deleteAll()
+            db.acompanhamentoDao().deleteAll()
+            db.planoDao().deleteAll()
+            db.sessaoAssistenteDao().deleteAll()
+            db.acaoAssistenteDao().deleteAll()
             db.regraCategoriaDao().deleteAll()
             db.fechamentoDao().deleteAll()
             sugestaoDao.deleteAll()
@@ -407,6 +413,8 @@ class FinanceRepository(private val db: FinaiDatabase) {
             backup.memoria.forEach { db.memoriaDao().insert(it) }
             backup.regrasCategoria.forEach { db.regraCategoriaDao().upsert(it) }
             backup.fechamentos.forEach { db.fechamentoDao().upsert(it) }
+            backup.acompanhamentos.forEach { db.acompanhamentoDao().upsert(it) }
+            backup.planos.forEach { db.planoDao().upsert(it) }
         }
     }
 
@@ -424,6 +432,10 @@ class FinanceRepository(private val db: FinaiDatabase) {
             // Lançamento por notificações: sugestões (e os vínculos que elas guardam) e testes.
             db.avisoDao().deleteAll()
             db.memoriaDao().deleteAll()
+            db.acompanhamentoDao().deleteAll()
+            db.planoDao().deleteAll()
+            db.sessaoAssistenteDao().deleteAll()
+            db.acaoAssistenteDao().deleteAll()
             db.regraCategoriaDao().deleteAll()
             db.fechamentoDao().deleteAll()
             sugestaoDao.deleteAll()
@@ -435,6 +447,7 @@ class FinanceRepository(private val db: FinaiDatabase) {
     val memoria = db.memoriaDao().observeAll()
     val regrasCategoria = db.regraCategoriaDao().observeAll()
     val fechamentos = db.fechamentoDao().observeAll()
+    val acompanhamentos = db.acompanhamentoDao().observeAll()
 
     suspend fun lembrar(texto: String, tipo: String, origem: String, now: Long = System.currentTimeMillis()) = db.withTransaction {
         // A mesma origem (um padrão, uma decisão) guarda um fato só: confirmar de novo atualiza o texto.

@@ -13,7 +13,13 @@ object InboxCatalog {
         plan: FinancialPlan, budgets: List<BudgetProgress>, insights: List<GoalInsight>,
         suggestions: List<SugestaoLancamentoEntity>, today: LocalDate, coach: BehaviorPattern? = null,
         legacyAlerts: List<FinanceAlert> = emptyList(),
+        /** Acompanhamentos pedidos no chat cuja condição vale agora ([com.finai.app.domain.assistant.WatchRules]). */
+        watches: List<com.finai.app.domain.assistant.WatchOutcome> = emptyList(),
     ): List<InboxItem> = buildList {
+        watches.filter { it.met }.forEach { w ->
+            // A chave leva o resultado: dispensado, o aviso só volta se a condição deixar de valer e voltar (ou no mês seguinte, na regra de categoria).
+            add(InboxItem("acomp-${w.rule.id}-${com.finai.app.domain.assistant.WatchRules.resultKey(w, today)}", "acompanhamento", w.title, w.detail, w.rule.valorCentavos, InboxGroup.Watch))
+        }
         suggestions.filter { it.estado == "pendente" }.forEach { s ->
             add(InboxItem("captura-${s.id}", "captura", s.descricao.ifBlank { "Movimentação encontrada" },
                 listOfNotNull(s.appNome, s.contaSugerida, s.categoria, EntryOptions.dayMonth(s.data.toLocalDate())).joinToString(" · "),

@@ -160,14 +160,20 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }.combine(inboxDay) { inputs, _ -> inputs }.combine(prefs.safetyMarginCents) { (inputs, reconciliation), margin ->
         val (snapshot, orcamentos, dismissed) = inputs
         buildState(snapshot, orcamentos, dismissed, margin).copy(reconciliation = reconciliation)
-    }.combine(db.sugestaoLancamentoDao().observeAll()) { state, suggestions ->
+    }.combine(combine(db.sugestaoLancamentoDao().observeAll(), repository.acompanhamentos) { a, b -> a to b }) { state, (suggestions, rules) ->
         val today = LocalDate.now()
+        // Acompanhamentos pedidos no chat: avaliados sobre os mesmos dados da tela, sem conta própria.
+        val watches = rules.filter { it.estado == com.finai.app.domain.assistant.WatchRules.ACTIVE }.takeIf { it.isNotEmpty() }?.let { active ->
+            val snapshot = com.finai.app.domain.assistant.AssistantSnapshot(state.rawContas, state.rawTransacoes, state.rawDividas, state.safetyMarginCents, today,
+                objetivos = state.rawObjetivos, orcamentos = state.rawOrcamentos, acompanhamentos = active)
+            runCatching { active.map { com.finai.app.domain.assistant.WatchRules.evaluate(it, snapshot) } }.getOrDefault(emptyList())
+        }.orEmpty()
         val items = state.plan?.let { plan ->
             com.finai.app.domain.inbox.InboxCatalog.build(state.rawContas, state.rawTransacoes, state.rawDividas,
                 plan, BudgetCalculator.forCategories(state.rawOrcamentos, state.rawTransacoesDoMes, today),
-                state.goalInsights, suggestions, today, state.behaviorPattern, state.alerts)
+                state.goalInsights, suggestions, today, state.behaviorPattern, state.alerts, watches)
         }.orEmpty()
-        state.copy(inboxItems = items)
+        state.copy(inboxItems = items, watchRules = rules)
     }.onEach { state ->
         val legacy = prefs.dismissedInsights.first()
         // Os flows das tabelas podem emitir em instantes diferentes depois de uma transação.

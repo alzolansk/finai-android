@@ -33,15 +33,12 @@ data class FinaiUiState(
     /** Conversa mostrada no chat — ver [AppViewModel.openChat]. */
     val conversationId: Long = 0,
     /**
-     * Compra que o chat acabou de simular e que o usuário pode registrar ("Registrar compra").
-     * Só em memória: some ao trocar de conversa, ao descartar ou ao fazer outra pergunta.
-     */
-    val pendingPurchase: com.finai.app.domain.scenario.PurchaseScenario? = null,
-    /**
      * Lançamento que o chat leu de uma frase ("gastei 45 no ifood"), esperando Salvar ou Editar
      * (fase 9, P2). Só em memória, como a compra simulada.
      */
     val pendingEntry: com.finai.app.domain.quickentry.QuickDraft? = null,
     /** O lançamento do chat que acabou de ser salvo: o cartão mostra "Salvo" e Desfazer. */
     val savedEntry: com.finai.app.domain.EntryReceipt? = null,
+    /** Última ação do assistente nesta conversa que ainda pode ser desfeita (o cartão dela mostra "Desfazer"). */
+    val undoableActionId: Long? = null,
 )

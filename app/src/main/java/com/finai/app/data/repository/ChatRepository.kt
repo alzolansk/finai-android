@@ -29,14 +29,20 @@ class ChatRepository(db: FinaiDatabase) {
     fun conversa(id: Long): Flow<Conversa> = dao.observeConversa(id).map { list ->
         Conversa(
             id = id,
-            mensagens = list.map { ChatMessage(if (it.papel == PAPEL_IA) ChatRole.Ai else ChatRole.Me, it.texto) },
+            mensagens = list.map {
+                ChatMessage(if (it.papel == PAPEL_IA) ChatRole.Ai else ChatRole.Me, it.texto, com.finai.app.data.assistant.AssistantAnswerCodec.decode(it.estrutura), it.id)
+            },
             contexto = list.firstNotNullOfOrNull { it.contexto },
         )
     }
 
     val conversas: Flow<List<ConversaResumo>> = dao.observeConversas()
 
-    suspend fun registrar(conversaId: Long, role: ChatRole, texto: String, contexto: String? = null) {
+    /** Grava a mensagem e devolve o id dela (a autorização de uma escrita aponta para a mensagem do usuário). */
+    suspend fun registrar(
+        conversaId: Long, role: ChatRole, texto: String, contexto: String? = null,
+        answer: com.finai.app.domain.assistant.AssistantAnswer? = null,
+    ): Long =
         dao.insert(
             MensagemChatEntity(
                 papel = if (role == ChatRole.Ai) PAPEL_IA else PAPEL_USUARIO,
@@ -44,9 +50,9 @@ class ChatRepository(db: FinaiDatabase) {
                 timestamp = System.currentTimeMillis(),
                 conversaId = conversaId,
                 contexto = contexto,
+                estrutura = answer?.let(com.finai.app.data.assistant.AssistantAnswerCodec::encode),
             ),
         )
-    }
 
     suspend fun apagarConversa(conversaId: Long) = dao.deleteConversa(conversaId)
 

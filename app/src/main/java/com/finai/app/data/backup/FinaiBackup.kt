@@ -42,6 +42,9 @@ data class FinaiBackup(
     val memoria: List<com.finai.app.data.local.entity.MemoriaEntity> = emptyList(),
     val regrasCategoria: List<com.finai.app.data.local.entity.RegraCategoriaEntity> = emptyList(),
     val fechamentos: List<com.finai.app.data.local.entity.FechamentoEntity> = emptyList(),
+    /** Acompanhamentos pedidos no chat e planos aceitos (v20). Sessões e recibos de ação não vão: são estado deste aparelho. */
+    val acompanhamentos: List<com.finai.app.data.local.entity.AcompanhamentoEntity> = emptyList(),
+    val planos: List<com.finai.app.data.local.entity.PlanoEntity> = emptyList(),
 ) {
     /** Resumo para a confirmação "substitui tudo": o que o arquivo traz. */
     fun summary(): String = listOf(
@@ -112,7 +115,7 @@ object BackupCodec {
         }))
         put("mensagens", JSONArray(b.mensagens.map { m ->
             JSONObject().put("id", m.id).put("papel", m.papel).put("texto", m.texto).put("timestamp", m.timestamp)
-                .put("conversaId", m.conversaId).putOpt("contexto", m.contexto)
+                .put("conversaId", m.conversaId).putOpt("contexto", m.contexto).putOpt("estrutura", m.estrutura)
         }))
         // Só as reais e sem o texto original (retenção limitada; nunca vai para arquivo).
         put("sugestoes", JSONArray(b.sugestoes.filter { it.origem == "notificacao" }.map { s ->
@@ -139,6 +142,14 @@ object BackupCodec {
         }))
         put("fechamentos", JSONArray(b.fechamentos.map { f ->
             JSONObject().put("mes", f.mes).put("passo", f.passo).put("resposta", f.resposta).put("em", f.em)
+        }))
+        put("acompanhamentos", JSONArray(b.acompanhamentos.map { a ->
+            JSONObject().put("id", a.id).put("tipo", a.tipo).put("alvo", a.alvo).putOpt("alvoId", a.alvoId).put("valorCentavos", a.valorCentavos)
+                .put("descricao", a.descricao).put("estado", a.estado).put("criadoEm", a.criadoEm)
+                .putOpt("ultimaAvaliacao", a.ultimaAvaliacao).putOpt("ultimoResultado", a.ultimoResultado)
+        }))
+        put("planos", JSONArray(b.planos.map { p ->
+            JSONObject().put("id", p.id).put("mes", p.mes).put("criadoEm", p.criadoEm).put("conteudo", p.conteudo)
         }))
     }.toString(2)
 
@@ -219,6 +230,7 @@ object BackupCodec {
                     MensagemChatEntity(
                         id = o.getLong("id"), papel = o.getString("papel"), texto = o.getString("texto"),
                         timestamp = o.getLong("timestamp"), conversaId = o.optLong("conversaId"), contexto = o.stringOrNull("contexto"),
+                        estrutura = o.stringOrNull("estrutura"),
                     )
                 },
                 // Backup de antes da versão 15 não tem estas chaves: lista vazia.
@@ -251,6 +263,16 @@ object BackupCodec {
                 },
                 fechamentos = root.list("fechamentos") { o ->
                     com.finai.app.data.local.entity.FechamentoEntity(o.getString("mes"), o.getString("passo"), o.optString("resposta"), o.optLong("em"))
+                },
+                acompanhamentos = root.list("acompanhamentos") { o ->
+                    com.finai.app.data.local.entity.AcompanhamentoEntity(
+                        id = o.optLong("id"), tipo = o.getString("tipo"), alvo = o.optString("alvo"), alvoId = o.longOrNull("alvoId"),
+                        valorCentavos = o.optLong("valorCentavos"), descricao = o.optString("descricao"), estado = o.optString("estado", "ativo"),
+                        criadoEm = o.optLong("criadoEm"), ultimaAvaliacao = o.stringOrNull("ultimaAvaliacao"), ultimoResultado = o.stringOrNull("ultimoResultado"),
+                    )
+                },
+                planos = root.list("planos") { o ->
+                    com.finai.app.data.local.entity.PlanoEntity(o.optLong("id"), o.getString("mes"), o.optLong("criadoEm"), o.getString("conteudo"))
                 },
             )
         } catch (e: BackupFormatException) {

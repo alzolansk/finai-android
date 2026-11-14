@@ -1,3 +1,123 @@
+# Handoff · Reestruturação do assistente (tool calling, ações, acompanhamento)
+
+Atualizado em 14/11/2026, branch `claude/intelligent-curie-erx3os`. O handoff anterior (FinAI v2,
+fases 5–11) está mais abaixo, sem alteração.
+
+**Estado em uma frase:** o domínio, a camada de dados e o `AppViewModel` do assistente novo estão
+escritos, mas **nada foi compilado** (nem Gradle, nem kotlinc), a tela do chat e o `FinaiApp` ainda
+não foram ligados, nenhum teste novo existe e **não há APK**. O working tree **não compila** como está.
+
+O plano que guia o trabalho é o documento "Reestruturação do assistente financeiro do FinAI"
+(14/11/2026, etapas 0–7 e seção 5.10). **Ele não está no repositório**: foi colado pelo usuário na
+conversa. Peça para ele colar de novo ou salvar em `docs/`.
+
+## O que foi escrito (tudo sem compilar)
+
+Domínio, Kotlin puro:
+- `domain/projection/CashFlowProjection.kt`: projeção diária única (`CashFlowProjection`,
+  `VariableProvision`, `PaymentWindow`). `FreeToSpend.build` agora delega a ela, então Hoje e o
+  assistente partem da mesma série.
+- `domain/projection/ScenarioEngine.kt`: cenários em memória (gasto, parcelas, mensal, mudança de
+  renda, quitação) comparados com a base.
+- `domain/assistant/AssistantModel.kt`: `AssistantSnapshot` (substitui `AssistantData`),
+  `AssistantAnswer` (cartão), `AssistantSession`, `PendingAction`, `EntityRef`, `Fmt`, `NameMatch`.
+- `domain/assistant/AssistantTools.kt`: reescrito. 17 consultas (`situacao`, `buscar_lancamentos`,
+  `analisar_gastos`, `comparar_periodos`, `explicar_saldo`, `listar_compromissos`, `projetar_caixa`,
+  `janela_pagamento`, `simular_cenario`, `montar_plano`, `revisar_meta`, `revisar_divida`,
+  `acompanhar_plano`…). Assinatura nova: `run(call, snapshot)`.
+- `domain/assistant/PlanBuilder.kt`: `PlanBuilder` (plano conjunto, plano × realizado), `SavedPlan`,
+  `WatchRules` (acompanhamentos).
+- `domain/assistant/AssistantActions.kt`: `ActionPlanner` com 16 ações. Cada uma devolve um
+  `ActionPlan` (estado `Ready/Confirm/Clarify/Already/Unsupported`, antes/depois, `RowChange`).
+  Inclui o caso obrigatório do salário (`registrar_recebimento_renda`): mesma ocorrência no mês via
+  `RecurringSeries.editOnly`; antecipação que cruza o mês = ocorrência pulada + receita avulsa com
+  `competenciaDeslocamento` ajustado; salário dividido pergunta a parte; recebimento parcial.
+- `domain/assistant/AssistantIntents.kt`: `Authorization` (explícito × hipótese × sim × não) e
+  `IntentParser` (regras locais de ação e de consulta, sem IA).
+- `domain/assistant/AssistantOrchestrator.kt`: `AssistantOrchestrator`, `FactGuard` (centavos,
+  sinal, ano), interfaces `ActionExecutor` e `SessionStore`.
+- `domain/assistant/AssistantLoop.kt`: reduzido ao formato da linha "consultei: …".
+
+Dados:
+- Room **v20**: `MIGRATION_19_20` (`mensagens_chat.estrutura`, tabelas `sessoes_assistente`,
+  `acoes_assistente`, `acompanhamentos`, `planos`), `AssistantEntities.kt`, `AssistantDaos.kt`,
+  `OrcamentoCategoriaDao.delete`. **Falta `app/schemas/.../20.json`** (o KSP gera no primeiro build).
+- `data/assistant/AssistantData.kt`: `FinancialSnapshotRepository`, `AssistantActionExecutor`
+  (idempotência por chave, revalidação, transação, recibo no formato do backup, desfazer),
+  `AssistantAnswerCodec`, `RoomSessionStore`, `AssistantWatcher`.
+- Backup: `acompanhamentos`, `planos` e `mensagens.estrutura` exportados e restaurados; "Apagar
+  todos os dados" limpa as tabelas novas.
+- `ChatRepository.registrar` devolve o id e aceita `answer`; `ChatMessage` ganhou `answer` e `id`.
+- `InboxCatalog.build(..., watches)`, `FinanceViewModel` (avalia acompanhamentos, `watchRules` no
+  estado), `FinanceCheckWorker` (notifica só o acompanhamento que passou a valer).
+- `AiPromptBuilder.chat`: parâmetros `actionCatalog` e `focus`; texto do sistema proíbe a IA de
+  concluir "cabe" sozinha.
+- `AppViewModel`: `send` usa o orquestrador; `undoAction`, `setWatchState`; saíram o
+  `PurchaseAssistant`, `setFinanceSnapshot`, `setAssistantContext` e a compra pendente.
+
+## O que falta, em ordem
+
+1. **Fazer compilar.** Erros certos hoje:
+   - `FinaiApp.kt` ainda chama `viewModel.setFinanceSnapshot`, `setAssistantContext`,
+     `onPurchaseRegistered`, `discardPendingPurchase` e lê `uiState.pendingPurchase` (removidos).
+   - `ChatOverlay.kt` ainda tem `pendingPurchase` e `SimulatedPurchaseCard`.
+   - `AssistantToolsTest.kt` usa `AssistantData`, `AssistantLoop.answer/reply` e `run(call, data, today)`.
+   - Falta `AssistantAnswer.explanation` (texto da IA dentro do cartão): acrescentar o campo, o
+     codec e o uso no orquestrador (hoje `answer = answer`).
+   - Esperar erros de tipo espalhados nos arquivos novos: nenhum passou pelo compilador.
+2. **Tela do chat** (`ChatOverlay.kt`): cartão para `message.answer` (título, destaque, métricas,
+   evidências, notas, botões de opção que enviam `option.send`, estado da ação, "Desfazer" quando
+   `action.actionId == uiState.undoableActionId`, "Ver na Agenda" com `action.agendaDate`); lista de
+   acompanhamentos (pausar, retomar, cancelar) junto de "Sei sobre você"; sugestões novas.
+   `FinaiApp.kt`: passar `onUndoAction = viewModel::undoAction`, `watchRules`, `onOpenAgenda`; abrir
+   o chat ao tocar num aviso `kind == "acompanhamento"`; rótulo desse aviso em `InboxScreen`.
+3. **Testes JVM** (plano §9 e critérios da §5.10): salário (mesmo mês, cruzando mês, dividido,
+   "caiu adiantado" ≠ adiantamento, já recebido, duas rendas, parcial), autorização (hipótese nunca
+   grava; ação da IA com valor não dito vira proposta), alvo ambíguo, conta/fatura, parcela, aporte,
+   meta, limite, série (sempre confirma), exclusão (sempre confirma), `FactGuard`, projeção igual ao
+   `FreeToSpend`, `PaymentWindow`, cenários, `SavedPlan`, `WatchRules`, orquestrador com fakes de
+   `ActionExecutor`/`SessionStore` (idempotência, confirmação, desfazer). `Migration19To20Test`
+   (instrumentado) e o executor contra Room.
+4. **Build e APK:** `./gradlew assembleDebug testDebugUnitTest assemblePessoal`; commitar o
+   `20.json`; enviar `app/build/outputs/apk/pessoal/app-pessoal.apk`.
+5. **Docs:** seção "Status atual" do `CLAUDE.md`, `PRIVACY.md` (o que as consultas mandam para a
+   IA), `planning-v2.md` (fase 9 ampliada).
+
+## Limites conhecidos do que foi escrito
+
+- Tool calling é pelo protocolo de linha JSON (`{"consulta":…}` / `{"acao":…}`) em todos os
+  provedores. Function calling nativo do Gemini não foi implementado.
+- Compra no cartão continua pelo cartão "Lançamento pronto" e pelo formulário.
+- Item de fatura: o assistente só muda a categoria; valor, data e exclusão ficam na Agenda.
+- O `ActionPlanner` calcula as linhas e o executor grava direto pelos DAOs (conta/fatura passa por
+  `FinanceRepository.salvarConta`). As regras vêm das mesmas funções de domínio das telas, mas é um
+  caminho de gravação próprio: precisa de teste contra o repositório.
+- `domain/scenario/PurchaseAssistant` e `ScenarioSimulator` (modelo antigo por ciclo) ficaram no
+  código, sem uso pelo chat. `FinanceViewModel.registrarCompra` também.
+- Antecipação de salário cruzando o mês: o recebimento avulso não entra em
+  `IncomePlanner.familyOf`; "Minha renda › regenerar" depois disso não foi analisado.
+
+## Ambiente de build nesta sessão
+
+- SDK instalado em `/opt/android-sdk` (platform 34, build-tools 34.0.0); `local.properties` aponta
+  para lá (não versionado). `gradlew` ganhou bit de execução (commitado). O clone era raso: foi
+  feito `git fetch --unshallow` para o `versionCode` (contagem de commits) ficar certo (104 + novos).
+- `dl.google.com` e `maven.google.com` respondem. **`repo.maven.apache.org` responde de forma
+  intermitente (200/404/429)** e o Gradle guarda as falhas em cache por 24 h.
+- Um espelho de terceiros (init script apontando para o GCS) foi **negado** pela política da sessão.
+  Não tentar de novo sem o usuário autorizar.
+- Contorno em andamento, interrompido: baixar do próprio Maven Central, um artefato por vez com
+  novas tentativas, para `/opt/m2local`, e apontar o Gradle para essa pasta. Scripts em
+  `docs/build-ambiente/` (`localrepo.gradle` vai em `~/.gradle/init.d/`; `fetch-build.sh
+  assemblePessoal` repete build → baixa o que faltou). Parou na 1ª iteração (87 MB baixados; o
+  container é efêmero, então isso se perde).
+- **Assinatura:** o `pessoal` usa a chave de debug da máquina que builda. A deste container é
+  diferente da que assinou o app no celular: o APK daqui **não instala por cima** (pede
+  desinstalar, o que apaga os dados). Avisar o usuário e sugerir exportar o backup antes, ou buildar
+  na máquina dele.
+
+---
+
 # Handoff · FinAI v2, fases 5–11
 
 Atualizado em 14/11/2026, branch `claude/awesome-hawking-pdynac`. Substitui o handoff da sessão
