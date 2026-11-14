@@ -7,6 +7,17 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 ## Status atual
 
+**FinAI v2: fases 5–11 implementadas (14/11/2026), sem build Gradle nem validação visual.** Navegação
+Hoje · Agenda · [+] · Gastos · Planos; faixa Falar/Escrever no "+"; Gastos (absorve Limites);
+Planos (Metas | Compromissos, absorve Dívidas e Parcelamentos); Posso comprar? como tela própria;
+chat com lançamento pronto, consultas locais (`domain/assistant/`) e memória; fechamento do mês;
+notificações com botões. Room **v18** (`memoria`, `regras_categoria`, `fechamentos`; `18.json` gerado
+à mão com o algoritmo do room-compiler, o primeiro build com KSP regrava). **Gradle não rodou**: o
+Maven Central recusou este IP. A checagem de tipos do app inteiro e dos instrumentados e os 565 testes
+JVM rodaram com kotlinc + plugin do Compose e jars AndroidX do maven.google.com (roteiro em
+`handoff.md`). Falta: `./gradlew assembleDebug testDebugUnitTest assemblePessoal`, emulador, celular.
+Estado e próximos passos: `handoff.md`; ressalvas: `planning-v2.md`.
+
 **FinAI v2: fase 4 (Agenda) implementada, validação visual adiada pelo usuário (08/11/2026).**
 Abas "A seguir" | <mês> com `MoneyRow` (sem caixinha, selo, TalkBack "pago"). `AgendaBalance` segue as
 regras do livre (atrasado de qualquer mês cai hoje; paga adiantada fica no lugar; entrada atrasada fora do
@@ -53,7 +64,7 @@ o conjunto das fases 0–2 no celular com o APK pessoal já gerado.
 **FinAI v2 planejado (08/11/2026): ver `planning-v2.md`.** Auditoria + protótipo navegável em
 https://claude.ai/artifact/Tzb24N1BzGMR8buHwVAtL9 (página "Protótipo v2" = referência visual de cada fase;
 página "Auditoria" = fraquezas A/B/C e IA P1–P11). 12 fases (0–11), marcos de teste no celular M1–M4.
-Fases 0–4 implementadas; fases 5–11 aguardam. Regras fixas: o formulário do "+" continua inteiro (jeitos novos entram
+Fases 0–11 implementadas (5–11 sem build Gradle nem validação visual). Regras fixas: o formulário do "+" continua inteiro (jeitos novos entram
 ao lado), Agenda sem caixinha (selo "Pago"), saldo não zera no salário, avisos dispensados não voltam.
 
 **Saldo projetado contínuo + conciliação (08/11/2026, `main`, sem commit; telas 3a/3b do mesmo protótipo):**

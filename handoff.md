@@ -1,134 +1,94 @@
-# Handoff · FinAI v2, fases 5–11 + notificações com botões
+# Handoff · FinAI v2, fases 5–11
 
-Atualizado em 14/11/2026, branch `claude/awesome-hawking-pdynac`. Substitui o handoff antigo
-(novo lançamento, 11/10), que continua no histórico do Git.
+Atualizado em 14/11/2026, branch `claude/awesome-hawking-pdynac`. Substitui o handoff da sessão
+anterior (WIP sem compilar, commit `3dfd139`), que continua no histórico do Git.
 
-**Estado em uma frase:** o domínio das fases 5–10, as telas novas e o sistema de notificações
-estão escritos, mas **nada disto foi compilado nem testado**, e as telas novas **ainda não estão
-ligadas ao app** (`FinaiApp.kt` e a navegação não foram alterados). O APK pessoal não foi gerado.
+**Estado em uma frase:** as fases 5–11 estão implementadas, ligadas ao app e cobertas por testes
+JVM, mas **o Gradle não rodou** nesta sessão, então não há APK novo, nem teste instrumentado
+executado, nem nada visto numa tela.
 
-## Por que parou sem compilar
+## Por que o Gradle não rodou
 
-O Gradle não terminou de baixar as dependências nesta sessão. `dl.google.com` foi liberado no
-ambiente "trilha" e o SDK foi instalado em `/opt/android-sdk` (`local.properties` aponta para ele,
-fora do Git). Depois disso o proxy passou a responder 429/404 para jars do Maven Central
-(`repo.maven.apache.org`) por excesso de downloads paralelos. A última tentativa usava
-`--max-workers=2` e mais tentativas por artefato e foi interrompida a pedido.
+O `repo.maven.apache.org` respondeu 404 com `retry-after: 78872` (cerca de 22 h) para qualquer jar:
+bloqueio do Maven Central para o IP deste ambiente, provavelmente pelos downloads em massa da sessão
+anterior. `dl.google.com`/`maven.google.com` funcionam. Usar o espelho do Google para o Maven
+Central (`maven-central.storage-download.googleapis.com`) num init script do Gradle foi recusado
+pela política de permissões da sessão, então não foi feito.
 
-Para retomar o build:
+Para retomar numa máquina (ou sessão) em que o Maven Central responda:
 
 ```bash
-sh ./gradlew compileDebugKotlin --max-workers=2 -Dorg.gradle.internal.repository.max.tentatives=8 -Dorg.gradle.internal.repository.initial.backoff=3000 --console=plain -q
+sh ./gradlew assembleDebug testDebugUnitTest assemblePessoal --max-workers=2
 ```
 
-(`./gradlew` não tem bit de execução neste checkout: chamar com `sh`.) Se voltar "Could not find
-…jar", repetir com `--refresh-dependencies` depois de um minuto.
+(`./gradlew` não tem bit de execução neste checkout.) O SDK precisa de `local.properties` com
+`sdk.dir` (aqui foi `/opt/android-sdk`, instalado nesta sessão, fora do Git).
 
-## O que está escrito (sem compilar)
+## Como foi validado sem Gradle
 
-### Banco: Room 17 → 18
-- `data/local/entity/V2Entities.kt`, `data/local/dao/V2Daos.kt`: `memoria`, `regras_categoria`,
-  `fechamentos`. `MIGRATION_17_18` em `FinaiDatabase.kt` (só `CREATE TABLE`), `FINAI_DB_VERSION = 18`.
-- `FinanceRepository`: exporta, restaura e apaga as três tabelas; `lembrar`, `esquecer`,
-  `aprenderCategoria`, `responderFechamento`. `FinaiBackup` codifica e lê os três blocos.
-- `androidTest/.../Migration17To18Test.kt` escrito.
-- **Falta:** o `18.json` (gerado pelo KSP no primeiro build; commitar) e conferir que o SQL da
-  migração bate com ele.
+Roteiro reproduzível (arquivos em `/tmp/claude-0/`, efêmeros):
 
-### Domínio (Kotlin puro)
-| Fase | Arquivo | O que faz |
-| --- | --- | --- |
-| 5 | `domain/quickentry/QuickEntryParser.kt` | Frase → `QuickDraft` (valor, data relativa, tipo, conta/cartão/meta conhecidos, parcelas, categoria por regra aprendida e `MerchantClassifier`). `looksLikeEntry` para o chat. |
-| 6 | `domain/spending/SpendingAnalysis.kt` | Total do período, comparação, 6 meses, categorias com limite e ritmo, estabelecimentos, busca sem acento, `LimitSuggestion` (regra 10), `SubscriptionLines` ("cobrada há N meses"). |
-| 7 | `domain/plans/SavingsCapacity.kt` | `SavingsCapacity` (regra 4), `GoalConflictResolver` (regra 5, um conflito por vez), `GoalSeal`. |
-| 7 | `domain/plans/CommitmentsSchedule.kt` | Comprometido por mês (empréstimos, cartão, contas fixas), livre de parcelas, `DebtPrepayment`. |
-| 8 | `domain/scenario/PurchaseSimulatorV2.kt` | Pix, 1×, 3×, 6×, 10×: menor saldo por mês com e sem a compra, veredito, melhor forma, atraso nas metas, `factsBlock`. |
-| 9 | `domain/assistant/AssistantTools.kt` | Sete ferramentas locais, `parseCall` (linha JSON `{"consulta": …}`), `CATALOG` para o prompt. |
-| 10 | `domain/closing/MonthClosing.kt` | Entrou/saiu/sobrou, diferenças por categoria, cobrança que não veio, quatro passos, `summary`/`factsBlock`. |
-| notif. | `domain/notify/NotificationPlanner.kt` | Texto, valor, barra e botões de cada notificação; sequência de dias; lembrete diário; exemplos. |
+1. `kotlinc` 1.9.22 do GitHub; dependências AndroidX resolvidas pelos POMs do `maven.google.com`
+   (130 jars, mais `material-icons-extended-android`); `kotlinx-coroutines-core` 1.6.4 e JUnit
+   4.13.2 tirados da distribuição do Gradle em `/opt/gradle-8.14.3/lib`.
+2. Plugin do Compose `androidx.compose.compiler:compiler:1.5.8` com os pacotes
+   `org.jetbrains.kotlin.com.intellij` remapeados para `com.intellij` (ASM do próprio kotlinc),
+   para rodar no `kotlinc` de linha de comando.
+3. `R.java` gerado com `aapt2` (recursos do app + do `androidx.core`), `BuildConfig` de mentira.
+4. Resultado: **app inteiro + `src/debug` + `androidTest` compilam** (com o plugin do Compose) e
+   **565 testes JVM verdes**. Fora: `BackupCodecTest` e `CaptureBackupTest` (precisam do
+   `org.json` real, do Maven Central), e `runTest` foi substituído por `runBlocking` num shim.
 
-### Estado
-- `FinanceUiState.v2: V2State` e `rawAssinaturas`; `FinanceViewModel.buildV2` (nova etapa do
-  `combine`) e as ações `keepGoalConflict`, `moveGoalDeadline`, `applyLimits`, `setLimitCents`,
-  `answerClosing`, `rememberFact`, `forgetFact`, `learnCategory`, `acknowledgePattern`,
-  `saveQuickDraft`.
+O que essa checagem **não** cobre: KSP/Room (SQL dos DAOs não verificado pelo compilador do Room),
+R8, lint, recursos que só o AGP mescla, e qualquer comportamento em tempo de execução.
 
-### Telas (escritas, **não ligadas**)
-- `ui/screens/spending/SpendingScreen.kt` (Gastos, absorve Limites).
-- `ui/screens/plans/PlansScreen.kt` (Metas | Compromissos).
-- `ui/screens/simulator/SimulatorScreen.kt` (Posso comprar?).
-- `ui/screens/closing/ClosingScreen.kt` (`ClosingCard` + `ClosingScreen`).
-- `ui/components/V2Charts.kt` (`V2BarChart`, `LegendDot`).
+## O que foi feito nesta sessão
 
-### Notificações com botões (pedido novo)
-- Desenho: `res/layout/notification_finai_small.xml` e `notification_finai_big.xml` (selo em
-  degradê com símbolo, rótulo colorido, título, texto, valor grande, barra, até três botões),
-  `res/drawable/notif_*`, cores em `values/` e `values-night/notification_colors.xml`.
-- `data/notifications/RichNotifier.kt`: monta os `RemoteViews` com `DecoratedCustomViewStyle`.
-  Botão que abre tela usa `PendingIntent.getActivity`; os outros, broadcast.
-- `data/notifications/NotificationActionReceiver.kt` (declarado no manifesto, não exportado):
-  Já paguei (com Desfazer por 12 s), Lembrar amanhã, Dispensar, Já sei, Nada hoje, Salvar e
-  Ignorar movimentação lida.
-- `data/notifications/AppLinks.kt` + `MainActivity`: rota pedida pelo toque (`caixa`, `agenda`,
-  `gastos`, `planos`, `lancar`, `fechamento`). **Ninguém consome `AppLinks.open` ainda.**
-- `FinanceCheckWorker`: uma notificação por evento (até 3 por execução) em vez do lote com texto
-  de IA; convite do fechamento (dias 1–7); lembrete de compra do simulador.
-- `data/work/DailyReminderWorker.kt` + canal `finai_lembrete`: lembrete do dia, só se nada foi
-  lançado. Preferências novas em `FinaiPreferences` (`dailyReminder`, `dailyReminderHour`,
-  `quietDays`, `purchaseReminder`). Agendado em `FinaiApplication`.
-- `CaptureNotifications.notifySuggestion` passou a usar o desenho novo; `CaptureProcessor`
-  decide se "Salvar" pode gravar direto.
-- Configurações → Notificações: ligar/desligar o lembrete, hora (12h/18h/20h/22h), "Ver exemplos".
+- **Compilação do WIP:** três erros (`themedText` sem import em `PlansScreen`, `selected`
+  sombreado em `SimulatorScreen`).
+- **Navegação v2** em `FinaiApp.kt` e `FinaiBottomNav.kt`: Hoje · Agenda · [+] · Gastos · Planos.
+  `PlansScreen`, `SpendingScreen`, `SimulatorScreen` (camada) e `ClosingScreen` (camada) ligadas;
+  `AppLinks` consumido; `ClosingCard` na Hoje; coach "Já sei" → `acknowledgePattern`, "Ver gastos"
+  → Gastos; travas `captureBlocked`/`tipsBlocked`/`anyLayerOpen` incluem as camadas novas.
+- **Fase 5:** `ui/components/QuickEntryStrip.kt` (Falar, Escrever, Notificações (N), Importar);
+  `TransactionEntryScreen(quickEntry = QuickEntryHooks(...))` aplica o `QuickDraft` ao rascunho e diz
+  o que faltou; menu do "+" com "Falar ou escrever" e "N das notificações"; `<queries>` para
+  `RECOGNIZE_SPEECH`.
+- **Fase 8:** "Lançar" do simulador abre uma instância própria do formulário (`prefillEntry`) com
+  pagamento, cartão, parcelas e vencimento; "Lembrar depois de <entrada>" grava
+  `FinaiPreferences.purchaseReminder` (a rotina já lia).
+- **Fase 9:** `domain/assistant/AssistantLoop.kt` (até 3 consultas, trava de números, linha
+  "consultei: …"); `AppViewModel.send` trata frase de lançamento antes de tudo (cartão "Lançamento
+  pronto", `FinanceViewModel.saveQuickDraft`, Desfazer com `undoEntry`); memória no prompt
+  (`AiPromptBuilder.chat(memory = …)`, máximo 10); painel "Sei sobre você" no `ChatOverlay`;
+  `ImportViewModel` aprende e aplica regras de categoria.
+- **Fase 10:** `AiViewModel.ensureClosingSummary` (uma chamada por mês, guardada no passo
+  `resumo`, só se passar na trava); ações dos quatro passos.
+- **Fase 11:** telas e componentes antigos removidos (lista em `planning-v2.md`);
+  `NotificationContentBuilder` removido; `FinaiNotifier` ficou só com permissão/limpeza;
+  dispensar/adiar um aviso cancela a notificação rica dele; `TipScript` reescrito com alvos nas
+  telas novas; `18.json` gerado (identityHash conferido contra 4, 9, 12, 15, 16 e 17);
+  `CardPurchaseFlowTest` não usa mais a tela de Parcelamentos.
+- **Correções achadas pelos testes:** descrição da frase perdia acento ("Pao"); o exemplo do
+  lembrete diário em Configurações tinha "Nada hoje" gravando o dia de verdade.
+- **Docs:** `CLAUDE.md`, `planning-v2.md` (status e ressalvas), `planning.md` §9/§11, `PRIVACY.md`.
 
 ## O que falta, na ordem
 
-1. **Compilar e corrigir.** Nada passou pelo compilador. Pontos que eu conferiria primeiro:
-   `PlansScreen` (`MoneyRowBackground.Card`, `Color.themedText`), `SpendingScreen`,
-   `FinanceCheckWorker` (bloco novo usa `prefs`, `visibleItems`, `closingKey`), `SettingsScreen`
-   (imports de `collectAsState`/`launch`), `NotificationActionReceiver` (`isTest`, `toMovement`).
-   `NotificationContentBuilder` ficou sem uso no worker: decidir se sai (e o teste dele junto).
-2. **Ligar a navegação em `FinaiApp.kt`** (não alterado):
-   - `FinaiDestination`: tirar `Debts` e `Budgets`, criar `Spending("gastos", "Gastos")`, `Goals` com título "Planos".
-   - `bottomTabs` e `FinaiBottomNav`: Hoje · Agenda · [+] · Gastos · Planos.
-   - Trocar `GoalsScreen`/`DebtsScreen`/`BudgetsScreen` por `PlansScreen` e `SpendingScreen`;
-     tirar `InstallmentsScreen`, `BuySimulatorContent`, `BudgetLimitDialog`.
-   - Camadas novas: `SimulatorScreen` ("Lançar" abre `TransactionEntryScreen` com `EntryPrefill`
-     de Crédito/Parcelado) e `ClosingScreen`; incluir nas travas `captureBlocked`, `tipsBlocked`, `anyLayerOpen`.
-   - Consumir `AppLinks.open`. Coach: "Já sei" → `acknowledgePattern`; "Ver gastos" → Gastos.
-   - `HomeScreen`: `ClosingCard` quando `v2.showClosingCard`.
-   - `QuickActionSheet`: linha "Falar ou escrever" e "N das notificações".
-3. **Fase 5, formulário:** faixa Falar · Escrever · Notificações (N) · Importar no topo de
-   `TransactionEntryContent` (depois de `PrefillBanner`, só sem `edit` e sem `prefill`). O
-   rascunho é `rememberSaveable` local, então dá para aplicar o `QuickDraft` ali. Voz:
-   `RecognizerIntent` com `EXTRA_PREFER_OFFLINE` e `<queries>` no manifesto.
-4. **Fase 9, chat (`AppViewModel.send`):** frase de lançamento → cartão "Lançamento pronto"
-   (Salvar/Editar/Desfazer); laço de até 3 consultas com `AssistantTools` e resposta validada
-   pelo `ScenarioReplyGuard`; memória no prompt (até 10 fatos) e painel "Sei sobre você";
-   linha "consultei: …" no `ChatOverlay`. Aprender categoria na confirmação da importação.
-5. **Fase 10:** resumo do fechamento por IA (uma chamada por mês, guardada em `fechamentos`,
-   passo `resumo`) e as ações reais dos quatro passos.
-6. **Testes JVM** (nenhum escrito): `QuickEntryParserTest` (≥ 25 frases), `SpendingAnalysisTest`,
-   `LimitSuggestionTest`, `SavingsCapacityTest`, `GoalConflictResolverTest`,
-   `CommitmentsScheduleTest`, `PurchaseSimulatorV2Test`, `AssistantToolsTest`, `MonthClosingTest`,
-   `NotificationPlannerTest`.
-7. **Fase 11:** apagar o código morto, reescrever `TipScript`, atualizar `CLAUDE.md`,
-   `planning-v2.md`, `planning.md` §9/§11 e `PRIVACY.md`.
-8. `sh ./gradlew assembleDebug testDebugUnitTest assemblePessoal` e entregar
-   `app/build/outputs/apk/pessoal/app-pessoal.apk`.
+1. **Build com Gradle:** `sh ./gradlew assembleDebug testDebugUnitTest assemblePessoal`. Se o
+   `18.json` regravado pelo KSP mudar, commitar o novo. Conferir que os dois testes de backup passam.
+2. **Instrumentados:** `connectedDebugAndroidTest` (inclui `Migration17To18Test`,
+   `CardPurchaseFlowTest` alterado, `HomeV2Test`).
+3. **Emulador e protótipo:** comparação visual das fases 5–10 com os quadros `v2/Lancar`, `v2/Gastos`,
+   `v2/Metas`, `v2/Compromissos`, `v2/Simular`, `v2/Assistente`, `v2/Fechamento`; tema claro;
+   320 dp com fonte 150%; TalkBack nos elementos novos. Registrar em `docs/v2-qa/fase-N/`.
+4. **Chave real de IA:** conferir o protocolo de linha JSON das consultas com o Gemini/Groq de verdade
+   (modelos pequenos podem responder texto em vez do JSON; o app só perde a consulta).
+5. **Marco M4:** APK `pessoal` para o celular do usuário.
 
-## Diferenças em relação ao planning-v2 (decididas ou a decidir)
+## Diferenças em relação ao planning-v2 (decididas nesta implementação)
 
-- **Ferramentas do assistente:** só o protocolo de linha JSON (o "fallback de duas chamadas"),
-  em todos os provedores. Tool calling nativo não foi implementado.
-- **Busca de Gastos:** em memória, sobre a lista já carregada; sem `TransacaoDao.search`.
-- **Números do protótipo:** não consegui abrir o protótipo (pede login). O cenário "pedem
-  R$ 1.625, cabe R$ 820, Notebook → nov/27 com R$ 220/mês" não fecha com a regra escrita
-  (R$ 220/mês levaria mais de 12 meses); os testes terão de usar números próprios.
-- **Simulador no chat:** o chat continua no `ScenarioSimulator` antigo; `PurchaseScenario.toRecords` não saiu.
-- **Notificações:** o texto por evento vem de modelos fixos, sem IA. O horário do lembrete é
-  aproximado (WorkManager). Nada foi visto num aparelho.
-- **Busca no topo da Agenda** (fase 4) continua pendente.
-
-## Ambiente
-- "trilha" ganhou `dl.google.com` e `maven.google.com` na lista de hosts (aprovado em 14/11).
-- Sem emulador nesta sessão: validação visual, TalkBack e instrumentados continuam por fazer.
+Registradas em `planning.md` §11 (14/11/2026): ferramentas só por linha JSON; busca de Gastos em
+memória; "Quero o aviso" = limite da categoria; regras aprendidas na importação aplicadas depois da
+análise (a captura por notificação ainda não as usa); notificações sem IA; chat de compra ainda no
+`ScenarioSimulator` antigo. A busca no topo da Agenda (fase 4) continua pendente.

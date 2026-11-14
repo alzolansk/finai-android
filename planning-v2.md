@@ -15,7 +15,13 @@ ordem, onde no código e como conferir**.
 | 2 · Hoje e "De onde vem o livre" | ✅ implementada e validada no emulador, com ressalvas; M1 no celular pendente | 08/11/2026 |
 | 3 · Caixa | ✅ implementada e validada no emulador, com ressalvas | 08/11/2026 |
 | 4 · Agenda | ✅ implementada, com ressalvas; validação visual no emulador adiada pelo usuário | 08/11/2026 |
-| 5–11 | não iniciadas | |
+| 5 · Lançar | ✅ implementada (faixa Falar · Escrever · Notificações · Importar; menu do "+"), sem validação visual | 14/11/2026 |
+| 6 · Gastos | ✅ implementada (aba própria, absorve Limites e assinaturas), sem validação visual | 14/11/2026 |
+| 7 · Planos | ✅ implementada (Metas \| Compromissos; Dívidas e Parcelamentos saíram), sem validação visual | 14/11/2026 |
+| 8 · Posso comprar? | ✅ implementada (tela própria, "Lançar" abre o formulário preenchido), sem validação visual | 14/11/2026 |
+| 9 · Assistente | ✅ implementada (lançamento pronto, consultas locais, memória, regras aprendidas), sem chave real | 14/11/2026 |
+| 10 · Fechamento | ✅ implementada (cartão na Hoje, quatro passos, resumo por IA uma vez por mês), sem validação visual | 14/11/2026 |
+| 11 · Limpeza | ✅ código morto removido, dicas reescritas, docs; **build Gradle, APK e instrumentados pendentes** | 14/11/2026 |
 
 Branch `claude/awesome-hawking-pdynac`. Evidência anterior das fases 0–1: 439 testes JVM verdes,
 `assembleDebug` e `assemblePessoal` ok. Evidências atuais da fase 2 registradas abaixo.
@@ -222,6 +228,49 @@ e worker com coach antigo foram regularizadas acima. As demais ressalvas anterio
    como atrasada (hoje). Entrada atrasada não recebida mostra "fora do saldo".
 8. Celular, TalkBack real, APIs antigas e suíte instrumentada completa não executados; APK pessoal
    não regenerado. Marco M2 segue dependente das fases 3–5 no celular.
+
+### Fases 5–11 — o que foi feito (14/11/2026)
+
+Começado por outra sessão (domínio, telas e notificações escritos sem compilar, commit `3dfd139`) e
+terminado nesta. Estado, decisões e o que falta: `handoff.md`.
+
+- **Navegação v2:** barra Hoje · Agenda · [+] · Gastos · Planos; `FinaiDestination.Debts`/`Budgets`
+  saíram, `Spending` entrou, `Goals` virou "Planos" (rota `planos`). Toque nas notificações abre a
+  rota pedida (`AppLinks`).
+- **Fase 5:** `QuickEntryStrip` no topo do formulário (só no lançamento novo, sem edição/prefill);
+  a frase só preenche, nunca grava. Voz por `RecognizerIntent` com `EXTRA_PREFER_OFFLINE`; sem
+  reconhecedor o botão não aparece (`<queries>` no manifesto). Menu do "+": "Falar ou escrever" e
+  "N das notificações". O parser mantém a grafia da frase na descrição.
+- **Fases 6–8:** `SpendingScreen`, `PlansScreen` e `SimulatorScreen` ligadas às ações que já existiam
+  (limite, assinatura, folha do lançamento, aporte, editar meta, conflito "Manter"/"Mudar prazo",
+  pagar parcela, ensaiar ligação, fatura, Minha renda). Oportunidade de antecipação = a dívida que o
+  plano recomenda, com o valor recomendado. "Lembrar depois de <entrada>" grava o lembrete que a
+  rotina diária já lia.
+- **Fase 9:** chat com cartão "Lançamento pronto" (Salvar/Editar/Descartar, Desfazer depois de
+  salvar), `AssistantLoop` (até 3 consultas, trava de números, linha "consultei: …"), até 10 fatos
+  da memória no prompt, painel "Sei sobre você" com apagar. Importação grava regra de categoria
+  quando o usuário corrige e aplica as regras na próxima importação.
+- **Fase 10:** `ClosingCard` na Hoje e `ClosingScreen` com ações reais (lançar a cobrança que não
+  veio no formulário preenchido, aplicar limites, guardar a sobra com `registrarAporte`, "Quero o
+  aviso" = limite da categoria na média). Resumo pela IA uma vez por mês, guardado em `fechamentos`.
+- **Fase 11:** saíram `GoalsScreen`, `DebtsScreen`, `BudgetsScreen`, `InstallmentsScreen`,
+  `BuySimulatorSheet`, `NotificationsOverlay`, `SpendExplanationSheet`, `BudgetLimitDialog` e
+  `NotificationContentBuilder`. `TipScript` reescrito (Hoje, Agenda, Gastos, Planos, chat).
+  `18.json` gerado com o `identityHash` do algoritmo do room-compiler 2.6.1.
+- **Testes:** 565 JVM verdes (novos: `QuickEntryParserTest` 35 frases, `SpendingAnalysisTest`,
+  `LimitSuggestionTest`, `GoalConflictResolverTest`, `SavingsCapacityTest`, `CommitmentsScheduleTest`,
+  `PurchaseSimulatorV2Test`, `MonthClosingTest`, `AssistantToolsTest`, `NotificationPlannerTest`).
+  Os dois testes de backup (`BackupCodecTest`, `CaptureBackupTest`) precisam do `org.json` real e não
+  rodaram aqui. Testes instrumentados compilam; não foram executados.
+
+#### Ressalvas das fases 5–11
+
+1. **Nada foi visto numa tela.** Sem Gradle (Maven Central recusou este IP) não houve APK, emulador,
+   comparação com o protótipo, tema claro, 320 dp/fonte 150% nem TalkBack.
+2. O cenário do protótipo para metas ("pedem R$ 1.625, cabe R$ 820, Notebook → nov/27 com R$ 220/mês")
+   não fecha com a regra 5 escrita; os testes usam números próprios. O de compromissos
+   (R$ 1.010 / 600 / 410 / livre em jul/27) bate.
+3. Ver as decisões de implementação em `planning.md` §11 (14/11/2026).
 
 ### Ressalvas (leia antes de testar no celular)
 1. **Acesso ao protótipo regularizado após login (08/11).** As tentativas anteriores sem acesso

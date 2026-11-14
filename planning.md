@@ -278,6 +278,13 @@ Adiado explicitamente: investimentos, marketplace, telas novas.
 Critério de validação: sem ajuda, a pessoa responde rápido e certo **"Quanto posso
 gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"**.
 
+**Fase 8 · FinAI v2 (planejada em 08/11/2026, plano e estado em `planning-v2.md`)** — fases 0–4
+implementadas e validadas no emulador em 08/11; fases 5–11 implementadas em 14/11/2026 (navegação
+Hoje · Agenda · + · Gastos · Planos, jeitos novos de lançar, Gastos, Planos, Posso comprar?,
+assistente que consulta/lança/lembra, fechamento do mês, notificações com botões). Checagem de
+tipos do app inteiro e 565 testes JVM verdes fora do Gradle; `assembleDebug`, o APK `pessoal` e os
+testes instrumentados ainda precisam de uma máquina em que o Gradle baixe as dependências.
+
 ## 10. Critérios de aceite por fase (resumo)
 
 - **Fase 1 pronta quando:** os números de saldo seguro, orçamento e dívidas batem com uma planilha de conferência manual para os mesmos dados de entrada, sem nenhuma chamada de IA envolvida.
@@ -421,4 +428,13 @@ gastar?"**, **"O que vence primeiro?"** e **"Por que o app chegou a esse valor?"
     backup", o caminho recomendado é implementar export/import de um arquivo
     (controlado pelo usuário) antes de reabilitar o backup automático.
 
+- **v2, fases 5–11 (14/11/2026), decisões de implementação:** (a) ferramentas do assistente só pelo
+  protocolo de linha JSON em todos os provedores (sem tool calling nativo), no máximo três consultas por
+  pergunta e trava de números sobre os resultados; (b) busca de Gastos em memória, sem `TransacaoDao.search`;
+  (c) "Quero o aviso" do fechamento grava o limite da categoria na média (o aviso de limite já existe na
+  Caixa e na rotina), em vez de um tipo novo de regra; (d) regras de categoria aprendidas valem na
+  importação depois da análise (a IA da importação ainda pode ser chamada para o item; a regra
+  aprendida prevalece) e no "+"/chat; a captura por notificação ainda não as usa; (e) o texto das
+  notificações vem de modelos fixos, sem IA; (f) o chat de compra continua no `ScenarioSimulator`
+  antigo, com o cartão "Registrar compra" (`PurchaseScenario.toRecords` não saiu).
 - **v2, Fase 1 (08/11/2026): a decisao de 10/10 "o saldo recomeca a cada salario" esta revogada** (A4 do planning-v2). O saldo em conta e continuo (soma tudo o que foi efetivado desde o primeiro lancamento, ate 24 meses) e o livre e o menor saldo previsto ate a vespera da proxima renda menos a margem de seguranca (padrao R$ 300). Falta so com saldo previsto negativo. Detalhes e ressalvas em `planning-v2.md`.

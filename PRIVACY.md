@@ -19,6 +19,8 @@ pública, que a Play exige por URL (ver `play-store/politica-de-privacidade.md`)
 | Arquivo importado (PDF, planilha, foto da fatura) | Nunca é copiado | `data/importer/StatementImporter.kt` lê a `Uri` via `ContentResolver`, extrai texto no aparelho (ML Kit *bundled*, `PdfRenderer`, leitor de .csv/.xlsx próprio) e descarta. Não há upload de arquivo, nem cópia para cache, nem envio de imagem para API de visão. |
 | Chaves de API dos provedores | `EncryptedSharedPreferences` (AES-256-GCM, chave mestra no Android Keystore), arquivo `finai_ai_keys.xml` | `data/prefs/AiKeyStore.kt`. Verificado no aparelho: nome e valor aparecem cifrados no XML. Excluído de backup e de transferência entre aparelhos. |
 | Contagem de uso por provedor | DataStore `finai_ai_usage` | Só provedor, data e contagem. Sem PII. |
+| Memória do assistente, regras de categoria aprendidas e respostas do fechamento do mês (v2, fases 9–10) | Room, tabelas `memoria`, `regras_categoria` e `fechamentos` | Só o que o usuário confirmou no app ("Já sei", "Manter", respostas do fechamento, correção de categoria na importação). Nada é inferido pela IA. Vão no backup manual e saem no "Apagar todos os dados". O painel "Sei sobre você" do chat mostra e apaga cada fato. |
+| Frase falada no botão "Falar" do lançamento | Reconhecedor de voz do sistema (`RecognizerIntent`, preferência offline) | O app pede `EXTRA_PREFER_OFFLINE`; se o aparelho não tiver o pacote de idioma, o próprio sistema pode usar o reconhecimento online dele. O FinAI só recebe o texto e o lê localmente (`QuickEntryParser`); a frase não vai para a IA. |
 | Qualquer identificador de usuário | — | O app não tem login, não gera device id próprio, não usa analytics, crash reporting nem SDK de anúncio. Nenhuma dependência de telemetria está no `app/build.gradle.kts`. |
 
 Backup automático do Android está **desligado** (`android:allowBackup="false"`),
@@ -44,7 +46,21 @@ arquivo que decide o que a IA recebe. O que entra:
 - **Rótulos escolhidos pelo próprio usuário**: nome de um objetivo ("Portugal —
   10 dias"), nome de uma dívida ("Rotativo Nubank"), nome de categoria.
 - **A pergunta que o usuário digitou no chat**, mais até 8 mensagens anteriores
-  da mesma conversa.
+  da mesma conversa, e até 10 fatos da memória do assistente (v2, fase 9), que
+  são frases curtas confirmadas pelo usuário.
+- **Consultas do assistente (v2, fase 9)**: quando a IA pede um dado que não está
+  no resumo, o app faz a consulta localmente (`domain/assistant/AssistantTools.kt`)
+  e devolve só o resultado agregado: total de uma categoria num período, até 8
+  gastos de uma busca (dia, estabelecimento normalizado e valor), saldo previsto
+  numa data, o livre de hoje ou uma simulação de compra. No máximo três consultas
+  por pergunta. A resposta que cita valor ou data fora desses resultados é trocada
+  pelos próprios resultados.
+- **Resumo do fechamento do mês (v2, fase 10)**: uma chamada por mês com os fatos
+  de `MonthClosing.factsBlock` (entrou, saiu, sobrou, até três categorias que
+  mais mudaram e cobranças que não vieram). A resposta passa pela mesma trava e
+  fica guardada; sem IA vale o texto calculado.
+- **Frase de lançamento no chat** ("gastei 45 no ifood") não vai para a IA: o app
+  lê localmente e mostra o cartão "Lançamento pronto".
 - **Pergunta de compra no chat** ("posso comprar X em 4x?"): só o resultado da
   simulação local (`ScenarioResult.factsBlock`, em `domain/scenario/`): valores e
   datas das parcelas, livre antes/depois por ciclo, nome da fatura em aberto com
