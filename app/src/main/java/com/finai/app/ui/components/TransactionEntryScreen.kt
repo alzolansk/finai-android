@@ -1130,7 +1130,7 @@ private fun SplitIncomeCard(
         }
         if (on) {
             val advance = split.advanceCents(totalCents)
-            val next = month.plusMonths(1)
+            val next = split.balanceMonth(month)
             Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 listOf(
                     "%02d/%02d · Adiantamento".format(split.advanceDay.coerceAtMost(month.lengthOfMonth()), month.monthValue) to advance,

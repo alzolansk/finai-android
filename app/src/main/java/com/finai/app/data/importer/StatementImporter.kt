@@ -127,7 +127,7 @@ class StatementImporter(
             val result = SpreadsheetStatementParser.parse(rows, reference)
             // Planilha sem estrutura reconhecível (ex.: um extrato colado numa
             // coluna só) ainda pode ser lida como texto corrido.
-            if (result.entries.isNotEmpty()) return result
+            if (result.entries.isNotEmpty() || rows.take(15).any(SpreadsheetStatementParser::isHeaderRow)) return result
         }
         return StatementTextParser.parse(extracted.lines, reference)
     }

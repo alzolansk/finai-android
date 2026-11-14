@@ -36,7 +36,7 @@ import com.finai.app.data.local.entity.TesteNotificacaoEntity
  * per planning.md §4's privacy-first requirement.
  */
 /** Versão do schema do Room — também é a que o backup exportado carrega (Fase 7, item 12). */
-const val FINAI_DB_VERSION = 19
+const val FINAI_DB_VERSION = 20
 
 @Database(
     entities = [
@@ -304,7 +304,32 @@ abstract class FinaiDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+        val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) = repairImportedInvoicePayments(db)
+        }
+
+        /** Somente faturas abertas cujo total ainda corresponde aos itens importados e manuais. */
+        internal fun repairImportedInvoicePayments(db: SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TEMP TABLE invoice_payments_to_ignore AS
+                SELECT t.id, f.contaId, t.valorCentavos FROM transacoes t
+                JOIN faturas_cartao f ON f.id = t.faturaId
+                JOIN contas c ON c.id = f.contaId
+                WHERE c.status = 'pendente' AND c.tipo = 'a_pagar'
+                  AND t.origem = 'importado' AND t.valorCentavos < 0
+                  AND lower(trim(t.descricao)) = 'pagamento recebido'
+                  AND c.valorCentavos = (SELECT SUM(i.valorCentavos) FROM transacoes i WHERE i.faturaId = f.id)
+            """.trimIndent())
+            db.execSQL("""
+                UPDATE contas SET valorCentavos = valorCentavos - (
+                    SELECT SUM(p.valorCentavos) FROM invoice_payments_to_ignore p WHERE p.contaId = contas.id
+                ) WHERE id IN (SELECT contaId FROM invoice_payments_to_ignore)
+            """.trimIndent())
+            db.execSQL("DELETE FROM transacoes WHERE id IN (SELECT id FROM invoice_payments_to_ignore)")
+            db.execSQL("DROP TABLE invoice_payments_to_ignore")
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
 
         @Volatile private var instance: FinaiDatabase? = null
 

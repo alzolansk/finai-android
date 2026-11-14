@@ -15,6 +15,21 @@ class SpreadsheetStatementParserTest {
     private val reference = LocalDate.of(2026, 3, 25)
 
     @Test
+    fun `fatura Nubank ignora pagamento mesmo quando os creditos sao maioria`() {
+        val csv = """
+            date,title,amount
+            2026-11-14,Compra,"27,12"
+            2026-11-12,Pagamento recebido,"- 1.064,19"
+            2026-11-12,Loja A,"- 2,00"
+            2026-11-12,Loja B,"- 3,00"
+        """.trimIndent()
+
+        val result = SpreadsheetStatementParser.parse(CsvReader.read(csv), reference)
+        assertEquals(listOf(2712L, -200L, -300L), result.entries.map { it.amountCents })
+        assertEquals(1, result.ignoredLines)
+    }
+
+    @Test
     fun `csv com ponto e virgula e cabecalho em portugues`() {
         val csv = """
             Data;Descrição;Valor;Categoria

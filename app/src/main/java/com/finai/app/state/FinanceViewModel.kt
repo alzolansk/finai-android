@@ -579,8 +579,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /** Minha renda → "Salvar renda". [split] nulo = salário integral. */
-    suspend fun saveIncomeSplit(split: com.finai.app.domain.IncomeSplit?) =
-        repository.salvarDivisaoDaRenda(split, java.time.LocalDate.now())
+    suspend fun saveIncomeSplit(split: com.finai.app.domain.IncomeSplit?, integralDay: Int) =
+        repository.salvarDivisaoDaRenda(split, java.time.LocalDate.now(), integralDay)
 
     suspend fun saveCardPurchase(entry: TransacaoEntity, payment: com.finai.app.domain.CardPayment): com.finai.app.domain.EntryReceipt {
         require(entry.valorCentavos > 0 && entry.categoria.isNotBlank())

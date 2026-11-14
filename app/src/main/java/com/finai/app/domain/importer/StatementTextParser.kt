@@ -111,7 +111,7 @@ object StatementTextParser {
 
         val chosen = chooseAmount(text, amounts)
         val description = buildDescription(text, listOf(date.second, chosen.range))
-        if (description.isBlank()) return null
+        if (description.isBlank() || isInvoicePayment(description)) return null
 
         val installment = BrazilianStatementFormats.findInstallment(description)
         val refundByWord = StatementRefundWords.matches(description)
