@@ -3,12 +3,6 @@ package com.finai.app.data.notifications
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.RectF
-import android.graphics.Shader
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
@@ -23,12 +17,12 @@ import com.finai.app.domain.notify.NotifyLook
 import com.finai.app.domain.notify.NotifySpec
 
 /**
- * As notificações do FinAI com desenho próprio: selo colorido, uma frase, o valor em destaque,
+ * As notificações do FinAI com desenho próprio: fundo integrado, uma frase, o valor em destaque,
  * barra de progresso e **botões que agem ali mesmo** (pagar, adiar, salvar, "nada hoje").
  *
  * Só desenha e entrega. O que escrever e quais botões mostrar vem pronto do
  * [com.finai.app.domain.notify.NotificationPlanner]; o que cada botão faz está no
- * [NotificationActionReceiver]. Usa `DecoratedCustomViewStyle`, então cabeçalho, fundo e
+ * [NotificationActionReceiver]. Usa `DecoratedCustomViewStyle`, então cabeçalho e
  * expansão continuam sendo os do sistema (tema claro/escuro e tela de bloqueio corretos).
  */
 class RichNotifier(private val context: Context) {
@@ -43,17 +37,14 @@ class RichNotifier(private val context: Context) {
         if (!base.hasNotificationPermission()) return false
         val id = notificationId(spec.key)
         val accent = ContextCompat.getColor(context, accentRes(spec.look))
-        val badge = badge(spec.look)
 
         val small = RemoteViews(context.packageName, R.layout.notification_finai_small).apply {
-            setImageViewBitmap(R.id.notif_badge, badge)
             setTextViewText(R.id.notif_title, spec.title)
             setTextViewText(R.id.notif_body, spec.body)
             setTextViewText(R.id.notif_amount, spec.amount.orEmpty())
             setViewVisibility(R.id.notif_amount, if (spec.amount == null) View.GONE else View.VISIBLE)
         }
         val big = RemoteViews(context.packageName, R.layout.notification_finai_big).apply {
-            setImageViewBitmap(R.id.notif_badge, badge)
             setTextViewText(R.id.notif_eyebrow, spec.eyebrow)
             setTextColor(R.id.notif_eyebrow, accent)
             setTextViewText(R.id.notif_title, spec.title)
@@ -147,28 +138,6 @@ class RichNotifier(private val context: Context) {
         NotifyLook.Bill, NotifyLook.Limit, NotifyLook.Streak -> R.color.notif_amber
         NotifyLook.Coach -> R.color.notif_sky
         else -> R.color.notif_emerald
-    }
-
-    /** Selo: quadrado arredondado em degradê com o símbolo do tipo. Desenhado aqui para não carregar uma imagem por tipo. */
-    private fun badge(look: NotifyLook): Bitmap {
-        val size = (46 * context.resources.displayMetrics.density).toInt().coerceAtLeast(64)
-        val (from, to) = when (look) {
-            NotifyLook.Overdue, NotifyLook.Shortfall -> 0xFFFB7185.toInt() to 0xFFBE123C.toInt()
-            NotifyLook.Bill, NotifyLook.Limit -> 0xFFFCD34D.toInt() to 0xFFF59E0B.toInt()
-            NotifyLook.Streak -> 0xFFFDBA74.toInt() to 0xFFEA580C.toInt()
-            NotifyLook.Coach -> 0xFF93C5FD.toInt() to 0xFF2563EB.toInt()
-            else -> 0xFF6EE7B7.toInt() to 0xFF047857.toInt()
-        }
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = LinearGradient(0f, 0f, size.toFloat(), size.toFloat(), from, to, Shader.TileMode.CLAMP) }
-        canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.3f, size * 0.3f, paint)
-        // Brilho no canto de cima, para o selo não ficar chapado.
-        canvas.drawRoundRect(RectF(size * 0.08f, size * 0.06f, size * 0.92f, size * 0.48f), size * 0.24f, size * 0.24f,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x26FFFFFF })
-        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = size * 0.5f; textAlign = Paint.Align.CENTER }
-        canvas.drawText(look.emoji, size / 2f, size / 2f - (text.descent() + text.ascent()) / 2f, text)
-        return bitmap
     }
 
     companion object {

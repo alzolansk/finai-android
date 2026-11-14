@@ -180,10 +180,10 @@ class FinanceRepository(private val db: FinaiDatabase) {
      * Minha renda: troca a divisão do salário. Só as entradas ainda não efetivadas mudam; as
      * pagas ficam como estão ([IncomePlanner.regenerate]).
      */
-    suspend fun salvarDivisaoDaRenda(split: IncomeSplit?, today: LocalDate) = db.withTransaction {
+    suspend fun salvarDivisaoDaRenda(split: IncomeSplit?, today: LocalDate, integralDay: Int? = null) = db.withTransaction {
         val all = transacaoDao.getAll()
         val config = requireNotNull(IncomePlanner.current(all, today)) { "Cadastre o salário antes de dividir." }
-        val plan = IncomePlanner.regenerate(IncomePlanner.familyOf(all), config.totalCents, split, today)
+        val plan = IncomePlanner.regenerate(IncomePlanner.familyOf(all), config.totalCents, split, today, integralDay)
         plan.delete.forEach { transacaoDao.delete(it) }
         plan.update.forEach { transacaoDao.upsert(it) }
         plan.insert.forEach { transacaoDao.upsert(it) }
@@ -403,6 +403,7 @@ class FinanceRepository(private val db: FinaiDatabase) {
             backup.contas.forEach { contaDao.upsert(it) }
             backup.faturas.forEach { faturaCartaoDao.insert(it) }
             backup.transacoes.forEach { transacaoDao.upsert(it) }
+            if (backup.schemaVersion < 22) FinaiDatabase.repairImportedInvoicePayments(db.openHelper.writableDatabase)
             backup.objetivos.forEach { objetivoDao.upsert(it) }
             backup.dividas.forEach { dividaDao.upsert(it) }
             backup.orcamentos.forEach { orcamentoDao.upsert(it) }

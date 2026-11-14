@@ -6,6 +6,10 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import com.finai.app.domain.recurrenceDay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -72,7 +76,7 @@ fun IncomeScreen(
     visible: Boolean,
     config: IncomePlanner.Config?,
     onBack: () -> Unit,
-    onSave: suspend (IncomeSplit?) -> Unit,
+    onSave: suspend (IncomeSplit?, Int) -> Unit,
     onAddIncome: () -> Unit,
 ) {
     BackHandler(visible) { onBack() }
@@ -97,10 +101,14 @@ fun IncomeScreen(
 }
 
 @Composable
-private fun IncomeContent(config: IncomePlanner.Config, onSave: suspend (IncomeSplit?) -> Unit) {
+private fun IncomeContent(config: IncomePlanner.Config, onSave: suspend (IncomeSplit?, Int) -> Unit) {
     val key = "${config.template.id}-${config.split?.rule?.encode()}"
     val initial = config.split?.rule
     var split by rememberSaveable(key) { mutableStateOf(config.split != null) }
+    var advanceDay by rememberSaveable(key) { mutableIntStateOf(config.split?.advanceDay ?: IncomeSplit.ADVANCE_DAY) }
+    var balanceDay by rememberSaveable(key) { mutableIntStateOf(config.split?.balanceDay ?: IncomeSplit.BALANCE_DAY) }
+    var balanceNextMonth by rememberSaveable(key) { mutableStateOf(config.split?.balanceNextMonth ?: true) }
+    var integralDay by rememberSaveable(key) { mutableIntStateOf(config.split?.balanceDay ?: config.template.recurrenceDay) }
     var percentMode by rememberSaveable(key) { mutableStateOf(initial !is AdvanceRule.Fixed) }
     var pct by rememberSaveable(key) { mutableIntStateOf((initial as? AdvanceRule.Percent)?.pct ?: 40) }
     var fixed by rememberSaveable(key) { mutableIntStateOf(((initial as? AdvanceRule.Fixed)?.cents ?: 200_000L).toInt()) }
@@ -111,11 +119,11 @@ private fun IncomeContent(config: IncomePlanner.Config, onSave: suspend (IncomeS
 
     val total = config.totalCents
     val rule: AdvanceRule = if (percentMode) AdvanceRule.Percent(pct) else AdvanceRule.Fixed(fixed.toLong())
-    val chosen = if (split) IncomeSplit(rule) else null
+    val chosen = if (split) IncomeSplit(rule, advanceDay, balanceDay, balanceNextMonth) else null
     val advance = chosen?.advanceCents(total) ?: 0L
     val advancePct = if (total > 0) Math.round(advance * 100.0 / total).toInt() else 0
-    val entries = remember(config, split, rule) {
-        IncomePlanner.generate(config.template, total, chosen, config.nextCompetence, config.template.data.toLocalDate().dayOfMonth, "preview")
+    val entries = remember(config, chosen, integralDay) {
+        IncomePlanner.generate(config.template, total, chosen, config.nextCompetence, integralDay, "preview")
     }
     val competence = config.nextCompetence
     val competenceLabel = "${MONTH_NAMES_PT[competence.monthValue - 1].lowercase()} de ${competence.year}"
@@ -168,9 +176,16 @@ private fun IncomeContent(config: IncomePlanner.Config, onSave: suspend (IncomeS
                     Text("Saldo ${100 - advancePct}%", fontSize = 12.sp, color = FinaiColors.TextTertiary)
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DayTile("Adiantamento cai", "Dia ${IncomeSplit.ADVANCE_DAY}", "do mês trabalhado", Modifier.weight(1f))
-                    DayTile("Saldo cai", "Dia ${IncomeSplit.BALANCE_DAY}", "do mês seguinte", Modifier.weight(1f))
+                    DayTile("Adiantamento", advanceDay, "do mês trabalhado", Modifier.weight(1f)) { advanceDay = it; balanceNextMonth = balanceDay < it; message = null }
+                    DayTile("Saldo", balanceDay, if (balanceNextMonth) "do mês seguinte" else "do mês trabalhado", Modifier.weight(1f)) {
+                        balanceDay = it; balanceNextMonth = it < advanceDay; message = null
+                    }
                 }
+                Text("Mês de recebimento do saldo", fontSize = 13.sp, color = FinaiColors.TextSecondary, modifier = Modifier.padding(top = 12.dp))
+                Segmented(listOf("Mesmo mês" to false, "Mês seguinte" to true), balanceNextMonth,
+                    { balanceNextMonth = it; message = null }, Modifier.padding(top = 6.dp))
+            } else {
+                DayTile("Recebimento", integralDay, "de cada mês", Modifier.fillMaxWidth().padding(top = 12.dp)) { integralDay = it; message = null }
             }
         }
 
@@ -201,7 +216,7 @@ private fun IncomeContent(config: IncomePlanner.Config, onSave: suspend (IncomeS
             }
             Text(
                 "O fechamento de ${MONTH_NAMES_PT[competence.monthValue - 1].lowercase()} conta ${brl(total)} uma única vez." +
-                    if (split) " O saldo do dia ${IncomeSplit.BALANCE_DAY} já vem com o adiantamento descontado, então a receita não duplica." else "",
+                    if (split) " O saldo do dia $balanceDay já vem com o adiantamento descontado, então a receita não duplica." else "",
                 fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.EmeraldDark,
                 modifier = Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(13.dp))
                     .background(FinaiColors.EmeraldSoftBg).border(1.dp, FinaiColors.EmeraldSoftStroke, RoundedCornerShape(13.dp)).padding(12.dp),
@@ -218,7 +233,7 @@ private fun IncomeContent(config: IncomePlanner.Config, onSave: suspend (IncomeS
                     saving = true; message = null
                     scope.launch {
                         try {
-                            onSave(chosen); failed = false; message = "Renda salva. As próximas entradas foram atualizadas."
+                            onSave(chosen, integralDay); failed = false; message = "Renda salva. As próximas entradas foram atualizadas."
                         } catch (e: CancellationException) { throw e }
                         catch (e: IllegalArgumentException) { failed = true; message = e.message ?: "Confira os dados." }
                         catch (e: Exception) { failed = true; message = "Não foi possível salvar. Tente novamente." }
@@ -241,10 +256,31 @@ private fun IncomeCard(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun DayTile(label: String, day: String, detail: String, modifier: Modifier) {
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(FinaiColors.SurfaceMuted).padding(12.dp)) {
+private fun DayTile(label: String, day: Int, detail: String, modifier: Modifier, onSelect: (Int) -> Unit) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    if (open) AlertDialog(
+        onDismissRequest = { open = false },
+        title = { Text("Dia de recebimento · $label") },
+        text = {
+            Column {
+                (1..31).chunked(5).forEach { week ->
+                    Row {
+                        week.forEach { value ->
+                            Box(Modifier.weight(1f).height(48.dp)
+                                .background(if (day == value) FinaiColors.EmeraldSoftBg else Color.Transparent, CircleShape)
+                                .selectable(value == day, role = Role.RadioButton) { onSelect(value); open = false },
+                                contentAlignment = Alignment.Center) { Text(value.toString()) }
+                        }
+                        repeat(5 - week.size) { Box(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { open = false }) { Text("Fechar") } },
+    )
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(FinaiColors.SurfaceMuted).clickable(role = Role.Button) { open = true }.padding(12.dp)) {
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextTertiary)
-        Text(day, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary, modifier = Modifier.padding(top = 3.dp))
+        Text("Dia $day · Editar", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextPrimary, modifier = Modifier.padding(top = 3.dp))
         Text(detail, fontSize = 12.sp, color = FinaiColors.TextTertiary)
     }
 }

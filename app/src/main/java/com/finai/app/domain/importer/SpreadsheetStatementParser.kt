@@ -22,7 +22,7 @@ object SpreadsheetStatementParser {
     private val DATE_HEADERS = listOf("data", "date", "dia", "data da compra", "data compra", "competencia")
     private val DESCRIPTION_HEADERS = listOf(
         "descricao", "descrição", "historico", "histórico", "estabelecimento", "lancamento",
-        "lançamento", "description", "memo", "detalhe", "titulo", "título", "nome",
+        "lançamento", "title", "description", "memo", "detalhe", "titulo", "título", "nome",
     )
     private val AMOUNT_HEADERS = listOf("valor", "amount", "montante", "quantia", "total", "valor (r$)", "valor r$")
     private val DEBIT_HEADERS = listOf("debito", "débito", "saida", "saída", "gasto", "despesa")
@@ -48,8 +48,9 @@ object SpreadsheetStatementParser {
         val bodyRows = rows.drop((headerIndex ?: -1) + 1)
 
         val raw = bodyRows.map { row -> toRawEntry(row, columns, reference) }
-        val parsed = raw.filterNotNull()
-        val flipSign = parsed.count { it.amountCents < 0 } > parsed.count { it.amountCents > 0 }
+        val parsed = raw.filterNotNull().filterNot { isInvoicePayment(it.description) }
+        val nubankLayout = headerIndex?.let { rows[it].map(::normalize).toSet() } == setOf("date", "title", "amount")
+        val flipSign = !nubankLayout && parsed.count { it.amountCents < 0 } > parsed.count { it.amountCents > 0 }
 
         val entries = parsed.map { entry ->
             val cents = if (flipSign) -entry.amountCents else entry.amountCents
@@ -60,11 +61,11 @@ object SpreadsheetStatementParser {
         return ParseResult(
             entries = entries,
             totalLines = bodyRows.size,
-            ignoredLines = raw.count { it == null },
+            ignoredLines = raw.size - parsed.size,
         )
     }
 
-    private fun isHeaderRow(row: List<String>): Boolean {
+    internal fun isHeaderRow(row: List<String>): Boolean {
         val cells = row.map { normalize(it) }
         val hasDate = cells.any { cell -> DATE_HEADERS.any { cell == it || cell.startsWith(it) } }
         val hasValue = cells.any { cell ->
@@ -170,6 +171,9 @@ object SpreadsheetStatementParser {
 
     private fun normalize(text: String) = foldAccents(text.lowercase().trim()).replace(Regex("""\s+"""), " ")
 }
+
+internal fun isInvoicePayment(description: String): Boolean =
+    description.trim().equals("Pagamento recebido", ignoreCase = true)
 
 /** Palavras que marcam estorno/crédito numa descrição — compartilhado pelos dois parsers. */
 internal object StatementRefundWords {

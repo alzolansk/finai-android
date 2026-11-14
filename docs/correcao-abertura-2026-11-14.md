@@ -8,9 +8,11 @@ hash esperado `787505c6742a9e8abef84d582f9f6fe0`, encontrado
 `PRAGMA user_version = 20`, mas estrutura e hash da versão 19: faltavam
 `mensagens_chat.estrutura` e as quatro tabelas do novo assistente.
 
-A migração 19→20 não roda quando o banco já está marcado como 20. Não foi
-possível determinar qual instalação anterior avançou apenas o número da versão.
-Limpar o cache não altera esse estado do banco.
+A migração 19→20 não roda quando o banco já está marcado como 20. A integração
+posterior com a main identificou a origem: ela publicou uma versão 20 só com
+reparo de dados de faturas (mesma estrutura da 19), enquanto a branch do
+assistente publicou uma estrutura diferente com o mesmo número. Limpar o
+cache não altera esse estado do banco.
 
 ## Correção
 
@@ -78,3 +80,28 @@ No APK pessoal, dois ciclos de abrir/fechar memória e histórico passaram, assi
 como Voltar do Android em ambos os painéis. O processo permaneceu o mesmo e o
 logcat não registrou novos crashes durante a validação. Capturas e roteiro
 reproduzível em `FinAI-recovery\2026-11-14\assistant-crash`, fora do repositório.
+
+## Integração com a main
+
+As duas variantes da v20 são aceitas pela migração 20→21: a que veio da main
+recebe as tabelas do assistente, enquanto a variante do assistente já as possui.
+O schema 20 versionado é o da branch do assistente. A variante da main é
+reproduzida nos testes usando o schema 19 com `user_version=20`.
+
+A versão final do merge é **22**. A migração 21→22 aplica o mesmo reparo de
+faturas da main também aos bancos do assistente 20/21 já instalados. O reparo
+mantém contas pagas e totais editados, e é seguro se já tiver sido aplicado.
+Restaurar backups anteriores à v22 passa pelo mesmo reparo, incluindo arquivos
+20/21 exportados pela branch do assistente.
+
+`Migration21To22Test` cobre a cadeia desde 19, as duas variantes da 20, a 21,
+preservação das mensagens/sessões, repetição do reparo e restauração dos backups
+19/20/21, além da estabilidade de um backup 22 já corrigido.
+
+Validação após refazer o merge: `assembleDebug assembleDebugAndroidTest
+testDebugUnitTest assemblePessoal --rerun-tasks` passou (633 testes JVM).
+No Pixel 6 API 34, as 14 classes de migração e `ChatOverlayNavigationTest`
+passaram: **24 testes instrumentados**, incluindo a cadeia desde a versão 1,
+as duas variantes da v20, reparo de faturas, backups e os painéis do assistente.
+`git diff --check` passou. Essa rodada foi no emulador; o APK integrado v22
+não foi instalado no celular nesta etapa.

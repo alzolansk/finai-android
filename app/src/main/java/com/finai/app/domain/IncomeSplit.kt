@@ -42,6 +42,7 @@ data class IncomeSplit(
     val rule: AdvanceRule,
     val advanceDay: Int = ADVANCE_DAY,
     val balanceDay: Int = BALANCE_DAY,
+    val balanceNextMonth: Boolean = balanceDay < advanceDay,
 ) {
     /** Porcentagem arredondada para o centavo mais próximo (meio centavo sobe); fixo nunca passa do total. */
     fun advanceCents(totalCents: Long): Long {
@@ -51,6 +52,8 @@ data class IncomeSplit(
         }
         return raw.coerceIn(0, totalCents.coerceAtLeast(0))
     }
+
+    fun balanceMonth(competence: YearMonth): YearMonth = if (balanceNextMonth) competence.plusMonths(1) else competence
 
     fun balanceCents(totalCents: Long): Long = totalCents - advanceCents(totalCents)
 
@@ -129,24 +132,24 @@ object IncomePlanner {
             competenciaDeslocamento = 0, rendaGrupo = null, rendaParte = null, rendaDivisao = null,
         )
         if (split == null) {
-            return listOf(base.copy(data = monthlyOccurrence(startComp.atDay(integralDay.coerceIn(1, 28)), startComp).toEpochMillis(), rendaPrincipal = true))
+            return listOf(base.copy(data = startComp.atDay(integralDay.coerceIn(1, startComp.lengthOfMonth())).toEpochMillis(), diaRecorrencia = integralDay, rendaPrincipal = true))
         }
         val adv = split.advanceCents(totalCents)
         val rest = totalCents - adv
         require(adv > 0 && rest > 0) { "As duas partes precisam ter valor." }
-        val next = startComp.plusMonths(1)
+        val next = split.balanceMonth(startComp)
         val common = base.copy(rendaGrupo = group, rendaDivisao = split.rule.encode())
         return listOf(
             common.copy(
-                data = startComp.atDay(split.advanceDay.coerceAtMost(startComp.lengthOfMonth())).toEpochMillis(),
+                diaRecorrencia = split.advanceDay, data = startComp.atDay(split.advanceDay.coerceAtMost(startComp.lengthOfMonth())).toEpochMillis(),
                 descricao = ADVANCE_NAME, valorCentavos = adv, rendaParte = IncomePart.Advance.key,
                 // O ciclo "até o próximo salário" começa no adiantamento; o saldo é entrada dentro dele.
                 rendaPrincipal = true,
             ),
             common.copy(
-                data = next.atDay(split.balanceDay.coerceAtMost(next.lengthOfMonth())).toEpochMillis(),
+                diaRecorrencia = split.balanceDay, data = next.atDay(split.balanceDay.coerceAtMost(next.lengthOfMonth())).toEpochMillis(),
                 descricao = BALANCE_NAME, valorCentavos = rest, rendaParte = IncomePart.Balance.key,
-                competenciaDeslocamento = -1, rendaPrincipal = false,
+                competenciaDeslocamento = if (split.balanceNextMonth) -1 else 0, rendaPrincipal = false,
             ),
         )
     }
@@ -178,13 +181,13 @@ object IncomePlanner {
     fun current(all: List<TransacaoEntity>, today: LocalDate): Config? {
         val rows = familyOf(all)
         if (rows.isEmpty()) return null
-        val live = rows.filter { it.seriesEnd == null || it.seriesEnd!! >= YearMonth.from(today) }.ifEmpty { rows }
+        val live = rows.filter { it.seriesEnd == null }.ifEmpty { rows }
         val advance = live.filter { it.incomePart == IncomePart.Advance }.maxByOrNull { it.startMonth }
         val balance = live.filter { it.incomePart == IncomePart.Balance }.maxByOrNull { it.startMonth }
         val template = advance ?: live.maxByOrNull { it.startMonth }!!
         val total = if (advance != null && balance != null) advance.valorCentavos + balance.valorCentavos else template.valorCentavos
-        val split = advance?.takeIf { balance != null }?.let { a -> AdvanceRule.decode(a.rendaDivisao)?.let(::IncomeSplit) }
-        val next = lastPaidCompetence(rows, today)?.plusMonths(1) ?: YearMonth.from(today)
+        val split = if (advance != null && balance != null) AdvanceRule.decode(advance.rendaDivisao)?.let { IncomeSplit(it, advance.recurrenceDay, balance.recurrenceDay, balance.competenciaDeslocamento == -1) } else null
+        val next = lastPaidCompetence(rows, today)?.plusMonths(1) ?: rows.minOf { it.competenceOf(it.startMonth) }
         return Config(total, split, template.descricao, template.contaOrigem, next, template)
     }
 
@@ -196,36 +199,60 @@ object IncomePlanner {
      * Troca a divisão do salário. [rows] são todas as séries atuais dele (uma integral, ou
      * adiantamento e saldo, com os trechos). [split] nulo = integral.
      */
-    fun regenerate(rows: List<TransacaoEntity>, totalCents: Long, split: IncomeSplit?, today: LocalDate): IncomePlan {
+    fun regenerate(rows: List<TransacaoEntity>, totalCents: Long, split: IncomeSplit?, today: LocalDate, requestedIntegralDay: Int? = null): IncomePlan {
         require(rows.isNotEmpty()) { "Nenhuma renda cadastrada." }
         val template = rows.maxByOrNull { it.startMonth }!!
         val lastPaid = lastPaidCompetence(rows, today)
         val startComp = lastPaid?.plusMonths(1) ?: rows.minOf { it.startMonth.plusMonths(it.competenciaDeslocamento.toLong()) }
         val group = rows.firstNotNullOfOrNull { it.rendaGrupo } ?: "renda-${template.seriesRoot.takeIf { it > 0 } ?: System.nanoTime()}"
-        val integralDay = rows.firstOrNull { !it.isSplitIncome }?.recurrenceDay ?: IncomeSplit.BALANCE_DAY
+        val integralDay = requestedIntegralDay ?: rows.firstOrNull { !it.isSplitIncome }?.recurrenceDay ?: IncomeSplit.BALANCE_DAY
 
-        // Adiantamento da competência em curso já pago, com o saldo ainda por vir.
-        val inFlight = lastPaid?.let { comp ->
-            val adv = rows.filter { it.incomePart == IncomePart.Advance }.flatMap { r -> occurrences(r, today).filter { !it.second.isAfter(today) && r.competenceOf(it.first) == comp }.map { r.occurrenceFor(it.first) } }.firstOrNull()
-            val saldo = rows.filter { it.incomePart == IncomePart.Balance }.firstOrNull { r -> occurrences(r, today).any { r.competenceOf(it.first) == comp && it.second.isAfter(today) } }
-            if (adv != null && saldo != null) Triple(saldo, comp.minusMonths(saldo.competenciaDeslocamento.toLong()), adv.valorCentavos) else null
-        }
+        // Com dias livres, o adiantamento seguinte pode cair antes do saldo anterior.
+        val paidAdvances = rows.filter { it.incomePart == IncomePart.Advance }.flatMap { row ->
+            occurrences(row, today).filter { !it.second.isAfter(today) }.map { (month, _) ->
+                row.competenceOf(month) to requireNotNull(row.occurrenceFor(month)).valorCentavos
+            }
+        }.toMap()
 
         val update = mutableListOf<TransacaoEntity>()
         val delete = mutableListOf<TransacaoEntity>()
+        val movedBalances = mutableListOf<TransacaoEntity>()
         rows.forEach { row ->
             val paid = occurrences(row, today).filter { !it.second.isAfter(today) }
-            val flight = inFlight?.takeIf { it.first.id == row.id }
+            val pendingBalances = if (row.incomePart == IncomePart.Balance) {
+                occurrences(row, today).filter { (month, date) ->
+                    date.isAfter(today) && row.competenceOf(month) in paidAdvances
+                }
+            } else emptyList()
             when {
-                flight != null -> {
-                    val month = flight.second
-                    val pending = (totalCents - flight.third).coerceAtLeast(1)
-                    update += row.copy(
-                        recorrenteAte = month.toString(),
-                        excecoes = OccurrenceCodec.encode(
-                            row.overrides.filter { it.mes < month } + OccurrenceOverride(month, valorCentavos = pending.takeIf { it != row.valorCentavos }),
-                        ),
-                    )
+                pendingBalances.isNotEmpty() -> {
+                    val last = pendingBalances.last().first
+                    val overrides = row.overrides.filter { it.mes <= last }.associateBy { it.mes }.toMutableMap()
+                    for ((month, date) in pendingBalances) {
+                        val pending = totalCents - paidAdvances.getValue(row.competenceOf(month))
+                        val targetMonth = split?.balanceMonth(row.competenceOf(month)) ?: month
+                        if (targetMonth != month && split != null) {
+                            val targetDate = targetMonth.atDay(split.balanceDay.coerceAtMost(targetMonth.lengthOfMonth()))
+                            if (targetDate >= today) {
+                                val original = requireNotNull(row.occurrenceFor(month))
+                                movedBalances += original.copy(
+                                    id = 0, data = targetDate.toEpochMillis(), valorCentavos = pending,
+                                    diaRecorrencia = split.balanceDay, recorrenteAte = targetMonth.toString(),
+                                    competenciaDeslocamento = if (split.balanceNextMonth) -1 else 0, excecoes = "",
+                                )
+                                overrides[month] = OccurrenceOverride(month, pulada = true)
+                                continue
+                            }
+                        }
+                        val newDate = split?.balanceDay?.takeIf { it != row.recurrenceDay }
+                            ?.let { month.atDay(it.coerceAtMost(month.lengthOfMonth())) }
+                            ?.takeIf { it.isAfter(today) } ?: date
+                        overrides[month] = (overrides[month] ?: OccurrenceOverride(month)).copy(
+                            data = newDate.takeIf { it != row.regularDate(month) },
+                            valorCentavos = pending.takeIf { it != row.valorCentavos },
+                        )
+                    }
+                    update += row.copy(recorrenteAte = last.toString(), excecoes = OccurrenceCodec.encode(overrides.values.toList()))
                 }
                 paid.isEmpty() -> delete += row
                 else -> {
@@ -235,7 +262,7 @@ object IncomePlanner {
             }
         }
         val insert = generate(template, totalCents, split, startComp, integralDay, group)
-        return IncomePlan(insert = insert, update = update, delete = delete)
+        return IncomePlan(insert = movedBalances + insert, update = update, delete = delete)
     }
 
     /** Meses em que a série tem ocorrência (começo ao fim, ou até dois meses depois de hoje se sem fim) e a data de cada uma. */

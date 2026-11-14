@@ -84,7 +84,7 @@ class Migration20To21Test {
         try {
             // Abrir pelo Room reproduz a checagem de integridade que derrubava o app.
             val sql = db.openHelper.writableDatabase
-            assertEquals(21, sql.version)
+            assertEquals(FINAI_DB_VERSION, sql.version)
             check(sql)
             sql.query("PRAGMA integrity_check").use {
                 assertTrue(it.moveToFirst())

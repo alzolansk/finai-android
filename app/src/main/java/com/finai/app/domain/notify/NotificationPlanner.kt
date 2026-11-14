@@ -10,9 +10,8 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 /** A cara da notificação: cor do destaque e o símbolo do selo. */
-enum class NotifyLook(val emoji: String) {
-    Bill("🧾"), Overdue("⏰"), Shortfall("⚠️"), Limit("📊"), Coach("💡"), Capture("💳"),
-    Daily("✍️"), Streak("🔥"), Closing("📅"), Goal("🎯"), Income("💰"), Done("✅"),
+enum class NotifyLook {
+    Bill, Overdue, Shortfall, Limit, Coach, Capture, Daily, Streak, Closing, Goal, Income, Done,
 }
 
 /** O que cada botão faz. Os que abrem tela viram intent de Activity; os outros, de broadcast. */

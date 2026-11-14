@@ -121,6 +121,52 @@ class IncomeSplitTest {
         assertEquals(dec.last().balanceAfterCents, agenda.endOfNextMonthCents)
     }
 
+    @Test fun customDaysSurviveShortMonthsAndReopening() {
+        val feb = ym(2027, 2)
+        val split = IncomeSplit(AdvanceRule.Percent(40), 30, 31)
+        val rows = IncomePlanner.generate(template(), total, split, feb, 5, "g")
+        assertEquals(feb.atEndOfMonth(), rows.first().data.toLocalDate())
+        assertEquals(30, rows.first().regularDate(feb.plusMonths(1)).dayOfMonth)
+        assertEquals(split, IncomePlanner.current(rows, feb.atDay(1))?.split)
+        val integral = IncomePlanner.generate(template(), total, null, feb, 29, "g").single()
+        assertEquals(29, integral.regularDate(feb.plusMonths(1)).dayOfMonth)
+    }
+
+    @Test fun changingDaysKeepsBothOutstandingBalancesWhenAdvancesOverlap() {
+        val old = IncomeSplit(AdvanceRule.Percent(40), 5, 25, balanceNextMonth = true)
+        val rows = apply(emptyList(), IncomePlan(insert = IncomePlanner.generate(template(), total, old, ym(2026, 10), 1, "g")))
+        val today = LocalDate.of(2026, 11, 14)
+        val chosen = old.copy(advanceDay = 12, balanceDay = 23)
+        val after = apply(rows, IncomePlanner.regenerate(rows, total, chosen, today))
+        for (month in listOf(ym(2026, 10), ym(2026, 11))) {
+            val receipts = IncomeCompetence.receipts(after, month)
+            assertEquals(total, receipts.sumOf { it.valorCentavos })
+            assertEquals(listOf(5, 23), receipts.map { it.data.toLocalDate().dayOfMonth }.sorted())
+        }
+        assertEquals(chosen, IncomePlanner.current(after, today)?.split)
+    }
+
+    @Test fun restoresNovemberBalanceWithoutDuplicatingSalaryBeforeOrAfterAdvance() {
+        val november = ym(2026, 11)
+        val corrected = IncomeSplit(AdvanceRule.Percent(40), 15, 30)
+        val legacy = corrected.copy(balanceNextMonth = true)
+        val initial = apply(emptyList(), IncomePlan(insert = IncomePlanner.generate(template(), total, legacy, november, 1, "g")))
+        for (day in listOf(14, 16)) {
+            val today = november.atDay(day)
+            val once = apply(initial, IncomePlanner.regenerate(initial, total, corrected, today))
+            val twice = apply(once, IncomePlanner.regenerate(once, total, corrected, today))
+            for (month in listOf(november, november.plusMonths(1))) {
+                val receipts = IncomeCompetence.receipts(twice, month)
+                assertEquals(listOf(month.atDay(15), month.atDay(30)), receipts.map { it.data.toLocalDate() }.sorted())
+                assertEquals(total, receipts.sumOf { it.valorCentavos })
+            }
+            val agenda = AgendaBalance.build(twice, emptyList(), emptyList(), today, months = 2)
+            assertEquals(listOf(total - corrected.advanceCents(total)),
+                agenda.future.filter { it.date == november.atDay(30) }.map { it.cents })
+            assertEquals(corrected, IncomePlanner.current(twice, today)?.split)
+        }
+    }
+
     // ── regeneração ──────────────────────────────────────────────────────
 
     @Test fun regeneratingKeepsPaidEntriesAndReplacesTheFuture() {

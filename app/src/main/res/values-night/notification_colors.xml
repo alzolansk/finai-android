@@ -8,5 +8,5 @@
     <color name="notif_button_secondary_text">#F4F4F5</color>
     <color name="notif_track">#2EFFFFFF</color>
     <color name="notif_amount">#FAFAFA</color>
-    <color name="notif_muted">#A1A1AA</color>
+    <color name="notif_muted">#C4C4CB</color>
 </resources>

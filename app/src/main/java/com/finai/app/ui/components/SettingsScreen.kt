@@ -195,7 +195,7 @@ fun SettingsScreen(
                 SettingsPage.CAPTURE -> capture?.let { CapturePage(it, onOpenApps = { page = SettingsPage.CAPTURE_APPS }, onOpenTests = { page = SettingsPage.CAPTURE_TESTS }) }
                 SettingsPage.CAPTURE_APPS -> capture?.let { CaptureAppsPage(it) }
                 SettingsPage.CAPTURE_TESTS -> capture?.let { CaptureTestsPage(it) }
-                SettingsPage.NOTIFICATIONS -> NotificationsPage(notificationsEnabled, onRunNotificationCheck)
+                SettingsPage.NOTIFICATIONS -> NotificationsPage(notificationsEnabled, onRunNotificationCheck, onOpenIncome)
                 SettingsPage.ACCOUNTS -> AccountsPage(knownAccounts, onAddAccount, onRemoveAccount)
                 SettingsPage.PRIVACY -> PrivacyPage(
                     onEraseAllData, onExportData, onPickRestore, pendingRestoreSummary, onConfirmRestore, onCancelRestore,
@@ -595,9 +595,13 @@ private fun AppearancePage(current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
  * rotina proativa conferível sem esperar a janela diária.
  */
 @Composable
-private fun NotificationsPage(notificationsEnabled: Boolean, onRunCheck: () -> Unit) {
+private fun NotificationsPage(notificationsEnabled: Boolean, onRunCheck: () -> Unit, onOpenIncome: (() -> Unit)?) {
     val context = LocalContext.current
     var checkStarted by remember { mutableStateOf(false) }
+    if (onOpenIncome != null) SettingsGroup {
+        SettingsRow(icon = Icons.Filled.Payments, title = "Dias de recebimento do salário",
+            status = StatusLine("Editar em Minha renda", StatusTone.Neutral), onClick = onOpenIncome)
+    }
 
     SettingsGroup {
         SettingsRow(
