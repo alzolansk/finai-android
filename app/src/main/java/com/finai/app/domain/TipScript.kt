@@ -12,19 +12,18 @@ data class Tip(val targetId: String, val title: String, val body: String)
 object TipScript {
     const val HOME = "home"
     const val AGENDA = "agenda"
+    /** Planos (Metas | Compromissos). A chave antiga "goals" é mantida: quem já viu as dicas não as revê. */
     const val GOALS = "goals"
-    const val DEBTS = "debts"
-    const val BUDGETS = "budgets"
+    const val SPENDING = "spending"
     const val CHAT = "chat"
 
-    val screens: Set<String> = setOf(HOME, AGENDA, GOALS, DEBTS, BUDGETS, CHAT)
+    val screens: Set<String> = setOf(HOME, AGENDA, GOALS, SPENDING, CHAT)
 
     private val scripts: Map<String, List<Tip>> = mapOf(
         HOME to listOf(
-            Tip("home.situation", "Sua situação", "Quanto está livre até o próximo salário, já descontado o que vence até lá. Recomendações do plano não descontam desse valor."),
-            Tip("home.explain", "De onde vem o número", "Toque em \"Entenda este valor\" para ver a conta passo a passo."),
-            Tip("home.week", "O que vence primeiro", "As contas e lançamentos dos próximos 7 dias, em ordem de data."),
-            Tip("nav.add", "Lançar algo novo", "Gastos, receitas e importação de fatura começam pelo +."),
+            Tip("home.situation", "Quanto está livre", "O que dá para gastar até a próxima entrada, já descontado o que vence até lá e a sua margem. Toque para ver de onde vem."),
+            Tip("home.week", "O que vence primeiro", "Os próximos 7 dias em ordem de data. Toque numa conta para pagar; tocar de novo reabre."),
+            Tip("nav.add", "Lançar algo novo", "O + abre o lançamento. Dá para escrever ou falar a frase, como \"uber 23 ontem\"."),
         ),
         AGENDA to listOf(
             Tip("agenda.month", "Navegue pelos meses", "Use as setas para ver o que vence em outros meses."),
@@ -32,19 +31,15 @@ object TipScript {
             Tip("agenda.transactions", "Lançamentos do mês", "Toque num lançamento para ver os detalhes, editar (só este mês ou daqui em diante, se ele se repete) ou excluir."),
         ),
         GOALS to listOf(
-            Tip("goals.card", "Sua meta", "Guardado, prazo e quanto guardar por mês. O selo mostra a situação real da meta. Use \"Adicionar valor\" para registrar um aporte."),
-            Tip("goals.details", "Detalhes e análise", "Toque na meta para ver o que falta, simular um aporte ou pedir a análise da IA."),
+            Tip("plans.tabs", "Metas e compromissos", "Metas é o que você quer alcançar. Compromissos junta empréstimos, parcelas no cartão, faturas e contas fixas."),
+            Tip("plans.capacity", "Quanto cabe guardar", "A sobra média dos próximos 6 meses, contra o que as metas pedem por mês. Quando não cabe, o app mostra um conflito por vez."),
         ),
-        DEBTS to listOf(
-            Tip("debts.list", "Ordem de pagamento", "As dívidas estão ordenadas pelo custo do juro, não pelo tamanho."),
-            Tip("debts.pay", "Paguei a parcela", "Registre cada parcela paga: a dívida avança e o gasto entra no mês."),
-            Tip("debts.call", "Ensaiar a ligação", "Treine a negociação com a IA fazendo o papel do atendente."),
-        ),
-        BUDGETS to listOf(
-            Tip("budgets.list", "Limites por categoria", "Toque numa categoria para definir ou ajustar o limite do mês."),
+        SPENDING to listOf(
+            Tip("spending.search", "Busca", "Procure qualquer lançamento por nome, categoria ou conta."),
+            Tip("spending.categories", "Categorias e limites", "Toque numa categoria para ver os lançamentos e definir o limite do mês."),
         ),
         CHAT to listOf(
-            Tip("chat.suggestions", "Comece por aqui", "Toque numa sugestão ou escreva sua pergunta sobre seus números."),
+            Tip("chat.suggestions", "Comece por aqui", "Toque numa sugestão ou escreva sua pergunta. Frases como \"gastei 45 no ifood\" viram um lançamento para conferir."),
         ),
     )
 

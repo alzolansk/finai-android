@@ -268,6 +268,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         repository.responderFechamento(month, step, answer)
     }
 
+    /** "Lembrar depois de <entrada>" do simulador: a rotina diária avisa no dia [date] (uma compra por vez). */
+    fun remindPurchase(name: String, cents: Long, date: LocalDate) = launchSafely("guardar o lembrete") {
+        prefs.setPurchaseReminder("$date|${name.replace('|', ' ')}|$cents")
+    }
+
     fun rememberFact(text: String, tipo: String, origem: String) = launchSafely("guardar na memória") { repository.lembrar(text, tipo, origem) }
     fun forgetFact(id: Long) = launchSafely("apagar da memória") { repository.esquecer(id) }
     fun learnCategory(merchant: String, categoria: String) = launchSafely("aprender a categoria") { repository.aprenderCategoria(merchant, categoria) }

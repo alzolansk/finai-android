@@ -1,10 +1,8 @@
 package com.finai.app.navigation
 
 /**
- * The six screens from the prototype (planning.md §3). Home/Agenda/Goals/Debts
- * sit behind the bottom-nav tabs; Budgets and Import are reached from actions
- * inside other screens (a "Ver todos", the FAB menu, etc.) — mirrors the
- * prototype's `screen` state / `screens` label map in support.js.
+ * Destinos da navegação v2 (planning-v2 §4): Hoje · Agenda · [+] · Gastos · Planos na barra;
+ * Caixa e Configurações pelo topo; Importação pelo "+" e pelas telas.
  *
  * [headerTitle] é o título da tela: grande no conteúdo e compacto no cabeçalho 4a quando
  * a lista rola. Os dois usam o mesmo texto.
@@ -14,9 +12,10 @@ enum class FinaiDestination(val route: String, val headerTitle: String) {
     Home("home", "Hoje"),
     Inbox("caixa", "Caixa"),
     Agenda("agenda", "Agenda"),
-    Goals("metas", "Objetivos"),
-    Debts("dividas", "Dívidas"),
-    Budgets("orcamentos", "Limites do mês"),
+    /** Planos (fase 7): Metas | Compromissos. Dívidas e Parcelamentos viraram Compromissos. */
+    Goals("planos", "Planos"),
+    /** Gastos (fase 6): absorve Limites e assinaturas. */
+    Spending("gastos", "Gastos"),
     Import("importar", "Importar fatura");
 
     companion object {

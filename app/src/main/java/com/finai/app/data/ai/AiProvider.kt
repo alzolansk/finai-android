@@ -49,6 +49,12 @@ enum class AiTask {
      * A resposta também passa pela trava de números do simulador.
      */
     GOALS_PLAN,
+
+    /** Fase 10: parágrafo de resumo do fechamento do mês, sobre fatos já calculados ([com.finai.app.domain.closing.MonthClosing]). */
+    MONTH_CLOSING,
+
+    /** Fase 9: o assistente pede uma consulta local ([com.finai.app.domain.assistant.AssistantTools]) ou responde com o resultado dela. */
+    ASSISTANT_TOOLS,
 }
 
 /**

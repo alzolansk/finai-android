@@ -1,5 +1,6 @@
 package com.finai.app.ui.screens.spending
 
+import com.finai.app.ui.components.tipTarget
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -90,7 +91,7 @@ fun SpendingScreen(
         item("title") { PageTitle("Gastos", listState, subtitle = "Para onde o dinheiro foi") }
         item("search") {
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp)).background(FinaiColors.Surface)
+                Modifier.fillMaxWidth().tipTarget("spending.search").heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp)).background(FinaiColors.Surface)
                     .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -136,8 +137,8 @@ fun SpendingScreen(
             }
             if (analysis.categories.isNotEmpty()) {
                 item("cat-head") {
-                    SectionHeader("Por categoria", subtitle = if (period.month != null) "Toque para ver os lançamentos e ajustar o limite" else null,
-                        action = if (proposals.isNotEmpty() && period.yearMonth == current) "Sugerir limites" else null, onAction = { showSuggestions = true })
+                    androidx.compose.foundation.layout.Box(Modifier.tipTarget("spending.categories")) { SectionHeader("Por categoria", subtitle = if (period.month != null) "Toque para ver os lançamentos e ajustar o limite" else null,
+                        action = if (proposals.isNotEmpty() && period.yearMonth == current) "Sugerir limites" else null, onAction = { showSuggestions = true }) }
                 }
                 items(analysis.categories, key = { "c-${it.categoria}" }) { cat ->
                     CategoryCard(cat, analysis.totalCents, open = openCategory == cat.categoria, canLimit = period.yearMonth == current,

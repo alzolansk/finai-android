@@ -182,6 +182,8 @@ fun TransactionEntryScreen(
     /** A divisão que vale hoje (a de Minha renda); o resumo do toggle a usa. */
     incomeSplitDefault: IncomeSplit = IncomeSplit(AdvanceRule.Percent(40)),
     onOpenIncome: (() -> Unit)? = null,
+    /** Faixa Falar · Escrever · Notificações · Importar (fase 5); nula = sem a faixa. Só no lançamento novo. */
+    quickEntry: QuickEntryHooks? = null,
 ) {
     val typography = MaterialTheme.typography
     MaterialTheme(typography = typography.copy(
@@ -198,6 +200,7 @@ fun TransactionEntryScreen(
                 initialType, initialExtra, initialMainIncome, onDismiss, onSave, onViewEntry, onSaveCard.takeIf { edit == null },
                 onSaveContribution, onUndo, onCreateGoal, onFinished, onSaveEdit, prefill,
                 onSaveSplitIncome.takeIf { edit == null }, incomeSplitDefault, onOpenIncome,
+                quickEntry.takeIf { edit == null && prefill == null },
             )
         }
     }
@@ -326,6 +329,7 @@ private fun TransactionEntryContent(
     onSaveSplitIncome: (suspend (TransacaoEntity, IncomeSplit) -> EntryReceipt)?,
     incomeSplitDefault: IncomeSplit,
     onOpenIncome: (() -> Unit)?,
+    quickEntry: QuickEntryHooks?,
 ) {
     val visible = inputs.visible
     val edit = inputs.edit
@@ -480,6 +484,36 @@ private fun TransactionEntryContent(
     }
     BackHandler(visible) { close() }
 
+    /** Resultado da última frase lida pela faixa (fase 5). */
+    var quickFeedback by remember { mutableStateOf<String?>(null) }
+
+    /**
+     * Frase → formulário: só preenche o que a frase disse; o resto fica como está, nunca chutado.
+     * Nada é gravado aqui: o usuário confere e salva pelo botão de sempre.
+     */
+    fun applyPhrase(text: String) {
+        val hooks = quickEntry ?: return
+        if (saving || success) return
+        val d = com.finai.app.domain.quickentry.QuickEntryParser.parse(text, LocalDate.now(), hooks.context)
+        if (d.type != type) { typeName = d.type.name; account = ""; recurring = false }
+        d.cents?.takeIf { it > 0 }?.let { cents = it.toString(); replaceAmount = false }
+        d.category?.let { category = it }
+        if (d.description.isNotBlank()) description = d.description
+        d.account?.let { account = it }
+        dateString = d.date.toString()
+        d.payment?.let { payName = it.name }
+        d.card?.let { card = it }
+        d.installments?.let { installments = it.coerceIn(EntryOptions.MIN_INSTALLMENTS, EntryOptions.MAX_INSTALLMENTS) }
+        if (d.type == TransactionType.Transferencia && (d.toGoal || d.goalName != null)) {
+            val goal = inputs.objetivos.firstOrNull { it.nome == d.goalName }
+            targetName = if (goal?.let { EntryOptions.reserves(inputs.objetivos).contains(it) } ?: d.goalName == null) TransferTarget.Reserva.name else TransferTarget.Objetivo.name
+            goalId = goal?.id ?: -1L
+        }
+        amountEditing = false
+        val missing = d.missing()
+        quickFeedback = if (missing.isEmpty()) "Preenchido. Confira e toque em salvar." else "Faltou: ${missing.joinToString()}. Complete abaixo."
+    }
+
     fun selectType(t: TransactionType) {
         if (t == type) return
         typeName = t.name
@@ -584,6 +618,7 @@ private fun TransactionEntryContent(
                         }
                     }
                     prefill?.let { p -> PrefillBanner(p.banner, p.demo) }
+                    if (quickEntry != null && !success) QuickEntryStrip(quickEntry, quickFeedback, ::applyPhrase)
                     Column(
                         Modifier.weight(1f).verticalScroll(rememberScrollState()).alpha(if (success) .45f else 1f)
                             .padding(horizontal = 16.dp, vertical = 4.dp),

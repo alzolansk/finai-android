@@ -36,7 +36,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.outlined.Adjust
 import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -128,13 +128,13 @@ private class NavTabSpec(val destination: FinaiDestination, val label: String, v
 private val NavTabs = listOf(
     NavTabSpec(FinaiDestination.Home, "Hoje", Icons.Filled.Home),
     NavTabSpec(FinaiDestination.Agenda, "Agenda", Icons.Outlined.CalendarToday),
-    NavTabSpec(FinaiDestination.Goals, "Objetivos", Icons.Outlined.Adjust),
-    NavTabSpec(FinaiDestination.Debts, "Dívidas", Icons.Outlined.CreditCard),
+    NavTabSpec(FinaiDestination.Spending, "Gastos", Icons.Outlined.PieChart),
+    NavTabSpec(FinaiDestination.Goals, "Planos", Icons.Outlined.Adjust),
 )
 
 /**
- * Barra flutuante de vidro (playbook 3a): Início / Agenda / (+) / Objetivos / Dívidas.
- * Limites e Importar continuam sendo abertas de dentro das telas. Nenhuma aba fica
+ * Barra flutuante de vidro (playbook 3a): Hoje / Agenda / (+) / Gastos / Planos.
+ * Caixa, Configurações e Importar são abertas pelo topo ou de dentro das telas. Nenhuma aba fica
  * marcada nelas, e o indicador some até voltar para uma aba.
  *
  * Desenhe com [Modifier.align] na base da tela; a barra já soma o inset da navegação do

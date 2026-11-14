@@ -1,5 +1,6 @@
 package com.finai.app.ui.screens.home
 
+import com.finai.app.ui.components.tipTarget
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,15 +42,18 @@ fun HomeScreen(
     onOpenGoals: () -> Unit, onNewGoal: () -> Unit, onOpenSimulator: () -> Unit, onExplainSafe: () -> Unit,
     onOpenAgenda: () -> Unit, onNewEntry: () -> Unit, onAddMainIncome: () -> Unit,
     onMovement: (TimelineMovement) -> Unit, onDismissCoach: (String) -> Unit, onCoachDetails: () -> Unit,
+    /** Fechamento do mês (fase 10): cartão no fim da Hoje do dia 1 ao 7, ou enquanto houver passo pendente. */
+    closing: com.finai.app.domain.closing.MonthClosing? = null,
+    onOpenClosing: () -> Unit = {},
     today: LocalDate = LocalDate.now(),
 ) {
     LazyColumn(Modifier.fillMaxWidth(), state = listState, contentPadding = ScreenContentPadding, verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item("title") {
             PageTitle("Hoje", listState, subtitle = today.format(DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", Locale("pt", "BR"))).replaceFirstChar { it.titlecase() })
         }
-        item("free") { FreeCard(situation, free, reconciliation, today, onOpenSimulator, onExplainSafe, onAddMainIncome) }
+        item("free") { androidx.compose.foundation.layout.Box(Modifier.tipTarget("home.situation")) { FreeCard(situation, free, reconciliation, today, onOpenSimulator, onExplainSafe, onAddMainIncome) } }
         item("week") {
-            Column {
+            Column(Modifier.tipTarget("home.week")) {
                 SectionHeader("Próximos 7 dias", action = "Agenda ›", onAction = onOpenAgenda)
                 if (week.isEmpty()) EmptyStateCard("Nada previsto nos próximos 7 dias.", "Lançar conta", onNewEntry)
                 else V2Panel { week.forEachIndexed { i, m ->
@@ -82,6 +86,7 @@ fun HomeScreen(
                 if (goalPlan.isNotBlank()) Text(goalPlan, fontSize = 12.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 12.dp))
             }
         }
+        if (closing != null) item("closing") { com.finai.app.ui.screens.closing.ClosingCard(closing, onOpenClosing) }
     }
 }
 

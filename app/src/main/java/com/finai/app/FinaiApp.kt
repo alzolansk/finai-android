@@ -84,8 +84,6 @@ import com.finai.app.domain.occurrenceFor
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.finai.app.ui.components.SettingsScreen
 import com.finai.app.ui.components.rememberOnResume
-import com.finai.app.ui.components.BudgetLimitDialog
-import com.finai.app.ui.components.BuySimulatorContent
 import com.finai.app.ui.components.ChatOverlay
 import com.finai.app.ui.components.GoalContributionSheet
 import com.finai.app.ui.components.GoalCreateScreen
@@ -120,11 +118,9 @@ import com.finai.app.ui.components.QuickActionSheet
 import com.finai.app.ui.components.capture.QueuedSuggestionToast
 import com.finai.app.ui.components.capture.SuggestionDialog
 import com.finai.app.ui.screens.agenda.AgendaScreen
-import com.finai.app.ui.screens.budgets.BudgetsScreen
-import com.finai.app.ui.screens.installments.InstallmentsScreen
-import com.finai.app.domain.InstallmentsSummary
-import com.finai.app.ui.screens.debts.DebtsScreen
-import com.finai.app.ui.screens.goals.GoalsScreen
+import com.finai.app.ui.screens.plans.PlansScreen
+import com.finai.app.ui.screens.simulator.SimulatorScreen
+import com.finai.app.ui.screens.spending.SpendingScreen
 import com.finai.app.ui.screens.home.HomeScreen
 import com.finai.app.ui.screens.importer.ImportScreen
 import com.finai.app.ui.screens.invoice.InvoiceScreen
@@ -272,16 +268,29 @@ fun FinaiApp(
     /** Item recém-lançado que a Agenda destaca ao abrir pelo "Ver na agenda". */
     var agendaHighlight by remember { mutableStateOf<com.finai.app.domain.AgendaHighlight?>(null) }
     var showAddDivida by remember { mutableStateOf(false) }
-    var contributionTarget by remember { mutableStateOf<Goal?>(null) }
-    var budgetLimitTarget by remember { mutableStateOf<String?>(null) }
+    /** Objetivo da folha "Registrar aporte" aberta (id no Room). */
+    var contributionGoalId by rememberSaveable { mutableStateOf<Long?>(null) }
+    /** Planos: aba aberta (0 = Metas, 1 = Compromissos) e "mostrar contas fixas" no gráfico. */
+    var plansTab by rememberSaveable { mutableStateOf(0) }
+    var plansShowFixed by rememberSaveable { mutableStateOf(false) }
+    /** Gastos aberto pelo atalho de busca: o campo ganha foco uma vez. */
+    var spendingFocusSearch by rememberSaveable { mutableStateOf(false) }
+    /** Lançamento tocado em Gastos: abre a mesma folha de ações da Agenda. */
+    var sheetTransaction by remember { mutableStateOf<TransacaoEntity?>(null) }
+    /** Fechamento do mês aberto (fase 10). */
+    var showClosing by rememberSaveable { mutableStateOf(false) }
+    /** Formulário do "+" aberto já preenchido (simulador, frase do chat). Instância própria. */
+    var prefillEntry by rememberSaveable(stateSaver = com.finai.app.ui.components.EntryPrefillSaver) {
+        mutableStateOf<com.finai.app.ui.components.EntryPrefill?>(null)
+    }
+    /** "Falar ou escrever" do menu do "+": o formulário abre com o campo de frase ativo. */
+    var entryStartWithPhrase by rememberSaveable { mutableStateOf(false) }
     // Edição de itens já cadastrados — o mesmo diálogo de "Novo X" pré-preenchido
     // via `initial`, mantendo id (e, no caso de conta, o status pago/pendente)
     // intactos ao salvar (ver EntryDialogs.kt).
     var editingContaId by remember { mutableStateOf<Long?>(null) }
     var editingDividaId by remember { mutableStateOf<Long?>(null) }
     var openedInvoiceContaId by rememberSaveable { mutableStateOf<Long?>(null) }
-    /** Tela de Parcelamentos: camada por cima de tudo (entra da direita), não rota do NavHost. */
-    var showInstallments by rememberSaveable { mutableStateOf(false) }
     var showIncome by rememberSaveable { mutableStateOf(false) }
     var showReconcile by rememberSaveable { mutableStateOf(false) }
     var homeMovement by remember { mutableStateOf<com.finai.app.domain.TimelineMovement?>(null) }
@@ -306,10 +315,24 @@ fun FinaiApp(
         }
     }
     var editingObjetivoId by remember { mutableStateOf<Long?>(null) }
+    // Toque numa notificação com destino (fase 5–10): a MainActivity pede a rota, aqui ela é aberta.
+    val appLink by com.finai.app.data.notifications.AppLinks.open.collectAsState()
+    LaunchedEffect(appLink) {
+        val route = appLink ?: return@LaunchedEffect
+        com.finai.app.data.notifications.AppLinks.consume()
+        when (route) {
+            com.finai.app.data.notifications.AppLinks.INBOX -> navigateTo(FinaiDestination.Inbox)
+            com.finai.app.data.notifications.AppLinks.AGENDA -> navigateTo(FinaiDestination.Agenda)
+            com.finai.app.data.notifications.AppLinks.SPENDING -> navigateTo(FinaiDestination.Spending)
+            com.finai.app.data.notifications.AppLinks.PLANS -> navigateTo(FinaiDestination.Goals)
+            com.finai.app.data.notifications.AppLinks.ENTRY -> showAddTransaction = true
+            com.finai.app.data.notifications.AppLinks.CLOSING -> { navigateTo(FinaiDestination.Home); showClosing = true }
+        }
+    }
     val editingConta = financeState.rawContas.firstOrNull { it.id == editingContaId }
     val editingDivida = financeState.rawDividas.firstOrNull { it.id == editingDividaId }
     val editingObjetivo = financeState.rawObjetivos.firstOrNull { it.id == editingObjetivoId }
-    val contributionObjetivo = contributionTarget?.let { goal -> financeState.rawObjetivos.firstOrNull { it.id.toString() == goal.id } }
+    val contributionObjetivo = contributionGoalId?.let { id -> financeState.rawObjetivos.firstOrNull { it.id == id } }
 
     val agenda = remember(financeState.rawContas, financeState.rawFaturasCartao, financeState.rawTransacoes, financeState.rawDividas, uiState.monthIndex, uiState.agendaYear) {
         agendaDataFor(financeState.rawContas, financeState.rawTransacoes, financeState.rawDividas, uiState.monthIndex, uiState.agendaYear)
@@ -327,17 +350,14 @@ fun FinaiApp(
         val contaDaFatura = financeState.rawFaturasCartao.associate { it.id to it.contaId }
         financeState.rawTransacoes.mapNotNull { t -> t.faturaId?.let { contaDaFatura[it] } }.groupingBy { it }.eachCount()
     }
-    val installments = remember(financeState.rawTransacoes, financeState.rawFaturasCartao, financeState.rawContas) {
-        InstallmentsSummary.of(financeState.rawTransacoes, financeState.rawFaturasCartao, financeState.rawContas)
-    }
 
     CompositionLocalProvider(LocalTipTargets provides tipRegistry) {
     Box(modifier = Modifier.fillMaxSize().background(FinaiColors.Background).onSizeChanged { rootHeightPx = it.height.toFloat() }) {
         Box(
             modifier = Modifier.fillMaxSize()
-                .then(if (showAddTransaction || editEntryId != null || contributionTarget != null) Modifier.clearAndSetSemantics {} else Modifier)
+                .then(if (showAddTransaction || editEntryId != null || contributionGoalId != null) Modifier.clearAndSetSemantics {} else Modifier)
                 // Fundo da folha de aporte desfocado, como na referência (Android 12+; antes disso só o escurecido).
-                .then(if (contributionTarget != null) Modifier.blur(8.dp) else Modifier),
+                .then(if (contributionGoalId != null) Modifier.blur(8.dp) else Modifier),
         ) {
             // O conteúdo ocupa a tela toda e rola por baixo do cabeçalho; é a mesma fonte do
             // vidro da barra de baixo e do cabeçalho. O cabeçalho fica fora dela (logo abaixo),
@@ -371,7 +391,7 @@ fun FinaiApp(
                             goalPlan = financeState.plan?.recommendations?.firstOrNull { it.target == com.finai.app.domain.RecommendationTarget.Goal }?.let {
                                 "Plano de ${com.finai.app.domain.MONTH_NAMES_PT[java.time.LocalDate.now().monthValue - 1].lowercase()}: guardar ${com.finai.app.util.formatBrl0(it.cents / 100.0)} em ${it.name}"
                             }.orEmpty(),
-                            onOpenGoals = { navigateTo(FinaiDestination.Goals) },
+                            onOpenGoals = { plansTab = 0; navigateTo(FinaiDestination.Goals) },
                             onNewGoal = { showAddGoal = true },
                             onOpenSimulator = viewModel::openSimulator,
                             onExplainSafe = viewModel::openSpendExplanation,
@@ -381,8 +401,10 @@ fun FinaiApp(
                                 if (source is com.finai.app.domain.CycleSource.Conta) financeViewModel.marcarContaPaga(source.conta.id, source.conta.status != "pago")
                                 else homeMovement = movement
                             },
-                            onDismissCoach = { financeViewModel.dismissInsight(it) },
-                            onCoachDetails = { navigateTo(FinaiDestination.Budgets) },
+                            onDismissCoach = { id -> financeState.behaviorPattern?.takeIf { it.id == id }?.let(financeViewModel::acknowledgePattern) ?: financeViewModel.dismissInsight(id) },
+                            onCoachDetails = { navigateTo(FinaiDestination.Spending) },
+                            closing = financeState.v2?.closing?.takeIf { financeState.v2?.showClosingCard == true },
+                            onOpenClosing = { showClosing = true },
                             onAddMainIncome = { transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name; transactionEntryInitialMain = true; showAddTransaction = true },
                             onNewEntry = { showAddTransaction = true },
                         )
@@ -400,11 +422,11 @@ fun FinaiApp(
                                         InsightAction.SimulateGoal -> financeState.goals.firstOrNull { it.id == insight.actionGoalId?.toString() }
                                             ?.let { askAbout(AssistantTopics.goal(it, financeState.goalFacts)) }
                                         InsightAction.ComparePlan -> askAbout(AssistantTopics.goalsPlan(financeState.goalFacts))
-                                        InsightAction.OpenDebts -> navigateTo(FinaiDestination.Debts)
+                                        InsightAction.OpenDebts -> { plansTab = 1; navigateTo(FinaiDestination.Goals) }
                                         InsightAction.AddIncome -> { transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name; showAddTransaction = true }
                                         else -> navigateTo(FinaiDestination.Agenda)
                                     }
-                                    item.kind == "limite" || item.kind == "coach" -> navigateTo(FinaiDestination.Budgets)
+                                    item.kind == "limite" || item.kind == "coach" -> navigateTo(FinaiDestination.Spending)
                                     item.movement?.source is com.finai.app.domain.CycleSource.Parcela -> homeMovement = item.movement
                                     else -> navigateTo(FinaiDestination.Agenda)
                                 }
@@ -476,92 +498,58 @@ fun FinaiApp(
                         )
                     }
                     composable(FinaiDestination.Goals.route) {
-                        // Pontos de atenção são calculados sem IA. A IA só roda quando o usuário toca em
-                        // "Analisar com IA" (planejamento inteiro ou uma meta), sobre os fatos calculados.
+                        // Planos (fase 7): Metas | Compromissos. O roteiro de negociação só é pedido
+                        // à IA quando a aba Compromissos está aberta.
+                        if (plansTab == 1) LaunchedEffect(financeState.debts) { aiViewModel.ensureDebtNegotiation(financeState.debts) }
                         val facts = financeState.goalFacts
-                        GoalsScreen(
+                        PlansScreen(
                             listState = tabLists.getValue(FinaiDestination.Goals),
-                            goals = financeState.goals,
-                            completedGoals = financeState.completedGoals,
-                            plan = financeState.plan,
-                            overview = financeState.goalsOverview,
-                            insights = emptyList(),
-                            planAnalysis = goalAnalyses[AiViewModel.PLAN_ANALYSIS_KEY],
-                            goalAnalyses = goalAnalyses,
-                            onNewGoal = { showAddGoal = true },
-                            onContribute = { goal -> contributionTarget = goal },
-                            onEdit = { goal -> editingObjetivoId = goal.id.toLong() },
-                            onDelete = { goal -> financeViewModel.deleteObjetivoById(goal.id.toLong()) },
-                            onSimulate = { goal -> askAbout(AssistantTopics.goal(goal, facts)) },
-                            onExplain = viewModel::openSpendExplanation,
-                            onAnalyzePlan = {
-                                aiViewModel.analyzeGoals(AiViewModel.PLAN_ANALYSIS_KEY, AiPromptBuilder.goalsPlanAnalysis(facts), facts)
-                            },
-                            onAnalyzeGoal = { goal ->
-                                aiViewModel.analyzeGoals(goal.id, AiPromptBuilder.goalAnalysis(goal.name, facts), facts)
-                            },
-                            onInsightAction = { insight ->
-                                // Cada ação leva a uma função que já existe: nada de botão decorativo.
-                                when (insight.action) {
-                                    InsightAction.EditGoal -> insight.actionGoalId?.let { editingObjetivoId = it }
-                                    InsightAction.SimulateGoal -> financeState.goals.firstOrNull { it.id == insight.actionGoalId?.toString() }
-                                        ?.let { askAbout(AssistantTopics.goal(it, facts)) }
-                                    InsightAction.ComparePlan -> askAbout(AssistantTopics.goalsPlan(facts))
-                                    InsightAction.OpenDebts -> navigateTo(FinaiDestination.Debts)
-                                    InsightAction.OpenAgenda -> navigateTo(FinaiDestination.Agenda)
-                                    InsightAction.AddIncome -> {
-                                        transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name
-                                        transactionEntryInitialExtra = false
-                                        showAddTransaction = true
-                                    }
-                                    InsightAction.None -> Unit
+                            tab = plansTab, onTab = { plansTab = it },
+                            v2 = financeState.v2,
+                            objetivos = financeState.rawObjetivos,
+                            contributions = remember(financeState.rawTransacoes) { com.finai.app.domain.ContributionRecord.byGoal(financeState.rawTransacoes) },
+                            debts = financeState.debts,
+                            paidDebts = financeState.paidDebts,
+                            opportunity = remember(financeState.plan, financeState.rawDividas) {
+                                financeState.plan?.recommendations?.firstOrNull { it.target == com.finai.app.domain.RecommendationTarget.Debt }?.let { rec ->
+                                    financeState.rawDividas.firstOrNull { it.id == rec.id }?.let { com.finai.app.domain.plans.DebtPrepayment.opportunity(it, rec.cents) }
                                 }
                             },
-                            dismissedCount = 0,
-                            onDismissInsight = { insight -> financeViewModel.dismissInsight(insight.dismissKey) },
-                            onRestoreDismissed = { navigateTo(FinaiDestination.Inbox) },
-                            contributions = remember(financeState.rawTransacoes) {
-                                com.finai.app.domain.ContributionRecord.byGoal(financeState.rawTransacoes)
-                            },
-                        )
-                    }
-                    composable(FinaiDestination.Debts.route) {
-                        LaunchedEffect(financeState.debts) {
-                            aiViewModel.ensureDebtNegotiation(financeState.debts)
-                        }
-                        DebtsScreen(
-                            listState = tabLists.getValue(FinaiDestination.Debts),
-                            debts = financeState.debts,
-                            totalOpenLabel = financeState.debtTotalLabel,
-                            monthlyInterestLabel = financeState.debtInterestLabel,
-                            debtFreeLabel = financeState.debtFreeLabel,
-                            strategyNote = financeState.debtStrategyNote,
                             negotiationTitle = financeState.negotiationTitle,
                             negotiationScript = debtNegotiation,
+                            showFixed = plansShowFixed, onShowFixed = { plansShowFixed = it },
+                            onNewGoal = { showAddGoal = true },
+                            onContribute = { contributionGoalId = it.id },
+                            onEditGoal = { editingObjetivoId = it.id },
+                            onAskGoal = { obj -> financeState.goals.firstOrNull { it.id == obj.id.toString() }?.let { askAbout(AssistantTopics.goal(it, facts)) } },
+                            onMoveDeadline = { c -> c.newDeadline?.let { financeViewModel.moveGoalDeadline(c.goalId, it) } },
+                            onKeepConflict = financeViewModel::keepGoalConflict,
                             onNewDebt = { showAddDivida = true },
                             onEditDebt = { debt -> editingDividaId = debt.id },
                             onDeleteDebt = { debt -> financeViewModel.deleteDividaById(debt.id) },
                             onPayInstallment = { debt -> financeViewModel.pagarParcela(debt.id) },
                             onRehearseCall = { askAbout(AssistantTopics.debtCall(financeState.debts)) },
-                            paidDebts = financeState.paidDebts,
                             onDeletePaidDebt = { paid -> financeViewModel.deleteDividaById(paid.id) },
-                            // Parcelamentos saíram da Agenda (fase 4) e ficam aqui até Planos › Compromissos (fase 7).
-                            installments = installments,
-                            onOpenInstallments = { showInstallments = true },
+                            onOpenInvoice = { conta -> openedInvoiceContaId = conta.id },
+                            onOpenIncome = { showIncome = true },
                         )
                     }
-                    composable(FinaiDestination.Budgets.route) {
-                        BudgetsScreen(
-                            listState = rememberSecondaryList(FinaiDestination.Budgets, secondaryLists),
-                            budgets = financeState.budgets,
-                            subscriptions = financeState.subscriptions,
-                            recentTransactions = financeState.rawTransacoesDoMes,
-                            onEditLimit = { categoria -> budgetLimitTarget = categoria },
-                            onSubscriptionAction = { sub: Subscription ->
-                                financeViewModel.toggleAssinatura(sub.name, ativa = sub.cta != "Cancelar")
+                    composable(FinaiDestination.Spending.route) {
+                        // Gastos (fase 6): absorve Limites e assinaturas.
+                        SpendingScreen(
+                            listState = tabLists.getValue(FinaiDestination.Spending),
+                            transacoes = financeState.rawTransacoes,
+                            limits = financeState.v2?.limits.orEmpty(),
+                            subscriptions = remember(financeState.rawAssinaturas, financeState.rawTransacoes) {
+                                com.finai.app.domain.spending.SubscriptionLines.of(financeState.rawAssinaturas, financeState.rawTransacoes, java.time.LocalDate.now())
                             },
-                            onNewTransaction = { showAddTransaction = true },
-                            onDeleteTransaction = financeViewModel::deleteTransacao,
+                            focusSearch = spendingFocusSearch,
+                            onSearchFocused = { spendingFocusSearch = false },
+                            onSetLimit = financeViewModel::setLimitCents,
+                            onApplyLimits = financeViewModel::applyLimits,
+                            onSubscriptionAction = { sub -> financeViewModel.toggleAssinatura(sub.name, ativa = !sub.active) },
+                            onOpenEntry = { t -> sheetTransaction = t },
+                            onNewEntry = { showAddTransaction = true },
                         )
                     }
                     composable(FinaiDestination.Import.route) {
@@ -745,50 +733,71 @@ fun FinaiApp(
             QuickActionSheet(
                 onPick = { action ->
                     viewModel.closeAddMenu()
-                    when (action.title) {
-                        "Lançar gasto" -> showAddTransaction = true
-                        "Importar fatura" -> navigateTo(FinaiDestination.Import)
-                        "Posso comprar?" -> viewModel.openSimulator()
-                        "Novo objetivo" -> showAddGoal = true
+                    when (action.icon) {
+                        "gasto" -> showAddTransaction = true
+                        "frase" -> { entryStartWithPhrase = true; showAddTransaction = true }
+                        "notificacoes" -> navigateTo(FinaiDestination.Inbox)
+                        "importar" -> navigateTo(FinaiDestination.Import)
+                        "simular" -> viewModel.openSimulator()
+                        "objetivo" -> showAddGoal = true
                     }
                 },
+                pendingCaptures = captureState.pending.size,
             )
         }
 
-        AnimatedVisibility(
-            visible = uiState.simOpen,
-            enter = fadeIn(finaiTween(FinaiMotion.Standard)),
-            exit = fadeOut(finaiTween(FinaiMotion.Quick)),
-        ) {
-            Scrim(onDismiss = viewModel::closeSimulator)
-        }
-        AnimatedVisibility(
-            visible = uiState.simOpen,
-            enter = fadeIn(finaiTween(FinaiMotion.Standard)) + slideInVertically(finaiTween(FinaiMotion.Standard)) { it / 8 },
-            exit = fadeOut(finaiTween(FinaiMotion.Quick)) + slideOutVertically(finaiTween(FinaiMotion.Quick)) { it / 8 },
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .sizeIn(maxHeight = 720.dp),
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                color = FinaiColors.Surface,
-            ) {
-                BuySimulatorContent(
-                    amount = uiState.simAmount,
-                    plan = financeState.plan,
-                    goals = financeState.goals,
-                    aiExplain = purchaseVerdict,
-                    onEnsureExplain = { amountLabel, verdictLabel, capacityLabel, slackLabel, topGoalName, topGoalAffected ->
-                        aiViewModel.ensurePurchaseVerdict(amountLabel, verdictLabel, capacityLabel, slackLabel, topGoalName, topGoalAffected)
-                    },
-                    onPickPreset = viewModel::setSimAmount,
-                    onDecideLater = viewModel::closeSimulator,
-                    onAsk = askAbout,
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                )
-            }
+        // Posso comprar? (fase 8): tela própria, por cima de tudo. "Lançar" abre o formulário do "+"
+        // preenchido (Crédito/Parcelado com o cartão), que grava na fatura certa.
+        if (uiState.simOpen) {
+            val today = java.time.LocalDate.now()
+            val nextIncome = financeState.plan?.free?.nextIncome
+            SimulatorScreen(
+                cards = entryCards,
+                nextIncomeLabel = nextIncome?.let { "${it.noun} (%02d/%02d)".format(it.date.dayOfMonth, it.date.monthValue) },
+                simulate = { valueCents, discount, card ->
+                    if (valueCents <= 0) null else com.finai.app.domain.scenario.PurchaseSimulatorV2.simulate(
+                        financeState.rawContas, financeState.rawTransacoes, financeState.rawDividas, today, valueCents,
+                        marginCents = financeState.safetyMarginCents,
+                        firstCardDue = card?.let { com.finai.app.domain.EntryOptions.resolveCardDue(it, today, financeState.rawFaturasCartao, financeState.rawContas).date },
+                        pixDiscountPercent = discount,
+                        fitsToSaveCents = financeState.v2?.capacity?.cabeGuardarCents,
+                    )
+                },
+                onLaunch = { name, option, card ->
+                    viewModel.closeSimulator()
+                    prefillEntry = com.finai.app.ui.components.EntryPrefill(
+                        type = com.finai.app.domain.TransactionType.Gasto,
+                        cents = option.totalCents,
+                        category = null,
+                        description = name,
+                        account = null,
+                        date = today,
+                        payment = when {
+                            option.way.isPix -> com.finai.app.domain.PaymentMethod.Debito
+                            option.way.installments == 1 -> com.finai.app.domain.PaymentMethod.Credito
+                            else -> com.finai.app.domain.PaymentMethod.Parcelado
+                        },
+                        card = card.takeIf { !option.way.isPix },
+                        installments = option.way.installments.takeIf { it > 1 },
+                        dueDate = option.firstDue.takeIf { !option.way.isPix },
+                        banner = "Simulado em Posso comprar? · escolha a categoria e confira antes de salvar",
+                        demo = false,
+                    )
+                },
+                onRemindLater = { name, cents ->
+                    nextIncome?.let { financeViewModel.remindPurchase(name, cents, it.date) }
+                    viewModel.closeSimulator()
+                },
+                onAsk = { name, simulation ->
+                    viewModel.closeSimulator()
+                    askAbout(AssistantTopic(
+                        question = "Vale a pena comprar ${name.ifBlank { "isso" }} agora? Qual forma de pagar você indica?",
+                        context = "Simulação de Posso comprar? calculada pelo app (não refaça as contas):\n" + simulation.factsBlock(name.ifBlank { "a compra" }),
+                    ))
+                },
+                onClose = viewModel::closeSimulator,
+                initialValueCents = 0,
+            )
         }
 
         if (uiState.explainOpen) {
@@ -834,7 +843,15 @@ fun FinaiApp(
         val entryCategories = remember(financeState.rawTransacoes) {
             com.finai.app.domain.EntryOptions.categoriesByRecentUse(financeState.rawTransacoes)
         }
+        // Contexto do campo "Escrever"/"Falar" (fase 5): contas, cartões, metas e regras aprendidas.
+        val quickEntryContext = remember(entryAccounts, entryCards, financeState.rawObjetivos, financeState.v2?.learned) {
+            com.finai.app.domain.quickentry.QuickEntryContext(
+                accounts = entryAccounts, cards = entryCards, goals = financeState.rawObjetivos.map { it.nome },
+                learned = financeState.v2?.learned.orEmpty(),
+            )
+        }
         val closeEntry = {
+            entryStartWithPhrase = false
             showAddTransaction = false
             transactionEntryInitialType = com.finai.app.domain.TransactionType.Gasto.name
             transactionEntryInitialExtra = false; transactionEntryInitialMain = false
@@ -853,6 +870,14 @@ fun FinaiApp(
             initialExtra = transactionEntryInitialExtra,
             initialMainIncome = transactionEntryInitialMain,
             initialDate = transactionEntryInitialDate?.let(java.time.LocalDate::parse),
+            quickEntry = com.finai.app.ui.components.QuickEntryHooks(
+                context = quickEntryContext,
+                startWithPhrase = entryStartWithPhrase,
+                onPhraseStarted = { entryStartWithPhrase = false },
+                pendingCaptures = captureState.pending.size,
+                onOpenPendingCaptures = { closeEntry(); navigateTo(FinaiDestination.Inbox) },
+                onOpenImport = { closeEntry(); navigateTo(FinaiDestination.Import) },
+            ),
             onDismiss = closeEntry,
             onSave = financeViewModel::saveTransactionEntry,
             onSaveCard = financeViewModel::saveCardPurchase,
@@ -973,13 +998,98 @@ fun FinaiApp(
             }
         }
 
+        // Formulário do "+" já preenchido (Posso comprar?, fechamento, lançamento pelo chat): instância
+        // própria, o rascunho do "+" fica intacto. Salva pelos mesmos caminhos do formulário normal.
+        prefillEntry?.let { prefill ->
+            androidx.compose.runtime.key(prefill) {
+                val closePrefill = { prefillEntry = null }
+                TransactionEntryScreen(
+                    visible = true,
+                    accounts = entryAccounts,
+                    incomeSources = remember(financeState.rawTransacoes) {
+                        com.finai.app.domain.EntryOptions.recentIncomeSources(financeState.rawTransacoes)
+                    },
+                    initialType = prefill.type,
+                    initialDate = prefill.date,
+                    onDismiss = closePrefill,
+                    onSave = financeViewModel::saveTransactionEntry,
+                    onSaveCard = financeViewModel::saveCardPurchase,
+                    onSaveContribution = financeViewModel::saveContribution,
+                    onUndo = financeViewModel::undoEntry,
+                    cards = entryCards,
+                    categories = entryCategories,
+                    objetivos = financeState.rawObjetivos,
+                    faturas = financeState.rawFaturasCartao,
+                    contas = financeState.rawContas,
+                    dailySpendingCents = financeState.averageDailySpendingCents,
+                    onFinished = financeViewModel::releaseContributionCelebration,
+                    onViewEntry = { receipt ->
+                        agendaHighlight = com.finai.app.domain.AgendaHighlight.of(receipt)
+                        viewModel.showAgendaDate(receipt.agendaDate)
+                        closePrefill()
+                        navigateTo(FinaiDestination.Agenda)
+                    },
+                    prefill = prefill,
+                )
+            }
+        }
+
+        // Fechamento do mês (fase 10): passos com ação real; a resposta fica gravada e não volta.
+        val closing = financeState.v2?.closing
+        if (showClosing && closing != null) {
+            LaunchedEffect(closing.key) { aiViewModel.ensureClosingSummary(closing, financeState.v2?.closingSummary) { financeViewModel.answerClosing(closing.key, "resumo", it) } }
+            com.finai.app.ui.screens.closing.ClosingScreen(
+                closing = closing,
+                summary = financeState.v2?.closingSummary ?: closing.summary(),
+                onAct = { step ->
+                    val answer = when (step.id) {
+                        com.finai.app.domain.closing.ClosingStepId.Missing -> closing.missing.firstOrNull()?.let { m ->
+                            prefillEntry = com.finai.app.ui.components.EntryPrefill(
+                                type = com.finai.app.domain.TransactionType.Gasto, cents = m.cents, category = m.categoria.takeIf { it.isNotBlank() },
+                                description = m.name, account = null, date = closing.month.atEndOfMonth(), payment = null, card = null,
+                                installments = null, dueDate = null, banner = "Fechamento de ${closing.monthName.lowercase()} · confira a data e salve", demo = false,
+                            )
+                            "lancado"
+                        }
+                        com.finai.app.domain.closing.ClosingStepId.Limits -> { financeViewModel.applyLimits(closing.limits); "aplicado" }
+                        com.finai.app.domain.closing.ClosingStepId.Surplus -> closing.surplusGoal?.let { (goalId, _) ->
+                            financeViewModel.registrarAporte(goalId, closing.surplusCents); "guardado"
+                        }
+                        com.finai.app.domain.closing.ClosingStepId.Pattern -> closing.pattern?.let { p ->
+                            // "Posso avisar se passar da média": o aviso é o limite da categoria, que já
+                            // alimenta a Caixa e a rotina diária.
+                            financeViewModel.setLimitCents(p.categoria, ((p.averageCents + 999) / 1_000) * 1_000)
+                            financeViewModel.rememberFact("Quer aviso quando ${p.categoria} passar da média.", "decisao", "fechamento-${closing.key}")
+                            "aviso"
+                        }
+                    }
+                    financeViewModel.answerClosing(closing.key, step.id.key, answer ?: "ok")
+                },
+                onSkip = { step -> financeViewModel.answerClosing(closing.key, step.id.key, "pulado") },
+                onClose = { showClosing = false },
+            )
+        }
+
+        // Lançamento tocado em Gastos: a mesma folha de ações da Agenda.
+        sheetTransaction?.let { t ->
+            com.finai.app.ui.screens.agenda.TransactionSheet(
+                transacao = t, series = financeState.rawTransacoes.firstOrNull { it.id == t.id }, today = java.time.LocalDate.now(),
+                onDismiss = { sheetTransaction = null },
+                onEdit = { sheetTransaction = null; editEntryId = t.id; editEntryMonth = com.finai.app.domain.RecurringSeries.referenceMonth(t).toString() },
+                onToggleMainIncome = financeViewModel::setTransacaoRendaPrincipal,
+                onToggleExtra = financeViewModel::setTransacaoExtra,
+                onDelete = { homeDelete = it; sheetTransaction = null },
+                onDeleteOccurrence = { transaction, scope -> financeViewModel.deleteOccurrence(transaction, scope); sheetTransaction = null },
+            )
+        }
+
         // Quadro "Movimentação encontrada": abre sozinho só quando nada está em andamento
         // (formulário, edição, confirmação, outra camada, telas com campos); senão a sugestão
         // espera na fila com um aviso passageiro. Aberto pelo toque na notificação, abre sempre.
-        val captureBlocked = homeMovement != null || homeDelete != null || uiState.chatOpen || uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen ||
-            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showIncome || showReconcile ||
+        val captureBlocked = homeMovement != null || homeDelete != null || prefillEntry != null || showClosing || sheetTransaction != null || uiState.chatOpen || uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen ||
+            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showIncome || showReconcile ||
             showAddDivida || editingDivida != null || showAddGoal || editingObjetivo != null || editingConta != null ||
-            contributionTarget != null || budgetLimitTarget != null || initialSetupComplete != true ||
+            contributionGoalId != null || initialSetupComplete != true ||
             editSuggestionId != null ||
             current == FinaiDestination.Inbox || current == FinaiDestination.AiSettings || current == FinaiDestination.Import
         val nextUnseenId = captureState.nextUnseen?.id
@@ -1092,7 +1202,6 @@ fun FinaiApp(
             onClose = { openedInvoiceContaId = null },
         )
 
-        InstallmentsScreen(visible = showInstallments, summary = installments, onBack = { showInstallments = false })
 
         homeMovement?.let { movement ->
             when (val source = movement.source) {
@@ -1171,33 +1280,20 @@ fun FinaiApp(
 
         // Registrar aporte (referência 1a): folha sobre a tela desfocada.
         GoalContributionSheet(
-            visible = contributionTarget != null,
+            visible = contributionGoalId != null,
             objetivo = contributionObjetivo,
             dailySpendingCents = financeState.averageDailySpendingCents,
             onSave = { objetivo, cents -> financeViewModel.registrarAporte(objetivo.id, cents) },
             onUndo = { objetivo, cents ->
                 financeViewModel.desfazerAporte(objetivo.id, cents)
-                contributionTarget = null
+                contributionGoalId = null
             },
             onDone = {
-                contributionTarget = null
+                contributionGoalId = null
                 financeViewModel.releaseContributionCelebration()
             },
-            onDismiss = { contributionTarget = null },
+            onDismiss = { contributionGoalId = null },
         )
-
-        budgetLimitTarget?.let { categoria ->
-            val currentLimit = financeState.budgets.firstOrNull { it.name == categoria }?.limit ?: 0.0
-            BudgetLimitDialog(
-                categoria = categoria,
-                currentLimitReais = currentLimit,
-                onDismiss = { budgetLimitTarget = null },
-                onConfirm = { valor ->
-                    financeViewModel.setBudgetLimit(categoria, valor)
-                    budgetLimitTarget = null
-                },
-            )
-        }
 
         // Voltar do sistema fecha o que está por cima, nunca a tela de trás.
         // Chat, menu do "+", simulador e avisos não têm tratador próprio:
@@ -1224,14 +1320,13 @@ fun FinaiApp(
             FinaiDestination.Home -> TipScript.HOME
             FinaiDestination.Agenda -> TipScript.AGENDA
             FinaiDestination.Goals -> TipScript.GOALS
-            FinaiDestination.Debts -> TipScript.DEBTS
-            FinaiDestination.Budgets -> TipScript.BUDGETS
+            FinaiDestination.Spending -> TipScript.SPENDING
             else -> null
         }
-        val tipsBlocked = homeMovement != null || homeDelete != null || uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen ||
-            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showIncome || showReconcile || showAddDivida ||
+        val tipsBlocked = homeMovement != null || homeDelete != null || prefillEntry != null || showClosing || sheetTransaction != null || uiState.simOpen || uiState.explainOpen || uiState.addOpen || uiState.notifsOpen ||
+            celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showIncome || showReconcile || showAddDivida ||
             editingDivida != null || showAddGoal || editingObjetivo != null || editingConta != null ||
-            contributionTarget != null || budgetLimitTarget != null || initialSetupComplete != true ||
+            contributionGoalId != null || initialSetupComplete != true ||
             openSuggestionId != null || editSuggestionId != null
         LaunchedEffect(tipScreen, tipsBlocked, tipsSeen, activeTips == null) {
             val seen = tipsSeen ?: return@LaunchedEffect
@@ -1249,9 +1344,9 @@ fun FinaiApp(
         // Segunda trava, independente da ordem em que os tratadores foram
         // registrados: com qualquer camada aberta por cima, a navegação entre
         // telas não reage ao voltar.
-        val anyLayerOpen = homeMovement != null || homeDelete != null || overlayOpen || celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showInstallments || showIncome || showReconcile ||
+        val anyLayerOpen = homeMovement != null || homeDelete != null || prefillEntry != null || showClosing || sheetTransaction != null || overlayOpen || celebration != null || showAddTransaction || editEntryId != null || openedInvoiceContaId != null || showIncome || showReconcile ||
             showAddDivida || editingDivida != null || activeTips != null || initialSetupComplete == false ||
-            showAddGoal || editingObjetivo != null || contributionTarget != null ||
+            showAddGoal || editingObjetivo != null || contributionGoalId != null ||
             editSuggestionId != null
         SideEffect { navController.enableOnBackPressed(!anyLayerOpen) }
 
@@ -1335,7 +1430,7 @@ private fun rememberSecondaryList(
     return list
 }
 
-private val bottomTabs = setOf(FinaiDestination.Home, FinaiDestination.Agenda, FinaiDestination.Goals, FinaiDestination.Debts)
+private val bottomTabs = setOf(FinaiDestination.Home, FinaiDestination.Agenda, FinaiDestination.Spending, FinaiDestination.Goals)
 
 @Composable
 private fun Scrim(onDismiss: () -> Unit) {

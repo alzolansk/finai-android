@@ -157,6 +157,27 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ── fechamento do mês (fase 10) ─────────────────────────────────────
+    private var closingSummaryMonth: String? = null
+
+    /**
+     * Uma chamada por mês: se o resumo ainda não foi guardado, pede à IA, confere os números
+     * contra os fatos e entrega o texto para [onReady] gravar (em `fechamentos`, passo `resumo`).
+     * Sem IA ou com número fora dos fatos, nada é gravado e a tela usa o resumo calculado.
+     */
+    fun ensureClosingSummary(closing: com.finai.app.domain.closing.MonthClosing, saved: String?, onReady: (String) -> Unit) {
+        if (saved != null || closingSummaryMonth == closing.key) return
+        closingSummaryMonth = closing.key
+        val facts = closing.factsBlock()
+        viewModelScope.launch {
+            val text = requestText(AiPromptBuilder.monthClosingSummary(facts))
+            if (text is AiText.Ready) {
+                val plain = com.finai.app.domain.AiReplyFormat.plain(text.text).trim()
+                if (plain.isNotBlank() && ScenarioReplyGuard.accepts(plain, facts)) onReady(plain)
+            }
+        }
+    }
+
     // ── simulador: veredito ──────────────────────────────────────────────
     private val _purchaseVerdict = MutableStateFlow<AiText?>(null)
     val purchaseVerdict: StateFlow<AiText?> = _purchaseVerdict

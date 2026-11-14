@@ -41,9 +41,18 @@ import com.finai.app.ui.theme.FinaiColors
 fun QuickActionSheet(
     onPick: (QuickAction) -> Unit,
     modifier: Modifier = Modifier,
+    /** Movimentações lidas das notificações esperando confirmação: vira o item "N das notificações". */
+    pendingCaptures: Int = 0,
 ) {
     val primary = FinaiFixtures.quickActions.first()
-    val secondary = FinaiFixtures.quickActions.drop(1)
+    val secondary = buildList {
+        add(FinaiFixtures.quickActions[1])
+        if (pendingCaptures > 0) add(
+            QuickAction("notificacoes", primary.tintFrom, primary.tintTo, primary.ink,
+                if (pendingCaptures == 1) "1 das notificações" else "$pendingCaptures das notificações", "Conferir e salvar em Para confirmar"),
+        )
+        addAll(FinaiFixtures.quickActions.drop(2))
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -119,6 +128,10 @@ private fun QuickActionGlyph(name: String, color: Color, size: Int = 20) {
         "simular" -> "M12 7V19 M8 19H16 M4 7H20 M4 7L1 13 M4 7L7 13 M1 13Q4 16 7 13 M20 7L17 13 M20 7L23 13 M17 13Q20 16 23 13"
         // Bandeira fincada.
         "objetivo" -> "M6 21V4 M6 4H17L14 8L17 12H6Z M3 21H9"
+        // Balão de fala com linhas.
+        "frase" -> "M4 5H20V16H9L5 20V16H4Z M8 9H16 M8 12H13"
+        // Sino.
+        "notificacoes" -> "M6 16V11A6 6 0 0 1 18 11V16L20 18H4Z M10 21H14"
         else -> "M5 12h.1 M12 12h.1 M19 12h.1"
     }
     val path = remember(data) { androidx.core.graphics.PathParser.createPathFromPathData(data)!!.asComposePath() }

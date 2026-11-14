@@ -1,5 +1,6 @@
 package com.finai.app.ui.screens.plans
 
+import com.finai.app.ui.components.tipTarget
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -90,7 +91,7 @@ fun PlansScreen(
                 trailing = { ActionButton(if (tab == 0) "+ Meta" else "+ Dívida", if (tab == 0) onNewGoal else onNewDebt, primary = true) })
         }
         item("tabs") {
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(FinaiColors.SurfaceMuted).padding(4.dp)) {
+            Row(Modifier.fillMaxWidth().tipTarget("plans.tabs").clip(RoundedCornerShape(14.dp)).background(FinaiColors.SurfaceMuted).padding(4.dp)) {
                 listOf("Metas", "Compromissos").forEachIndexed { i, label ->
                     Box(
                         Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(11.dp))
@@ -117,7 +118,7 @@ private fun LazyListScope.goalsTab(
     val asks = v2.asksCents
     val conflict = v2.visibleConflict
     item("capacity") {
-        V2Panel {
+        androidx.compose.foundation.layout.Box(Modifier.tipTarget("plans.capacity")) { V2Panel {
             Text("QUANTO CABE GUARDAR POR MÊS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextMuted)
             Text(brl(fits), fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary, modifier = Modifier.padding(top = 10.dp).testTag("plans-fits"))
             Text("Média da sobra dos próximos 6 meses, já sem contas, parcelas e o seu gasto do dia a dia." +
@@ -134,7 +135,7 @@ private fun LazyListScope.goalsTab(
                     color = if (ok) FinaiColors.TextMuted else FinaiColors.AmberDark, modifier = Modifier.padding(top = 6.dp))
             }
             if (fits == 0L && v2.capacity.months.all { it.cents <= 0 }) TextAction("Conferir minha renda", onOpenIncome)
-        }
+        } }
     }
     if (conflict != null) item("conflict") {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(FinaiColors.AmberSoftBg).border(1.dp, FinaiColors.Amber.copy(alpha = 0.4f), RoundedCornerShape(20.dp)).padding(16.dp).testTag("plans-conflict")) {

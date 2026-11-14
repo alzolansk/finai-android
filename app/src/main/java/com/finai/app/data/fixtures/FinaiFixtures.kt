@@ -45,6 +45,8 @@ object FinaiFixtures {
 
     val quickActions = listOf(
         QuickAction("gasto", Color(0xFFD1FAE5), Color(0xFFECFDF5), Color(0xFF047857), "Lançar gasto", "Gasto, receita ou transferência"),
+        // Fase 5 (planning-v2): abre o formulário com o campo de frase ativo.
+        QuickAction("frase", Color(0xFFD1FAE5), Color(0xFFECFDF5), Color(0xFF047857), "Falar ou escrever", "\"uber 23 ontem\" vira lançamento"),
         QuickAction("importar", Color(0xFFE0E7FF), Color(0xFFEEF2FF), Color(0xFF4338CA), "Importar fatura", "PDF, planilha ou foto"),
         QuickAction("simular", Color(0xFFFEF3C7), Color(0xFFFFFBEB), Color(0xFFB45309), "Posso comprar?", "Simular antes de decidir"),
         QuickAction("objetivo", Color(0xFFFFE4E6), Color(0xFFFFF1F2), Color(0xFFBE123C), "Novo objetivo", "Compra, viagem ou reserva"),

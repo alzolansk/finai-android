@@ -54,6 +54,22 @@ object AiPromptBuilder {
         "Uma pergunta vai como linha começando com \"Pergunta:\". " +
         "Se não houver nada além do que o usuário já vê, responda apenas $NOTHING_RELEVANT."
 
+    /**
+     * Fase 10: um parágrafo de resumo do mês que fechou, com os fatos já calculados por
+     * [com.finai.app.domain.closing.MonthClosing.factsBlock]. Uma chamada por mês; a resposta
+     * passa pela trava de números e fica guardada.
+     */
+    fun monthClosingSummary(facts: String): AiRequest = AiRequest(
+        AiTask.MONTH_CLOSING,
+        "$SYSTEM_BASE Você escreve o resumo do fechamento do mês: um parágrafo curto, de até três frases, " +
+            "em tom de conversa. Use só os valores dos fatos, escritos do mesmo jeito (R$ 1.234). Não dê ordens nem invente causas.",
+        buildString {
+            appendLine(facts)
+            appendLine()
+            append("Escreva o resumo do mês em até três frases.")
+        },
+    )
+
     /** Análise do conjunto: o planejamento cabe no orçamento? O que priorizar ou ajustar? */
     fun goalsPlanAnalysis(facts: String): AiRequest = AiRequest(
         AiTask.GOALS_PLAN,
