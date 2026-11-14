@@ -102,6 +102,8 @@ data class AssistantAnswer(
     val notes: List<String> = emptyList(),
     val options: List<AnswerOption> = emptyList(),
     val action: ActionInfo? = null,
+    /** Texto da IA que explica o cartão; só entra depois de passar pelo [FactGuard]. */
+    val explanation: String = "",
 ) {
     /** A mesma resposta em texto: histórico da conversa, modo sem cartão e fatos para a IA. */
     fun plainText(): String = buildString {

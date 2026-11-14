@@ -174,19 +174,6 @@ fun FinaiApp(
     val appResumed = lifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
     LaunchedEffect(appResumed) { if (appResumed) financeViewModel.refreshInboxDay() }
     val financeSummary = remember(financeState) { financeState.toAiSummaryText() }
-    // O simulador de compra do chat lê uma cópia das mesmas listas do Room; nunca grava nela.
-    LaunchedEffect(financeState.rawContas, financeState.rawTransacoes, financeState.rawDividas, financeState.rawObjetivos, financeState.rawFaturasCartao, financeState.safetyMarginCents) {
-        viewModel.setFinanceSnapshot(
-            com.finai.app.domain.scenario.FinanceSnapshot(
-                contas = financeState.rawContas,
-                transacoes = financeState.rawTransacoes,
-                dividas = financeState.rawDividas,
-                objetivos = financeState.rawObjetivos,
-                faturas = financeState.rawFaturasCartao,
-                safetyMarginCents = financeState.safetyMarginCents,
-            ),
-        )
-    }
     val conversations by viewModel.conversations.collectAsState()
     val appScope = androidx.compose.runtime.rememberCoroutineScope()
     val askAbout: (AssistantTopic) -> Unit = { topic -> viewModel.askAbout(topic, financeSummary) }
@@ -433,6 +420,7 @@ fun FinaiApp(
                                         InsightAction.AddIncome -> { transactionEntryInitialType = com.finai.app.domain.TransactionType.Receita.name; showAddTransaction = true }
                                         else -> navigateTo(FinaiDestination.Agenda)
                                     }
+                                    item.kind == "acompanhamento" -> viewModel.openChat()
                                     item.kind == "limite" || item.kind == "coach" -> navigateTo(FinaiDestination.Spending)
                                     item.movement?.source is com.finai.app.domain.CycleSource.Parcela -> homeMovement = item.movement
                                     else -> navigateTo(FinaiDestination.Agenda)
@@ -838,11 +826,12 @@ fun FinaiApp(
                 onDraftChange = viewModel::onDraftChange,
                 onSend = { viewModel.sendDraft(financeSummary) },
                 onSuggestion = { text -> viewModel.sendMessage(text, financeSummary) },
-                pendingPurchase = uiState.pendingPurchase,
-                onRegisterPurchase = { scenario ->
-                    financeViewModel.registrarCompra(scenario) { viewModel.onPurchaseRegistered(scenario) }
-                },
-                onDiscardPurchase = viewModel::discardPendingPurchase,
+                undoableActionId = uiState.undoableActionId,
+                onUndoAction = viewModel::undoAction,
+                onOptionSend = { text -> viewModel.sendMessage(text, financeSummary) },
+                onOpenAgenda = { date -> viewModel.showAgendaDate(date); viewModel.closeChat(); navigateTo(FinaiDestination.Agenda) },
+                watchRules = financeState.watchRules,
+                onWatchState = viewModel::setWatchState,
                 pendingEntry = uiState.pendingEntry,
                 entrySaved = uiState.savedEntry != null,
                 onSaveEntry = { draft ->
@@ -874,17 +863,6 @@ fun FinaiApp(
             com.finai.app.domain.quickentry.QuickEntryContext(
                 accounts = entryAccounts, cards = entryCards, goals = financeState.rawObjetivos.map { it.nome },
                 learned = financeState.v2?.learned.orEmpty(),
-            )
-        }
-        // Fase 9: consultas locais do assistente e os fatos da memória que vão no prompt.
-        LaunchedEffect(financeState.rawContas, financeState.rawTransacoes, financeState.rawDividas, financeState.safetyMarginCents, quickEntryContext, financeState.v2?.memory, financeState.v2?.capacity) {
-            viewModel.setAssistantContext(
-                com.finai.app.domain.assistant.AssistantData(
-                    contas = financeState.rawContas, transacoes = financeState.rawTransacoes, dividas = financeState.rawDividas,
-                    marginCents = financeState.safetyMarginCents, quick = quickEntryContext,
-                    fitsToSaveCents = financeState.v2?.capacity?.cabeGuardarCents,
-                ),
-                financeState.v2?.memory.orEmpty().sortedByDescending { it.criadoEm }.map { it.texto },
             )
         }
         val closeEntry = {

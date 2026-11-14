@@ -90,9 +90,14 @@ fun ChatOverlay(
     onDeleteConversation: (Long) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
-    pendingPurchase: com.finai.app.domain.scenario.PurchaseScenario? = null,
-    onRegisterPurchase: (com.finai.app.domain.scenario.PurchaseScenario) -> Unit = {},
-    onDiscardPurchase: () -> Unit = {},
+    /** Última ação do assistente que ainda pode ser desfeita (mostra "Desfazer" no cartão dela). */
+    undoableActionId: Long? = null,
+    onUndoAction: (Long) -> Unit = {},
+    onOptionSend: (String) -> Unit = {},
+    onOpenAgenda: (java.time.LocalDate) -> Unit = {},
+    /** Acompanhamentos pedidos no chat: pausar, retomar e cancelar (estado nulo = cancelar). */
+    watchRules: List<com.finai.app.data.local.entity.AcompanhamentoEntity> = emptyList(),
+    onWatchState: (com.finai.app.data.local.entity.AcompanhamentoEntity, String?) -> Unit = { _, _ -> },
     /** Fase 9 (P2): lançamento lido de uma frase, à espera de Salvar ou Editar. */
     pendingEntry: com.finai.app.domain.quickentry.QuickDraft? = null,
     /** O lançamento do chat que acabou de ser salvo (mostra Desfazer). */
@@ -111,8 +116,8 @@ fun ChatOverlay(
     // com a lista aberta, voltar fecha só a lista.
     BackHandler(enabled = showHistory || showMemory) { showHistory = false; showMemory = false }
     val listState = rememberLazyListState()
-    LaunchedEffect(currentConversationId, messages.size, thinking, pendingPurchase, pendingEntry, entrySaved) {
-        val cards = (if (!thinking && pendingPurchase != null) 1 else 0) + (if (!thinking && (pendingEntry != null || entrySaved)) 1 else 0)
+    LaunchedEffect(currentConversationId, messages.size, thinking, pendingEntry, entrySaved) {
+        val cards = if (!thinking && (pendingEntry != null || entrySaved)) 1 else 0
         val last = messages.size + (if (thinking) 1 else 0) + cards - 1
         if (last >= 0) listState.animateScrollToItem(last)
     }
@@ -179,9 +184,9 @@ fun ChatOverlay(
             }
         }
 
-        if (!showHistory) MemoryChip(memory.size, open = showMemory) { showMemory = !showMemory }
+        if (!showHistory) MemoryChip(memory.size + watchRules.size, open = showMemory) { showMemory = !showMemory }
         if (showMemory && !showHistory) {
-            MemoryPanel(memory, onForget, Modifier.weight(1f).fillMaxWidth())
+            MemoryPanel(memory, onForget, watchRules, onWatchState, Modifier.weight(1f).fillMaxWidth())
             return@Column
         }
 
@@ -205,11 +210,10 @@ fun ChatOverlay(
             if (messages.isEmpty() && !thinking) {
                 item { EmptyChatIntro() }
             }
-            items(messages) { message -> ChatBubble(message) }
-            if (thinking) item { ThinkingBubble() }
-            if (!thinking && pendingPurchase != null) {
-                item { SimulatedPurchaseCard(pendingPurchase, onRegisterPurchase, onDiscardPurchase) }
+            items(messages) { message ->
+                ChatBubble(message, undoableActionId, onUndoAction, onOptionSend, onOpenAgenda, enabled = !thinking)
             }
+            if (thinking) item { ThinkingBubble() }
             if (!thinking && (pendingEntry != null || entrySaved)) {
                 item { ReadyEntryCard(pendingEntry, entrySaved, onSaveEntry, onEditEntry, onDiscardEntry, onUndoEntry) }
             }
@@ -281,54 +285,6 @@ fun ChatOverlay(
     }
 }
 
-/**
- * A compra que o chat simulou. Simular não gravou nada; registrar é esta ação separada, com
- * confirmação que lista exatamente o que vai para a Agenda.
- */
-@Composable
-private fun SimulatedPurchaseCard(
-    scenario: com.finai.app.domain.scenario.PurchaseScenario,
-    onRegister: (com.finai.app.domain.scenario.PurchaseScenario) -> Unit,
-    onDiscard: () -> Unit,
-) {
-    var confirming by remember { mutableStateOf(false) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(FinaiColors.Surface)
-            .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(16.dp))
-            .padding(14.dp),
-    ) {
-        Text("COMPRA SIMULADA · NADA FOI LANÇADO", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary)
-        Text(scenario.label, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextPrimary, modifier = Modifier.padding(top = 6.dp))
-        Row(modifier = Modifier.padding(top = 10.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ActionButton("Descartar", onClick = onDiscard, modifier = Modifier.weight(1f))
-            ActionButton("Registrar compra", onClick = { confirming = true }, modifier = Modifier.weight(1f), primary = true)
-        }
-    }
-    if (confirming) {
-        AlertDialog(
-            onDismissRequest = { confirming = false },
-            title = { Text("Registrar esta compra?") },
-            text = {
-                Text(
-                    buildString {
-                        append(if (scenario.count > 1) "Vão para a Agenda ${scenario.count} gastos, um por parcela:\n" else "Vai para a Agenda um gasto:\n")
-                        scenario.toRecords().zip(scenario.payments).take(6).forEach { (r, p) ->
-                            append("\n• ${r.descricao}: ${com.finai.app.util.formatBrl0(p.cents / 100.0)} em ${"%02d/%02d/%d".format(p.date.dayOfMonth, p.date.monthValue, p.date.year)}")
-                        }
-                        if (scenario.count > 6) append("\n• … e mais ${scenario.count - 6}")
-                        append("\n\nDá para excluir qualquer um deles na Agenda depois.")
-                    },
-                )
-            },
-            confirmButton = { TextButton(onClick = { confirming = false; onRegister(scenario) }) { Text("Registrar") } },
-            dismissButton = { TextButton(onClick = { confirming = false }) { Text("Cancelar") } },
-        )
-    }
-}
-
 @Composable
 private fun ReadyEntryCard(
     draft: com.finai.app.domain.quickentry.QuickDraft?,
@@ -383,15 +339,49 @@ private fun MemoryChip(count: Int, open: Boolean, onClick: () -> Unit) {
                 .clickable(onClick = onClick).padding(horizontal = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text("Sei sobre você · $count", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
+            Text("Sei sobre você e acompanho · $count", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
                 color = if (open) FinaiColors.OnInkStrong else FinaiColors.EmeraldDark)
         }
     }
 }
 
 @Composable
-private fun MemoryPanel(memory: List<com.finai.app.data.local.entity.MemoriaEntity>, onForget: (Long) -> Unit, modifier: Modifier) {
+private fun MemoryPanel(
+    memory: List<com.finai.app.data.local.entity.MemoriaEntity>,
+    onForget: (Long) -> Unit,
+    watchRules: List<com.finai.app.data.local.entity.AcompanhamentoEntity>,
+    onWatchState: (com.finai.app.data.local.entity.AcompanhamentoEntity, String?) -> Unit,
+    modifier: Modifier,
+) {
     LazyColumn(modifier, contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { Text("ACOMPANHAMENTOS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary) }
+        if (watchRules.isEmpty()) item {
+            Text("Nenhum. Peça no chat: \"me avise quando couber quitar X\".", fontSize = 13.sp, color = FinaiColors.TextMuted)
+        }
+        items(watchRules, key = { "w${it.id}" }) { rule ->
+            val paused = rule.estado == com.finai.app.domain.assistant.WatchRules.PAUSED
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(FinaiColors.Surface)
+                    .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(14.dp)).padding(start = 14.dp, top = 10.dp, bottom = 4.dp, end = 4.dp),
+            ) {
+                Text(com.finai.app.domain.assistant.WatchRules.describe(rule), fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextPrimary)
+                Text(
+                    when {
+                        paused -> "Pausado"
+                        rule.ultimoResultado == com.finai.app.domain.assistant.WatchRules.MET -> "Condição atendida: veja a Caixa"
+                        else -> "Aguardando a condição"
+                    },
+                    fontSize = 12.sp, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 2.dp),
+                )
+                Row {
+                    TextAction(if (paused) "Retomar" else "Pausar", {
+                        onWatchState(rule, if (paused) com.finai.app.domain.assistant.WatchRules.ACTIVE else com.finai.app.domain.assistant.WatchRules.PAUSED)
+                    })
+                    TextAction("Cancelar", { onWatchState(rule, null) }, color = FinaiColors.RoseDark)
+                }
+            }
+        }
+        item { Text("O QUE SEI SOBRE VOCÊ", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary, modifier = Modifier.padding(top = 8.dp)) }
         item {
             Text(
                 "Só o que você confirmou no app (\"Já sei\", \"Manter\", respostas do fechamento). Vai para a IA junto com a pergunta, no máximo 10 itens. Fica no aparelho e no backup.",
@@ -413,8 +403,20 @@ private fun MemoryPanel(memory: List<com.finai.app.data.local.entity.MemoriaEnti
 }
 
 @Composable
-private fun ChatBubble(message: ChatMessage) {
+private fun ChatBubble(
+    message: ChatMessage,
+    undoableActionId: Long?,
+    onUndoAction: (Long) -> Unit,
+    onOptionSend: (String) -> Unit,
+    onOpenAgenda: (java.time.LocalDate) -> Unit,
+    enabled: Boolean,
+) {
     val fromMe = message.role == ChatRole.Me
+    val answer = message.answer
+    if (!fromMe && answer != null) {
+        AnswerCard(answer, undoableActionId, onUndoAction, onOptionSend, onOpenAgenda, enabled)
+        return
+    }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = if (fromMe) Arrangement.End else Arrangement.Start) {
         Box(
             modifier = Modifier
@@ -572,5 +574,93 @@ private fun EmptyChatIntro() {
             FinaiFixtures.chatPitch, fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary,
             modifier = Modifier.padding(top = 6.dp),
         )
+    }
+}
+
+/** Cartão de uma resposta do assistente: valores, datas e estado da ação vêm do app; a IA só explica. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun AnswerCard(
+    answer: com.finai.app.domain.assistant.AssistantAnswer,
+    undoableActionId: Long?,
+    onUndoAction: (Long) -> Unit,
+    onOptionSend: (String) -> Unit,
+    onOpenAgenda: (java.time.LocalDate) -> Unit,
+    enabled: Boolean,
+) {
+    val action = answer.action
+    val done = action?.status in listOf(
+        com.finai.app.domain.assistant.ActionStatus.Applied, com.finai.app.domain.assistant.ActionStatus.AlreadyApplied, com.finai.app.domain.assistant.ActionStatus.Undone,
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(FinaiColors.Surface)
+            .border(1.dp, if (done) FinaiColors.EmeraldSoftBorder else FinaiColors.BorderSubtle, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            answer.title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            color = if (done) FinaiColors.EmeraldDark else FinaiColors.TextTertiary,
+        )
+        if (answer.headline.isNotBlank()) {
+            Text(answer.headline, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold, color = FinaiColors.TextPrimary)
+        }
+        if (answer.metrics.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                answer.metrics.forEach { m ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(m.label, fontSize = 13.sp, color = FinaiColors.TextSecondary, modifier = Modifier.weight(1f))
+                        Text(
+                            m.value, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                            color = when (m.tone) {
+                                com.finai.app.domain.assistant.Tone.Good -> FinaiColors.EmeraldDark
+                                com.finai.app.domain.assistant.Tone.Bad -> FinaiColors.RoseDark
+                                else -> FinaiColors.TextPrimary
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        if (answer.evidence.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                answer.evidence.forEach { Text("• $it", fontSize = 12.5.sp, lineHeight = 17.sp, color = FinaiColors.TextBody) }
+            }
+        }
+        if (answer.explanation.isNotBlank()) {
+            AiRichText(answer.explanation, fontSize = 12.5.sp, lineHeight = 18.sp, showHighlights = false)
+        }
+        answer.notes.forEach { Text(it, fontSize = 12.sp, lineHeight = 17.sp, color = FinaiColors.TextTertiary) }
+        if (answer.options.isNotEmpty()) {
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                answer.options.forEach { option ->
+                    val primary = option.label == "Confirmar"
+                    Box(
+                        modifier = Modifier
+                            .heightIn(min = 44.dp)
+                            .clip(RoundedCornerShape(99.dp))
+                            .background(if (primary) FinaiColors.EmeraldButton else FinaiColors.Surface)
+                            .border(1.dp, if (primary) FinaiColors.EmeraldButton else FinaiColors.BorderSubtle, RoundedCornerShape(99.dp))
+                            .clickable(enabled = enabled) { onOptionSend(option.send) }
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(option.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (primary) Color.White else FinaiColors.TextBody)
+                    }
+                }
+            }
+        }
+        if (action != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val id = action.actionId
+                if (id != null && id == undoableActionId && action.canUndo) {
+                    ActionButton("Desfazer", onClick = { onUndoAction(id) })
+                }
+                action.agendaDate?.let { date -> ActionButton("Ver na Agenda", onClick = { onOpenAgenda(date) }) }
+            }
+        }
     }
 }

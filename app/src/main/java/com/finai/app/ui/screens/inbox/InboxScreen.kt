@@ -136,7 +136,11 @@ fun InboxScreen(
                             }
                             InboxGroup.Watch -> InboxActions { actionModifier ->
                                 ActionButton(item.insight?.actionLabel?.takeIf { it.isNotBlank() }
-                                    ?: if (item.kind in setOf("limite", "coach", "assinatura")) "Ver gastos" else "Ver na Agenda",
+                                    ?: when {
+                                        item.kind == "acompanhamento" -> "Abrir no chat"
+                                        item.kind in setOf("limite", "coach", "assinatura") -> "Ver gastos"
+                                        else -> "Ver na Agenda"
+                                    },
                                     { onOpen(item) }, actionModifier, primary = true)
                                 ActionButton(item.insight?.dismissLabel ?: "Dispensar", { onDismiss(item) }, actionModifier)
                             }

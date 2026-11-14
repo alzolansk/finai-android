@@ -243,7 +243,7 @@ class AssistantActionExecutor(private val db: FinaiDatabase, private val reposit
 /** Resposta estruturada ↔ JSON de `mensagens_chat.estrutura`. Campo ausente = padrão, para ler versões antigas. */
 object AssistantAnswerCodec {
     fun encode(a: AssistantAnswer): String = JSONObject().apply {
-        put("kind", a.kind.name); put("title", a.title); put("headline", a.headline)
+        put("kind", a.kind.name); put("title", a.title); put("headline", a.headline); put("explanation", a.explanation)
         put("metrics", JSONArray(a.metrics.map { JSONObject().put("l", it.label).put("v", it.value).put("t", it.tone.name) }))
         put("evidence", JSONArray(a.evidence)); put("notes", JSONArray(a.notes))
         put("options", JSONArray(a.options.map { JSONObject().put("l", it.label).put("s", it.send) }))
@@ -258,7 +258,7 @@ object AssistantAnswerCodec {
             fun objects(key: String) = o.optJSONArray(key)?.let { arr -> (0 until arr.length()).map { arr.getJSONObject(it) } }.orEmpty()
             AssistantAnswer(
                 kind = runCatching { AnswerKind.valueOf(o.optString("kind")) }.getOrDefault(AnswerKind.Query),
-                title = o.optString("title"), headline = o.optString("headline"),
+                title = o.optString("title"), headline = o.optString("headline"), explanation = o.optString("explanation"),
                 metrics = objects("metrics").map { AnswerMetric(it.optString("l"), it.optString("v"), runCatching { Tone.valueOf(it.optString("t")) }.getOrDefault(Tone.Neutral)) },
                 evidence = strings("evidence"), notes = strings("notes"),
                 options = objects("options").map { AnswerOption(it.optString("l"), it.optString("s").ifBlank { it.optString("l") }) },
