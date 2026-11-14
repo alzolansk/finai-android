@@ -58,6 +58,7 @@ import com.finai.app.domain.PayCycle
 import com.finai.app.domain.TimelineMovement
 import com.finai.app.domain.TransactionType
 import com.finai.app.domain.isAdjustment
+import com.finai.app.domain.toLocalDate
 import com.finai.app.domain.isGoalContribution
 import com.finai.app.ui.components.MoneyRow
 import com.finai.app.ui.components.MoneyRowBackground
@@ -105,6 +106,8 @@ internal fun LazyListScope.sequentialAgendaItems(
     onOpenTransaction: (TransacaoEntity) -> Unit,
     onOpenConta: (ContaEntity) -> Unit,
     invoiceItemCount: (contaId: Long) -> Int,
+    /** Histórico de pagamentos (faturas, contas e parcelas), para conferir o que foi marcado pago. */
+    onOpenHistory: () -> Unit = {},
 ) {
     item(key = "seq-intro") {
         Text(
@@ -122,6 +125,9 @@ internal fun LazyListScope.sequentialAgendaItems(
     }
     if (balance.past.isNotEmpty()) {
         item(key = "seq-anteriores") { PastBlock(balance.past, balance.today, onToggleContaPaga, onOpenTransaction, onOpenConta, invoiceItemCount) }
+    }
+    item(key = "seq-historico") {
+        com.finai.app.ui.components.TextAction("Histórico de pagamentos ›", onOpenHistory)
     }
     val rows = AgendaAhead.rows(balance)
     rows.forEachIndexed { index, row ->
@@ -320,9 +326,15 @@ internal fun subtitleOf(m: TimelineMovement, invoiceItems: Int, unconfirmed: Boo
     val conta = (m.source as? CycleSource.Conta)?.conta
     val parcela = (m.source as? CycleSource.Parcela)?.parcela
     val t = (m.source as? CycleSource.Lancamento)?.transacao
+    val paidVerb = if (conta?.tipo == "a_receber") "recebida" else "paga"
+    val paidDay = conta?.takeIf { it.status == "pago" }?.pagoEm?.toLocalDate()
     val date = when {
         unconfirmed -> "prevista ${dm(m.movedFrom ?: m.date)}"
         m.movedFrom != null && m.status == MovementStatus.Overdue -> "venceu ${dm(m.movedFrom)}"
+        // Paga em outro dia que não o vencimento: na "A seguir" a linha fica no dia do pagamento.
+        conta?.status == "pago" && m.movedFrom != null ->
+            (if (paidDay != null) "$paidVerb ${dm(m.date)}" else "já $paidVerb") + " · vence ${dm(m.movedFrom)}"
+        conta?.status == "pago" && paidDay != null && paidDay != m.date -> "${dm(m.date)} · $paidVerb ${dm(paidDay)}"
         parcela != null && parcela.vencimento == null -> "sem dia definido"
         else -> dm(m.date)
     }

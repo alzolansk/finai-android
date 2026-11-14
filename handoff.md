@@ -67,17 +67,25 @@ R8, lint, recursos que só o AGP mescla, e qualquer comportamento em tempo de ex
 - **Fase 11:** telas e componentes antigos removidos (lista em `planning-v2.md`);
   `NotificationContentBuilder` removido; `FinaiNotifier` ficou só com permissão/limpeza;
   dispensar/adiar um aviso cancela a notificação rica dele; `TipScript` reescrito com alvos nas
-  telas novas; `18.json` gerado (identityHash conferido contra 4, 9, 12, 15, 16 e 17);
+  telas novas; schema gerado à mão (identityHash conferido contra 4, 9, 12, 15, 16, 17 e o 18 do KSP);
   `CardPurchaseFlowTest` não usa mais a tela de Parcelamentos.
 - **Correções achadas pelos testes:** descrição da frase perdia acento ("Pao"); o exemplo do
   lembrete diário em Configurações tinha "Nada hoje" gravando o dia de verdade.
 - **Docs:** `CLAUDE.md`, `planning-v2.md` (status e ressalvas), `planning.md` §9/§11, `PRIVACY.md`.
 
+## Merge com `claude/agenda-fatura-paga` (14/11/2026)
+
+Os dois branches criaram uma Room 17→18 diferente. Ficou a do `agenda-fatura-paga` (`contas.pagoEm`,
+`18.json` do KSP, já com APK gerado) como 17→18; as três tabelas da v2 passaram para
+`MIGRATION_18_19` (`19.json` = 18 + `memoria`, `regras_categoria`, `fechamentos`, identityHash
+`494b9b00…`; `Migration18To19Test`). `FINAI_DB_VERSION = 19`. O histórico de pagamentos entrou como
+camada aberta pela Agenda "A seguir"; a tela de Parcelamentos que ele ainda abria não volta.
+
 ## O que falta, na ordem
 
 1. **Build com Gradle:** `sh ./gradlew assembleDebug testDebugUnitTest assemblePessoal`. Se o
-   `18.json` regravado pelo KSP mudar, commitar o novo. Conferir que os dois testes de backup passam.
-2. **Instrumentados:** `connectedDebugAndroidTest` (inclui `Migration17To18Test`,
+   `19.json` regravado pelo KSP mudar, commitar o novo. Conferir que os dois testes de backup passam.
+2. **Instrumentados:** `connectedDebugAndroidTest` (inclui `Migration17To18Test` e `Migration18To19Test`,
    `CardPurchaseFlowTest` alterado, `HomeV2Test`).
 3. **Emulador e protótipo:** comparação visual das fases 5–10 com os quadros `v2/Lancar`, `v2/Gastos`,
    `v2/Metas`, `v2/Compromissos`, `v2/Simular`, `v2/Assistente`, `v2/Fechamento`; tema claro;

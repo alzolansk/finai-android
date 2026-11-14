@@ -133,6 +133,7 @@ fun AgendaScreen(
     onDeleteOccurrence: (TransacaoEntity, com.finai.app.domain.EditScope) -> Unit = { _, _ -> },
     onAdjustInstallmentDate: suspend (dividaId: Long, month: YearMonth, date: LocalDate) -> Unit = { _, _, _ -> },
     onChangeInstallmentDay: suspend (dividaId: Long, month: YearMonth, day: Int) -> Unit = { _, _, _ -> },
+    onOpenPaymentHistory: () -> Unit = {},
 ) {
     var pendingDeleteTransaction by remember { mutableStateOf<TransacaoEntity?>(null) }
     /** Lançamento tocado: a folha com informações e ações. */
@@ -185,6 +186,7 @@ fun AgendaScreen(
                 onOpenTransaction = { sheetTransaction = it },
                 onOpenConta = { sheetConta = it },
                 invoiceItemCount = invoiceItemCount,
+                onOpenHistory = onOpenPaymentHistory,
             )
         } else {
             item(key = "mes-nav") {

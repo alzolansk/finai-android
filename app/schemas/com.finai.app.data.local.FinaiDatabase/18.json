@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 18,
-    "identityHash": "e794405121f33d662ec5ecc6642e3ac5",
+    "identityHash": "4a45137c5c53ad456a21d8678572f9b4",
     "entities": [
       {
         "tableName": "transacoes",
@@ -239,7 +239,7 @@
       },
       {
         "tableName": "contas",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `nome` TEXT NOT NULL, `valorCentavos` INTEGER NOT NULL, `vencimento` INTEGER NOT NULL, `status` TEXT NOT NULL, `tipo` TEXT NOT NULL, `recorrente` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `nome` TEXT NOT NULL, `valorCentavos` INTEGER NOT NULL, `vencimento` INTEGER NOT NULL, `status` TEXT NOT NULL, `tipo` TEXT NOT NULL, `recorrente` INTEGER NOT NULL, `pagoEm` INTEGER)",
         "fields": [
           {
             "fieldPath": "id",
@@ -282,6 +282,12 @@
             "columnName": "recorrente",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "pagoEm",
+            "columnName": "pagoEm",
+            "affinity": "INTEGER",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -980,121 +986,12 @@
         },
         "indices": [],
         "foreignKeys": []
-      },
-      {
-        "tableName": "memoria",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `texto` TEXT NOT NULL, `tipo` TEXT NOT NULL, `criadoEm` INTEGER NOT NULL, `origem` TEXT NOT NULL)",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "texto",
-            "columnName": "texto",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "tipo",
-            "columnName": "tipo",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "criadoEm",
-            "columnName": "criadoEm",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "origem",
-            "columnName": "origem",
-            "affinity": "TEXT",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": true,
-          "columnNames": [
-            "id"
-          ]
-        },
-        "indices": [],
-        "foreignKeys": []
-      },
-      {
-        "tableName": "regras_categoria",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`estabelecimentoNormalizado` TEXT NOT NULL, `categoria` TEXT NOT NULL, PRIMARY KEY(`estabelecimentoNormalizado`))",
-        "fields": [
-          {
-            "fieldPath": "estabelecimentoNormalizado",
-            "columnName": "estabelecimentoNormalizado",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "categoria",
-            "columnName": "categoria",
-            "affinity": "TEXT",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "estabelecimentoNormalizado"
-          ]
-        },
-        "indices": [],
-        "foreignKeys": []
-      },
-      {
-        "tableName": "fechamentos",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mes` TEXT NOT NULL, `passo` TEXT NOT NULL, `resposta` TEXT NOT NULL, `em` INTEGER NOT NULL, PRIMARY KEY(`mes`, `passo`))",
-        "fields": [
-          {
-            "fieldPath": "mes",
-            "columnName": "mes",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "passo",
-            "columnName": "passo",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "resposta",
-            "columnName": "resposta",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "em",
-            "columnName": "em",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "mes",
-            "passo"
-          ]
-        },
-        "indices": [],
-        "foreignKeys": []
       }
     ],
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e794405121f33d662ec5ecc6642e3ac5')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4a45137c5c53ad456a21d8678572f9b4')"
     ]
   }
 }

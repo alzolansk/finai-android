@@ -249,7 +249,8 @@ data class PayCycle(
                 // o dia do pagamento, mas sabe que foi até hoje — e, para o saldo de hoje em diante,
                 // qualquer dia até hoje dá o mesmo resultado. Antes a saída continuava no vencimento,
                 // e os dias entre hoje e ele pareciam ter um dinheiro que já não existia.
-                val effective = if (pago && d.isAfter(asOf)) asOf else d
+                // Com o dia gravado (v18), vale o dia do pagamento; sem ele, hoje.
+                val effective = if (pago && d.isAfter(asOf)) c.pagoEm?.toLocalDate()?.coerceAtMost(asOf) ?: asOf else d
                 val source = CycleSource.Conta(c)
                 when {
                     inCycle(effective) -> CycleEntry(effective, c.nome, sign * c.valorCentavos, done = pago, source, d.takeIf { it != effective })

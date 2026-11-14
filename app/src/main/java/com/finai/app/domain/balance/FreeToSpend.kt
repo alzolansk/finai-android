@@ -136,7 +136,7 @@ data class FreeToSpend(
             val windowEnd = maxOf(minOf(nextIncome.date.minusDays(1), today.plusDays(MAX_DAYS)), today)
             val start = AccountBalance.startMonthFor(transacoes, contas, today)
             val months = ChronoUnit.MONTHS.between(start, YearMonth.from(windowEnd)).toInt() + 1
-            val all = CashFlowTimeline.monthMovements(contas, transacoes, dividas, today, months, from = start)
+            val all = CashFlowTimeline.monthMovements(contas, transacoes, dividas, today, months, from = start, paidOnPaymentDay = true)
 
             val account = all.filter { AccountBalance.settled(it, today) }.sumOf { it.cents }
             // O que ainda vai acontecer: pagamento atrasado cai hoje; entrada atrasada não conta.

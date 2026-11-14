@@ -7,16 +7,42 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 ## Status atual
 
+**Merge de `claude/agenda-fatura-paga` (14/11/2026):** os dois branches tinham criado uma Room 17→18
+diferente. Ficou a dela (`contas.pagoEm`, que já tinha APK gerado) como 17→18, e as três tabelas da v2
+viraram `MIGRATION_18_19` (`Migration18To19Test`). Parcelamentos não volta (está em Planos ›
+Compromissos); o histórico de pagamentos abre pelo link da Agenda "A seguir".
+
 **FinAI v2: fases 5–11 implementadas (14/11/2026), sem build Gradle nem validação visual.** Navegação
 Hoje · Agenda · [+] · Gastos · Planos; faixa Falar/Escrever no "+"; Gastos (absorve Limites);
 Planos (Metas | Compromissos, absorve Dívidas e Parcelamentos); Posso comprar? como tela própria;
 chat com lançamento pronto, consultas locais (`domain/assistant/`) e memória; fechamento do mês;
-notificações com botões. Room **v18** (`memoria`, `regras_categoria`, `fechamentos`; `18.json` gerado
+notificações com botões. Room **v19** (`memoria`, `regras_categoria`, `fechamentos` em `MIGRATION_18_19`; `19.json` gerado
 à mão com o algoritmo do room-compiler, o primeiro build com KSP regrava). **Gradle não rodou**: o
 Maven Central recusou este IP. A checagem de tipos do app inteiro e dos instrumentados e os 565 testes
 JVM rodaram com kotlinc + plugin do Compose e jars AndroidX do maven.google.com (roteiro em
 `handoff.md`). Falta: `./gradlew assembleDebug testDebugUnitTest assemblePessoal`, emulador, celular.
 Estado e próximos passos: `handoff.md`; ressalvas: `planning-v2.md`.
+
+**Fatura paga adiantada + histórico de pagamentos (14/11/2026, branch `claude/agenda-fatura-paga`, cópia de
+`claude/awesome-hawking-pdynac`, sem commit).** Relato: na "A seguir", tocar sem querer em duas faturas de
+dezembro as fazia sumir. Causa: conta paga só existia no mês do vencimento, e o saldo em conta
+(`AccountBalance`) e o livre (`FreeToSpend`) só olhavam até o mês de hoje/da próxima renda. A fatura saía
+da lista e o dinheiro "voltava" ao saldo da Hoje até a janela chegar a dezembro. Correção:
+- **Room 17→18** (`MIGRATION_17_18`, `contas.pagoEm`; `18.json` gerado pelo KSP; `Migration17To18Test`
+  escrito, não executado). O dia é gravado em `FinanceRepository.withPaymentDate` (todo caminho que salva a
+  conta: Agenda, fatura, edição), apagado ao reabrir. Backup exporta/restaura.
+- `ContaEntity.paidOn(today)` (`domain/ContaPayment.kt`): `pagoEm`; sem ele (pagas antes da v18), o
+  vencimento ou hoje, o que vier antes. `CashFlowTimeline.monthMovements(paidOnPaymentDay = true)` põe a
+  conta paga no dia do pagamento (`movedFrom` = vencimento); usado por `AccountBalance`, `FreeToSpend` e
+  `AgendaBalance`. A aba do mês, a semana da Hoje e a Caixa continuam pelo vencimento. `PayCycle` usa `pagoEm` também.
+- "A seguir": paga hoje aparece logo abaixo de "Hoje" ("paga 14/11 · vence 05/12", toque reabre); paga antes
+  vai para "Movimentações anteriores". Link "Histórico de pagamentos ›".
+- **Histórico** (`domain/PaymentHistory.kt`, `ui/screens/payments/PaymentHistoryScreen.kt`, camada
+  por cima de tudo): faturas, contas, recebimentos e parcelas de dívida (pelo gasto `DebtSchedule.PAYMENT_ORIGIN`)
+  por mês do pagamento, com vencimento e "N dias antes/depois"; filtros; tocar reabre a conta ou desfaz o
+  último pagamento de cada dívida (`deleteTransacao`). Pagas antes da v18 ficam em "Sem o dia do pagamento".
+- 475 testes JVM verdes (`PaymentHistoryTest` novo, cenário do relato em `AgendaBalanceTest`),
+  `assemblePessoal` e `compileDebugAndroidTestKotlin` verdes. **Não conferido em aparelho/emulador.**
 
 **FinAI v2: fase 4 (Agenda) implementada, validação visual adiada pelo usuário (08/11/2026).**
 Abas "A seguir" | <mês> com `MoneyRow` (sem caixinha, selo, TalkBack "pago"). `AgendaBalance` segue as

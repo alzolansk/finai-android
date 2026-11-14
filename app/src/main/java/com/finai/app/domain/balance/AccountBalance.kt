@@ -6,6 +6,7 @@ import com.finai.app.data.local.entity.TransacaoEntity
 import com.finai.app.domain.CashFlowTimeline
 import com.finai.app.domain.CycleSource
 import com.finai.app.domain.TimelineMovement
+import com.finai.app.domain.paidOn
 import com.finai.app.domain.toLocalDate
 import java.time.LocalDate
 import java.time.YearMonth
@@ -36,13 +37,17 @@ object AccountBalance {
     fun startMonthFor(transacoes: List<TransacaoEntity>, contas: List<ContaEntity>, today: LocalDate): YearMonth {
         val current = YearMonth.from(today)
         val oldest = (transacoes.map { YearMonth.from(it.data.toLocalDate()) } +
-            contas.map { YearMonth.from(it.vencimento.toLocalDate()) })
+            contas.map { YearMonth.from(it.vencimento.toLocalDate()) } +
+            contas.mapNotNull { c -> c.paidOn(today)?.let(YearMonth::from) })
             .filter { it <= current }
             .minOrNull() ?: return current
         return maxOf(oldest, current.minusMonths(MAX_LOOKBACK_MONTHS))
     }
 
-    /** Já efetivado: lançamento com data até hoje, ou conta paga/recebida. Parcela em aberto nunca. */
+    /**
+     * Já efetivado: lançamento com data até hoje, ou conta paga/recebida (que entra no dia do
+     * pagamento, ver [CashFlowTimeline.monthMovements]). Parcela em aberto nunca.
+     */
     fun settled(m: TimelineMovement, today: LocalDate): Boolean = when (val s = m.source) {
         is CycleSource.Conta -> s.conta.status == "pago"
         is CycleSource.Parcela -> false
@@ -59,7 +64,7 @@ object AccountBalance {
         val current = YearMonth.from(today)
         val start = startMonthFor(transacoes, contas, today)
         val months = ChronoUnit.MONTHS.between(start, current).toInt() + 1
-        return CashFlowTimeline.monthMovements(contas, transacoes, dividas, today, months, from = start)
+        return CashFlowTimeline.monthMovements(contas, transacoes, dividas, today, months, from = start, paidOnPaymentDay = true)
             .filter { settled(it, today) }
             .sumOf { it.cents }
     }

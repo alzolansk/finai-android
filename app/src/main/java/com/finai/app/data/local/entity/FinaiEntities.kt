@@ -118,6 +118,12 @@ data class ContaEntity(
     val status: String, // "pago" | "pendente"
     val tipo: String, // "a_pagar" | "a_receber"
     val recorrente: Boolean,
+    /**
+     * Dia em que foi marcada paga/recebida (epoch millis). É o dia em que o dinheiro saiu do saldo,
+     * mesmo quando o vencimento é outro, e a data que o histórico de pagamentos mostra. Nulo em conta
+     * em aberto e nas pagas antes da v18 (o app não guardava o dia).
+     */
+    val pagoEm: Long? = null,
 )
 
 @Entity(tableName = "objetivos")

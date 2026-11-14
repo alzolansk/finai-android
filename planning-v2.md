@@ -256,7 +256,8 @@ terminado nesta. Estado, decisões e o que falta: `handoff.md`.
 - **Fase 11:** saíram `GoalsScreen`, `DebtsScreen`, `BudgetsScreen`, `InstallmentsScreen`,
   `BuySimulatorSheet`, `NotificationsOverlay`, `SpendExplanationSheet`, `BudgetLimitDialog` e
   `NotificationContentBuilder`. `TipScript` reescrito (Hoje, Agenda, Gastos, Planos, chat).
-  `18.json` gerado com o `identityHash` do algoritmo do room-compiler 2.6.1.
+  Schema gerado com o `identityHash` do algoritmo do room-compiler 2.6.1. No merge com
+  `claude/agenda-fatura-paga` (`contas.pagoEm` em 17→18), as tabelas da v2 viraram 18→19 (`19.json`).
 - **Testes:** 565 JVM verdes (novos: `QuickEntryParserTest` 35 frases, `SpendingAnalysisTest`,
   `LimitSuggestionTest`, `GoalConflictResolverTest`, `SavingsCapacityTest`, `CommitmentsScheduleTest`,
   `PurchaseSimulatorV2Test`, `MonthClosingTest`, `AssistantToolsTest`, `NotificationPlannerTest`).
@@ -781,19 +782,19 @@ em jan, melhor; 10× R$ 1.520), instrumentado "Lançar em 3×" cria parcelas den
 **Lançar pelo chat (P2):** frase de lançamento → `QuickEntryParser` primeiro; cartão "Lançamento
 pronto" com Salvar / Editar (formulário preenchido); salvo mostra Desfazer.
 
-**Memória (P6) — Room 17→18** (`MIGRATION_17_18`): `memoria(id, texto, tipo, criadoEm, origem)`.
+**Memória (P6) — Room 18→19** (`MIGRATION_18_19`; a 17→18 ficou com `contas.pagoEm`): `memoria(id, texto, tipo, criadoEm, origem)`.
 Entram só fatos confirmados pelo usuário ("Já sei", "Manter separadas", "Academia não é corte").
 Painel "Sei sobre você · N" com apagar. Vai no prompt do chat (no máximo 10 fatos, curtos).
 Fica no backup (`FinaiBackup`) e sai no "Apagar todos os dados".
 
 **Aprender com correções (P7):** corrigir a categoria de um estabelecimento grava regra local
-(`regras_categoria(estabelecimentoNormalizado, categoria)`, mesma migração 17→18); importação,
+(`regras_categoria(estabelecimentoNormalizado, categoria)`, mesma migração 18→19); importação,
 captura e parser usam antes da IA.
 
 **Coach:** só novidade (regra 9), "Já sei" grava memória e silencia o padrão.
 
 **Testes:** `AssistantToolsTest`, fakes de provedor com tool call e sem suporte (fallback),
-`ScenarioReplyGuard` com resultado de ferramenta, `Migration17To18Test`.
+`ScenarioReplyGuard` com resultado de ferramenta, `Migration18To19Test`.
 
 **Comparação visual**
 - [ ] Chip "Sei sobre você", cartão de lançamento pronto, linha "consultei", dois destaques,
@@ -808,7 +809,7 @@ captura e parser usam antes da IA.
 - `domain/closing/MonthClosing.kt`: entrou, saiu, sobrou real × previsto, maiores diferenças por
   categoria contra a média, recorrentes esperados sem ocorrência ("luz não veio"), limites
   sugeridos (fase 6), destino da sobra (meta com recomendação do plano), padrão a observar.
-- Estado por mês e por passo em `fechamentos(mes, passo, resposta, em)` (mesma migração 17→18).
+- Estado por mês e por passo em `fechamentos(mes, passo, resposta, em)` (mesma migração 18→19).
   Resposta dada não é perguntada de novo.
 - Cartão na Hoje do dia 1 ao 7, ou enquanto houver passo pendente; some depois.
 - Um parágrafo de resumo escrito pela IA (uma chamada por mês, guardada; sem IA, frase
@@ -844,7 +845,8 @@ captura e parser usam antes da IA.
 | Versão | Fase | Mudança |
 | --- | --- | --- |
 | 16 → 17 | 3 | `CREATE TABLE avisos` |
-| 17 → 18 | 9–10 | `CREATE TABLE memoria`, `regras_categoria`, `fechamentos` |
+| 17 → 18 | Agenda | `ALTER TABLE contas ADD COLUMN pagoEm` (branch `claude/agenda-fatura-paga`) |
+| 18 → 19 | 9–10 | `CREATE TABLE memoria`, `regras_categoria`, `fechamentos` |
 
 Margem de segurança, preferência do "+" e modo da Agenda ficam em DataStore. Nenhuma coluna
 existente muda de significado, exceto a leitura do saldo (fase 1), que é cálculo.
