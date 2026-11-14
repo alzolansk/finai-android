@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -188,6 +189,7 @@ fun FinaiApp(
         )
     }
     val conversations by viewModel.conversations.collectAsState()
+    val appScope = androidx.compose.runtime.rememberCoroutineScope()
     val askAbout: (AssistantTopic) -> Unit = { topic -> viewModel.askAbout(topic, financeSummary) }
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -835,6 +837,24 @@ fun FinaiApp(
                     financeViewModel.registrarCompra(scenario) { viewModel.onPurchaseRegistered(scenario) }
                 },
                 onDiscardPurchase = viewModel::discardPendingPurchase,
+                pendingEntry = uiState.pendingEntry,
+                entrySaved = uiState.savedEntry != null,
+                onSaveEntry = { draft ->
+                    appScope.launch {
+                        val receipt = runCatching { financeViewModel.saveQuickDraft(draft) }.getOrNull()
+                        if (receipt != null) viewModel.onEntrySaved(receipt)
+                        else { prefillEntry = prefillOfDraft(draft); viewModel.discardPendingEntry(); viewModel.closeChat() }
+                    }
+                },
+                onEditEntry = { draft -> prefillEntry = prefillOfDraft(draft); viewModel.discardPendingEntry(); viewModel.closeChat() },
+                onDiscardEntry = viewModel::discardPendingEntry,
+                onUndoEntry = {
+                    uiState.savedEntry?.let { receipt ->
+                        appScope.launch { runCatching { financeViewModel.undoEntry(receipt) }.onSuccess { viewModel.onEntryUndone() } }
+                    }
+                },
+                memory = financeState.v2?.memory.orEmpty(),
+                onForget = financeViewModel::forgetFact,
                 onClose = viewModel::closeChat,
             )
         }
@@ -848,6 +868,17 @@ fun FinaiApp(
             com.finai.app.domain.quickentry.QuickEntryContext(
                 accounts = entryAccounts, cards = entryCards, goals = financeState.rawObjetivos.map { it.nome },
                 learned = financeState.v2?.learned.orEmpty(),
+            )
+        }
+        // Fase 9: consultas locais do assistente e os fatos da memória que vão no prompt.
+        LaunchedEffect(financeState.rawContas, financeState.rawTransacoes, financeState.rawDividas, financeState.safetyMarginCents, quickEntryContext, financeState.v2?.memory, financeState.v2?.capacity) {
+            viewModel.setAssistantContext(
+                com.finai.app.domain.assistant.AssistantData(
+                    contas = financeState.rawContas, transacoes = financeState.rawTransacoes, dividas = financeState.rawDividas,
+                    marginCents = financeState.safetyMarginCents, quick = quickEntryContext,
+                    fitsToSaveCents = financeState.v2?.capacity?.cabeGuardarCents,
+                ),
+                financeState.v2?.memory.orEmpty().sortedByDescending { it.criadoEm }.map { it.texto },
             )
         }
         val closeEntry = {
@@ -1515,3 +1546,20 @@ private fun prefillOf(
         demo = test,
     )
 }
+
+/** O formulário do "+" preenchido com um rascunho lido de uma frase (Editar do chat). */
+private fun prefillOfDraft(d: com.finai.app.domain.quickentry.QuickDraft): com.finai.app.ui.components.EntryPrefill =
+    com.finai.app.ui.components.EntryPrefill(
+        type = d.type,
+        cents = d.cents,
+        category = d.category,
+        description = d.description,
+        account = d.account,
+        date = d.date,
+        payment = d.payment,
+        card = d.card,
+        installments = d.installments,
+        dueDate = null,
+        banner = "Lido da conversa · confira antes de salvar",
+        demo = false,
+    )

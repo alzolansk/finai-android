@@ -93,14 +93,27 @@ fun ChatOverlay(
     pendingPurchase: com.finai.app.domain.scenario.PurchaseScenario? = null,
     onRegisterPurchase: (com.finai.app.domain.scenario.PurchaseScenario) -> Unit = {},
     onDiscardPurchase: () -> Unit = {},
+    /** Fase 9 (P2): lançamento lido de uma frase, à espera de Salvar ou Editar. */
+    pendingEntry: com.finai.app.domain.quickentry.QuickDraft? = null,
+    /** O lançamento do chat que acabou de ser salvo (mostra Desfazer). */
+    entrySaved: Boolean = false,
+    onSaveEntry: (com.finai.app.domain.quickentry.QuickDraft) -> Unit = {},
+    onEditEntry: (com.finai.app.domain.quickentry.QuickDraft) -> Unit = {},
+    onDiscardEntry: () -> Unit = {},
+    onUndoEntry: () -> Unit = {},
+    /** Fase 9 (P6): fatos confirmados que o assistente leva no prompt ("Sei sobre você"). */
+    memory: List<com.finai.app.data.local.entity.MemoriaEntity> = emptyList(),
+    onForget: (Long) -> Unit = {},
 ) {
     var showHistory by rememberSaveable { mutableStateOf(false) }
+    var showMemory by rememberSaveable { mutableStateOf(false) }
     // Registrado depois do BackHandler central de FinaiApp, então tem prioridade:
     // com a lista aberta, voltar fecha só a lista.
-    BackHandler(enabled = showHistory) { showHistory = false }
+    BackHandler(enabled = showHistory || showMemory) { showHistory = false; showMemory = false }
     val listState = rememberLazyListState()
-    LaunchedEffect(currentConversationId, messages.size, thinking, pendingPurchase) {
-        val last = messages.size + (if (thinking) 1 else 0) + (if (!thinking && pendingPurchase != null) 1 else 0) - 1
+    LaunchedEffect(currentConversationId, messages.size, thinking, pendingPurchase, pendingEntry, entrySaved) {
+        val cards = (if (!thinking && pendingPurchase != null) 1 else 0) + (if (!thinking && (pendingEntry != null || entrySaved)) 1 else 0)
+        val last = messages.size + (if (thinking) 1 else 0) + cards - 1
         if (last >= 0) listState.animateScrollToItem(last)
     }
     Column(
@@ -166,6 +179,12 @@ fun ChatOverlay(
             }
         }
 
+        if (!showHistory) MemoryChip(memory.size, open = showMemory) { showMemory = !showMemory }
+        if (showMemory && !showHistory) {
+            MemoryPanel(memory, onForget, Modifier.weight(1f).fillMaxWidth())
+            return@Column
+        }
+
         if (showHistory) {
             ConversationHistory(
                 conversations = conversations,
@@ -190,6 +209,9 @@ fun ChatOverlay(
             if (thinking) item { ThinkingBubble() }
             if (!thinking && pendingPurchase != null) {
                 item { SimulatedPurchaseCard(pendingPurchase, onRegisterPurchase, onDiscardPurchase) }
+            }
+            if (!thinking && (pendingEntry != null || entrySaved)) {
+                item { ReadyEntryCard(pendingEntry, entrySaved, onSaveEntry, onEditEntry, onDiscardEntry, onUndoEntry) }
             }
         }
 
@@ -308,6 +330,89 @@ private fun SimulatedPurchaseCard(
 }
 
 @Composable
+private fun ReadyEntryCard(
+    draft: com.finai.app.domain.quickentry.QuickDraft?,
+    saved: Boolean,
+    onSave: (com.finai.app.domain.quickentry.QuickDraft) -> Unit,
+    onEdit: (com.finai.app.domain.quickentry.QuickDraft) -> Unit,
+    onDiscard: () -> Unit,
+    onUndo: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(FinaiColors.Surface)
+            .border(1.dp, if (saved) FinaiColors.EmeraldSoftBorder else FinaiColors.BorderSubtle, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+    ) {
+        if (saved || draft == null) {
+            Text("SALVO NA AGENDA", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.EmeraldDark)
+            Row(modifier = Modifier.padding(top = 10.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ActionButton("Desfazer", onClick = onUndo, modifier = Modifier.weight(1f))
+                ActionButton("Ok", onClick = onDiscard, modifier = Modifier.weight(1f), primary = true)
+            }
+        } else {
+            Text("LANÇAMENTO PRONTO · NADA FOI SALVO", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FinaiColors.TextTertiary)
+            Text(
+                draft.cents?.let { com.finai.app.util.formatBrl(it / 100.0) } ?: "Sem valor",
+                fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = FinaiColors.TextPrimary, modifier = Modifier.padding(top = 6.dp),
+            )
+            Text(
+                listOfNotNull(draft.description.takeIf { it.isNotBlank() }, draft.category, draft.card ?: draft.account)
+                    .joinToString(" · ").ifBlank { draft.type.label },
+                fontSize = 13.sp, color = FinaiColors.TextSecondary,
+            )
+            Row(modifier = Modifier.padding(top = 10.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ActionButton("Descartar", onClick = onDiscard, modifier = Modifier.weight(0.8f))
+                ActionButton("Editar", onClick = { onEdit(draft) }, modifier = Modifier.weight(0.8f))
+                if (draft.complete) ActionButton("Salvar", onClick = { onSave(draft) }, modifier = Modifier.weight(1f), primary = true)
+            }
+        }
+    }
+}
+
+/** "Sei sobre você · N": abre a lista do que o assistente lembra (fase 9, P6). */
+@Composable
+private fun MemoryChip(count: Int, open: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+        Box(
+            Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(99.dp))
+                .background(if (open) FinaiColors.InkStrong else FinaiColors.Surface)
+                .border(1.dp, if (open) FinaiColors.InkStrong else FinaiColors.EmeraldSoftBorder, RoundedCornerShape(99.dp))
+                .clickable(onClick = onClick).padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("Sei sobre você · $count", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
+                color = if (open) FinaiColors.OnInkStrong else FinaiColors.EmeraldDark)
+        }
+    }
+}
+
+@Composable
+private fun MemoryPanel(memory: List<com.finai.app.data.local.entity.MemoriaEntity>, onForget: (Long) -> Unit, modifier: Modifier) {
+    LazyColumn(modifier, contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            Text(
+                "Só o que você confirmou no app (\"Já sei\", \"Manter\", respostas do fechamento). Vai para a IA junto com a pergunta, no máximo 10 itens. Fica no aparelho e no backup.",
+                fontSize = 12.5.sp, lineHeight = 18.sp, color = FinaiColors.TextSecondary,
+            )
+        }
+        if (memory.isEmpty()) item { Text("Nada guardado ainda.", fontSize = 13.sp, color = FinaiColors.TextMuted, modifier = Modifier.padding(top = 8.dp)) }
+        items(memory, key = { it.id }) { fact ->
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(FinaiColors.Surface)
+                    .border(1.dp, FinaiColors.BorderSubtle, RoundedCornerShape(14.dp)).padding(start = 14.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(fact.texto, fontSize = 13.sp, lineHeight = 18.sp, color = FinaiColors.TextPrimary, modifier = Modifier.weight(1f))
+                TextAction("Apagar", { onForget(fact.id) }, color = FinaiColors.RoseDark)
+            }
+        }
+    }
+}
+
+@Composable
 private fun ChatBubble(message: ChatMessage) {
     val fromMe = message.role == ChatRole.Me
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = if (fromMe) Arrangement.End else Arrangement.Start) {
@@ -327,7 +432,15 @@ private fun ChatBubble(message: ChatMessage) {
             if (fromMe) {
                 Text(message.text, fontSize = 12.5.sp, lineHeight = 18.sp, color = Color.White)
             } else {
-                AiRichText(message.text, fontSize = 12.5.sp, lineHeight = 18.sp, showHighlights = true)
+                // Fase 9: "consultei: …" (o que o app buscou para responder) fica numa linha à parte.
+                val (consulted, body) = com.finai.app.domain.assistant.AssistantLoop.splitConsulted(message.text)
+                Column {
+                    consulted?.let {
+                        Text("consultei: $it", fontSize = 11.5.sp, lineHeight = 15.sp, color = FinaiColors.TextMuted,
+                            modifier = Modifier.padding(bottom = 6.dp))
+                    }
+                    AiRichText(body, fontSize = 12.5.sp, lineHeight = 18.sp, showHighlights = true)
+                }
             }
         }
     }

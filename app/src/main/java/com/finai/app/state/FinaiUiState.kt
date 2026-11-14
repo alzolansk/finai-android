@@ -37,4 +37,11 @@ data class FinaiUiState(
      * Só em memória: some ao trocar de conversa, ao descartar ou ao fazer outra pergunta.
      */
     val pendingPurchase: com.finai.app.domain.scenario.PurchaseScenario? = null,
+    /**
+     * Lançamento que o chat leu de uma frase ("gastei 45 no ifood"), esperando Salvar ou Editar
+     * (fase 9, P2). Só em memória, como a compra simulada.
+     */
+    val pendingEntry: com.finai.app.domain.quickentry.QuickDraft? = null,
+    /** O lançamento do chat que acabou de ser salvo: o cartão mostra "Salvo" e Desfazer. */
+    val savedEntry: com.finai.app.domain.EntryReceipt? = null,
 )

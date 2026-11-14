@@ -204,4 +204,26 @@ object QuickEntryParser {
             toGoal = type == TransactionType.Transferencia,
         )
     }
+
+    /** O texto do chat para um rascunho lido da frase (fase 9): o que entendeu e o que falta. */
+    fun chatReply(d: QuickDraft, today: LocalDate = LocalDate.now()): String = buildString {
+        val value = d.cents?.let { com.finai.app.util.formatBrl(it / 100.0) } ?: "sem valor"
+        val day = when (d.date) {
+            today -> "hoje"
+            today.minusDays(1) -> "ontem"
+            else -> "%02d/%02d".format(d.date.dayOfMonth, d.date.monthValue)
+        }
+        val parts = listOfNotNull(
+            "${d.type.label} de $value",
+            d.description.takeIf { it.isNotBlank() },
+            d.category?.takeIf { d.type == TransactionType.Gasto },
+            d.goalName?.let { "para $it" },
+            d.card?.let { c -> if ((d.installments ?: 1) > 1) "$c em ${d.installments}×" else c } ?: d.account,
+            day,
+        )
+        append("Lançamento pronto: ").append(parts.joinToString(" · ")).append('.')
+        val missing = d.missing()
+        if (missing.isEmpty() && d.complete) append(" Confira e toque em Salvar.")
+        else append(" Falta ${missing.ifEmpty { listOf("conferir a forma de pagamento") }.joinToString()}: toque em Editar para completar.")
+    }
 }

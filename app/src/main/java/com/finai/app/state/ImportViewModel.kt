@@ -65,8 +65,11 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val existing = repository.transacoes.first()
                 when (val outcome = importer.import(uri, existing, onStage = ::onStage)) {
-                    is ImportOutcome.Success ->
-                        _uiState.value = ImportUiState(preview = outcome.preview, busy = false, stage = null)
+                    is ImportOutcome.Success -> {
+                        // Fase 9 (P7): categoria que o usuário já corrigiu antes vale mais que a regra fixa e a IA.
+                        val learned = repository.regrasCategoria.first().associate { it.estabelecimentoNormalizado to it.categoria }
+                        _uiState.value = ImportUiState(preview = applyLearned(outcome.preview, learned), busy = false, stage = null)
+                    }
                     is ImportOutcome.Failure ->
                         _uiState.value = ImportUiState(error = outcome.message, busy = false, stage = null)
                 }
@@ -164,7 +167,18 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun applyLearned(preview: ImportPreview, learned: Map<String, String>): ImportPreview {
+        if (learned.isEmpty()) return preview
+        return preview.copy(items = preview.items.map { item ->
+            val key = com.finai.app.domain.importer.MerchantClassifier.normalizeMerchant(item.entry.description)
+            learned[key]?.takeIf { item.categorySource != CategorySource.USER && item.entry.amountCents > 0 }
+                ?.let { item.copy(categoria = it, categorySource = CategorySource.RULE, needsCategoryReview = false) } ?: item
+        })
+    }
+
     private suspend fun confirmImportInternal(preview: ImportPreview, selected: List<ImportItem>) {
+        // Correção de categoria feita na revisão vira regra local para a próxima importação, a captura e o "+".
+        selected.filter { it.categorySource == CategorySource.USER }.forEach { repository.aprenderCategoria(it.entry.description, it.categoria) }
         val metadata = preview.invoiceMetadata
         val referencia = requireNotNull(metadata.reference).trim().take(60)
         val vencimento = requireNotNull(metadata.dueDate)

@@ -138,6 +138,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         financeSnapshot = snapshot
     }
 
+    /** Fase 9: o que as consultas locais leem e os fatos confirmados que vão no prompt. */
+    private var assistantData: com.finai.app.domain.assistant.AssistantData? = null
+    private var memoryFacts: List<String> = emptyList()
+
+    fun setAssistantContext(data: com.finai.app.domain.assistant.AssistantData, memory: List<String>) {
+        assistantData = data
+        memoryFacts = memory
+    }
+
+    /** O cartão "Lançamento pronto" foi salvo pelo [FinanceViewModel]: mostra "Salvo" e Desfazer. */
+    fun onEntrySaved(receipt: com.finai.app.domain.EntryReceipt) =
+        _uiState.update { it.copy(pendingEntry = null, savedEntry = receipt) }
+
+    fun onEntryUndone() {
+        val conv = conversationId.value
+        _uiState.update { it.copy(savedEntry = null) }
+        viewModelScope.launch { runCatching { chatRepository.registrar(conv, ChatRole.Ai, "Desfeito: o lançamento saiu da Agenda.") } }
+    }
+
+    fun discardPendingEntry() = _uiState.update { it.copy(pendingEntry = null, savedEntry = null) }
+
     /**
      * Pergunta de compra à espera de um dado ("em que dia vence a 1ª parcela?"). Só na memória e
      * só da conversa atual: trocar de conversa ou mudar de assunto descarta.
@@ -287,11 +308,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         pendingConversationId = convId
         if (isFirstMessage) topicContext = context
         _uiState.update {
-            it.copy(chatOpen = true, addOpen = false, simOpen = false, thinking = true, draft = "", pendingPurchase = null)
+            it.copy(chatOpen = true, addOpen = false, simOpen = false, thinking = true, draft = "", pendingPurchase = null, pendingEntry = null, savedEntry = null)
         }
         chatReplyJob = viewModelScope.launch {
             try {
                 chatRepository.registrar(convId, ChatRole.Me, trimmed, contexto = context.takeIf { isFirstMessage })
+                // Fase 9 (P2): frase de lançamento vira cartão "Lançamento pronto", sem IA.
+                val today = java.time.LocalDate.now()
+                val entry = if (pendingIntent == null && com.finai.app.domain.quickentry.QuickEntryParser.looksLikeEntry(trimmed)) {
+                    com.finai.app.domain.quickentry.QuickEntryParser.parse(trimmed, today, assistantData?.quick ?: com.finai.app.domain.quickentry.QuickEntryContext())
+                } else null
+                if (entry != null) {
+                    chatRepository.registrar(convId, ChatRole.Ai, com.finai.app.domain.quickentry.QuickEntryParser.chatReply(entry))
+                    pendingConversationId = null
+                    _uiState.update { it.copy(thinking = false, pendingEntry = entry.takeIf { convId == conversationId.value }) }
+                    return@launch
+                }
                 val step = purchaseStep(trimmed)
                 var simulated: PurchaseScenario? = null
                 val reply = when (step) {
@@ -309,11 +341,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     PurchaseAssistant.Step.NotPurchase -> {
                         pendingIntent = null
                         lastSimulatedIntent = null
-                        val request = AiPromptBuilder.chat(financeSummary, history, trimmed, context)
-                        when (val response = aiProvider.generate(request)) {
-                            is AiResponse.Success -> response.text
-                            is AiResponse.Unavailable -> FinaiFixtures.offlineReply(trimmed, response.reason)
-                        }
+                        // Fase 9 (P1): a IA pode pedir até três consultas locais; o número vem do app.
+                        val data = assistantData
+                        var unavailable: String? = null
+                        val outcome = com.finai.app.domain.assistant.AssistantLoop.answer(
+                            ask = { results ->
+                                val request = AiPromptBuilder.chat(
+                                    financeSummary, history, trimmed, context, memoryFacts,
+                                    toolCatalog = com.finai.app.domain.assistant.AssistantTools.CATALOG.takeIf { data != null },
+                                    toolResults = results.map { it.facts },
+                                )
+                                when (val response = aiProvider.generate(request)) {
+                                    is AiResponse.Success -> response.text
+                                    is AiResponse.Unavailable -> { unavailable = response.reason; null }
+                                }
+                            },
+                            run = { call ->
+                                if (data == null) com.finai.app.domain.assistant.ToolResult("consulta", "Os dados ainda não carregaram.")
+                                else withContext(Dispatchers.Default) { com.finai.app.domain.assistant.AssistantTools.run(call, data, today) }
+                            },
+                        )
+                        com.finai.app.domain.assistant.AssistantLoop.reply(outcome, financeSummary)
+                            ?: FinaiFixtures.offlineReply(trimmed, unavailable ?: "A IA não respondeu.")
                     }
                 }
                 chatRepository.registrar(convId, ChatRole.Ai, reply)

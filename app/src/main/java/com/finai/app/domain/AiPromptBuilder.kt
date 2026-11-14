@@ -21,6 +21,9 @@ object AiPromptBuilder {
     // AiReplyFormat: negrito e valores em R$ ganham destaque, o resto do
     // Markdown é descartado. Pedir poucos números é regra de produto — a tela
     // já mostra os valores; a IA escolhe o que muda a decisão e interpreta.
+    /** Fatos da memória do assistente que vão no prompt do chat (fase 9). */
+    const val MEMORY_LIMIT = 10
+
     private const val SYSTEM_BASE = "Você é o assistente financeiro do app FinAI. Responda sempre em português do Brasil, " +
         "de forma curta e direta. Texto simples: nada de títulos (#), tabelas ou blocos de código; use **negrito** " +
         "em no máximo dois trechos; use lista com \"- \" só para passos. Escreva valores como R$ 1.234 (negativos como -R$ 1.234). " +
@@ -279,7 +282,18 @@ object AiPromptBuilder {
      * isso", "Ensaiar a ligação"...): o usuário vê só a pergunta, a IA recebe
      * também os dados do card de origem.
      */
-    fun chat(financeSummary: String, history: List<ChatMessage>, question: String, topicContext: String? = null): AiRequest {
+    fun chat(
+        financeSummary: String,
+        history: List<ChatMessage>,
+        question: String,
+        topicContext: String? = null,
+        /** Fatos que o usuário confirmou (fase 9, P6); no máximo 10, curtos. */
+        memory: List<String> = emptyList(),
+        /** Catálogo das consultas locais ([com.finai.app.domain.assistant.AssistantTools.CATALOG]); nulo = sem consultas. */
+        toolCatalog: String? = null,
+        /** Resultados das consultas já feitas nesta pergunta: entram como fatos. */
+        toolResults: List<String> = emptyList(),
+    ): AiRequest {
         val historyText = history.takeLast(8).joinToString("\n") { m ->
             (if (m.role == ChatRole.Me) "Usuário" else "FinAI") + ": " + AiReplyFormat.plain(m.text)
         }
@@ -291,6 +305,20 @@ object AiPromptBuilder {
             }
             appendLine("Resumo financeiro atual do usuário:")
             append(financeSummary)
+            val facts = memory.map { it.trim() }.filter { it.isNotBlank() }.take(MEMORY_LIMIT)
+            if (facts.isNotEmpty()) {
+                appendLine()
+                appendLine("O que o usuário já confirmou (respeite, não pergunte de novo):")
+                facts.forEach { appendLine("- ${it.take(140)}") }
+            }
+            if (toolResults.isNotEmpty()) {
+                appendLine()
+                appendLine("Resultado das consultas que o app fez agora (são os únicos números novos que você pode citar):")
+                toolResults.forEach { appendLine(it.trim()) }
+            } else if (toolCatalog != null) {
+                appendLine()
+                appendLine(toolCatalog)
+            }
             if (historyText.isNotBlank()) {
                 appendLine()
                 appendLine("Conversa até agora:")
