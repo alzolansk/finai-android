@@ -138,7 +138,7 @@ class AssistantOrchestrator(
         val facts = consulted.joinToString("\n") { it.facts }
         val last = consulted.last()
         val explained = text.trim().takeIf { AssistantTools.parseCall(it) == null && FactGuard.accepts(it, facts) }
-        val answer = last.answer
+        val answer = last.answer?.let { if (explained != null) it.copy(explanation = explained) else it }
         return AssistantReply(
             text = explained ?: answer?.plainText() ?: consulted.joinToString("\n") { it.facts.trim() },
             answer = answer,

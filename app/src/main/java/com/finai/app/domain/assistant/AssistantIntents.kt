@@ -35,6 +35,8 @@ object Authorization {
     fun classify(text: String): Kind {
         val f = Fmt.fold(text)
         val words = f.split(Regex("""\s+""")).size
+        // "Faça o que achar melhor" começa como um "faça", mas é delegar, não confirmar: nunca autoriza.
+        if (HYPOTHETICAL_ANYWHERE.containsMatchIn(f)) return Kind.Hypothetical
         if (words <= 6 && AFFIRM.containsMatchIn(f) && !f.contains("?")) return Kind.Affirm
         if (words <= 6 && DENY.containsMatchIn(f) && !f.contains("?")) return Kind.Deny
         if (f.contains("?") || HYPOTHETICAL_START.containsMatchIn(f) || HYPOTHETICAL_ANYWHERE.containsMatchIn(f)) return Kind.Hypothetical

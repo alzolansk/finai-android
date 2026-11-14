@@ -224,7 +224,8 @@ object ActionPlanner {
 
     private fun incomeRows(all: List<TransacaoEntity>): List<TransacaoEntity> {
         fun income(t: TransacaoEntity) = t.tipo == TransactionType.Receita.name && !t.extra && t.faturaId == null && t.valorCentavos > 0
-        val single = all.filter { income(it) && !it.isRecurringSeries && (it.rendaPrincipal || PayCycle.isSalary(it) || it.isSplitIncome) }
+        // Toda renda com cara de salário (marcada, pelo nome ou dividida), recorrente ou avulsa: duas fontes viram pergunta.
+        val single = all.filter { income(it) && (it.rendaPrincipal || PayCycle.isSalary(it) || it.isSplitIncome) }
         return (IncomePlanner.familyOf(all) + single).distinctBy { it.id }
     }
 
@@ -627,7 +628,7 @@ object ActionPlanner {
     private fun entryLabel(t: TransacaoEntity, today: LocalDate) = "${Fmt.clean(t.descricao.ifBlank { t.categoria })} · ${brl(t.valorCentavos)} · ${Fmt.date(t.data.toLocalDate(), today)}"
 
     /** Ocorrências de [month] (e do mês anterior, se nada bater) que casam com o texto, o valor e o dia ditos. */
-    private fun findEntries(s: AssistantSnapshot, request: ActionRequest, month: YearMonth, lookBack: Boolean): List<Pair<TransacaoEntity, YearMonth>> {
+    private fun findEntries(s: AssistantSnapshot, request: ActionRequest, month: YearMonth, lookBack: Boolean, withContributions: Boolean = false): List<Pair<TransacaoEntity, YearMonth>> {
         val today = s.today
         request.args["id"]?.toLongOrNull()?.let { id ->
             val row = s.transacoes.firstOrNull { it.id == id } ?: return emptyList()
@@ -637,7 +638,7 @@ object ActionPlanner {
         val q = Fmt.fold(request.args["texto"].orEmpty())
         val amount = cents(request.args["valor_atual"], today)
         val day = parseDate(request.args["quando"], today)
-        fun inMonth(m: YearMonth) = s.transacoes.filter(::editable).mapNotNull { row ->
+        fun inMonth(m: YearMonth) = s.transacoes.filter { editable(it) || (withContributions && it.objetivoId != null && !it.isAdjustment) }.mapNotNull { row ->
             val occ = (if (row.isRecurringSeries) row.occurrenceFor(m) else row.takeIf { YearMonth.from(it.data.toLocalDate()) == m }) ?: return@mapNotNull null
             val matches = (q.isBlank() || Fmt.fold(occ.descricao + " " + occ.categoria).contains(q)) && (amount == null || occ.valorCentavos == amount) && (day == null || occ.data.toLocalDate() == day)
             if (matches) row to m else null
@@ -723,7 +724,8 @@ object ActionPlanner {
         args.remove("data")?.let { args.putIfAbsent("quando", it) }
         val lookup = request.copy(args = args)
         val month = args["quando"]?.let { parseDate(it, today) }?.let(YearMonth::from) ?: args["mes"]?.let { parseMonth(it, today) } ?: YearMonth.from(today)
-        val found = findEntries(s, lookup, month, lookBack = args["quando"] == null && args["mes"] == null)
+        // Aporte também se exclui por aqui: a meta volta ao valor de antes (mostrado na confirmação).
+        val found = findEntries(s, lookup, month, lookBack = args["quando"] == null && args["mes"] == null, withContributions = true)
         if (found.isEmpty()) return clarify(request, title, "Não encontrei esse lançamento. Qual é o nome dele na Agenda (e o dia, se souber)?", awaiting = "texto")
         val (row, m) = found.singleOrNull() ?: return clarify(request, title, "Encontrei mais de um parecido. Qual deles eu excluo? (Só excluo o que você escolher.)",
             found.take(4).map { (r, mo) -> PendingOption(entryLabel(r.occurrenceFor(mo) ?: r, today), args + mapOf("id" to r.id.toString(), "mes" to mo.toString())) })
