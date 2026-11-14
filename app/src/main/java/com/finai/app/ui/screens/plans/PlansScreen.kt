@@ -41,6 +41,7 @@ import com.finai.app.state.V2State
 import com.finai.app.ui.components.*
 import com.finai.app.ui.screens.home.V2Panel
 import com.finai.app.ui.theme.FinaiColors
+import com.finai.app.ui.theme.themedText
 import com.finai.app.util.formatBrl0
 import java.time.LocalDate
 import java.time.YearMonth

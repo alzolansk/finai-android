@@ -112,7 +112,7 @@ fun SimulatorScreen(
                             Modifier.weight(1f).heightIn(min = 56.dp).clip(RoundedCornerShape(14.dp))
                                 .background(if (isSelected) FinaiColors.InkStrong else FinaiColors.Surface)
                                 .border(1.dp, if (isSelected) FinaiColors.InkStrong else FinaiColors.BorderSubtle, RoundedCornerShape(14.dp))
-                                .clickable(role = Role.Tab) { wayIndex = i }.semantics { selected = isSelected }.padding(vertical = 8.dp).testTag("sim-way-${o.way.installments}"),
+                                .clickable(role = Role.Tab) { wayIndex = i }.semantics { this.selected = isSelected }.padding(vertical = 8.dp).testTag("sim-way-${o.way.installments}"),
                             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp),
                         ) {
                             Text(o.way.label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isSelected) FinaiColors.OnInkStrong else FinaiColors.TextPrimary)
