@@ -293,6 +293,10 @@ object AiPromptBuilder {
         toolCatalog: String? = null,
         /** Resultados das consultas já feitas nesta pergunta: entram como fatos. */
         toolResults: List<String> = emptyList(),
+        /** Catálogo das ações ([com.finai.app.domain.assistant.ActionPlanner.CATALOG]); nulo = só leitura. */
+        actionCatalog: String? = null,
+        /** Registros em foco na conversa ("essa dívida", "a mesma meta"). */
+        focus: List<String> = emptyList(),
     ): AiRequest {
         val historyText = history.takeLast(8).joinToString("\n") { m ->
             (if (m.role == ChatRole.Me) "Usuário" else "FinAI") + ": " + AiReplyFormat.plain(m.text)
@@ -319,6 +323,14 @@ object AiPromptBuilder {
                 appendLine()
                 appendLine(toolCatalog)
             }
+            if (actionCatalog != null && toolResults.isEmpty()) {
+                appendLine()
+                appendLine(actionCatalog)
+            }
+            if (focus.isNotEmpty()) {
+                appendLine()
+                appendLine("Em foco nesta conversa (\"essa\", \"a mesma\" se referem a): " + focus.joinToString("; ") + ".")
+            }
             if (historyText.isNotBlank()) {
                 appendLine()
                 appendLine("Conversa até agora:")
@@ -339,8 +351,12 @@ object AiPromptBuilder {
                 "Para saber se dá para pagar uma conta numa data, ou quanto do salário já está comprometido, use o fluxo " +
                 "cronológico do resumo (saldo do ciclo depois de cada pagamento e o menor saldo até o salário), não o balanço " +
                 "do mês do vencimento. " +
-                "Se o usuário perguntar se pode comprar ou parcelar algo, não calcule o impacto: peça o valor, a forma de " +
-                "pagamento e a data da primeira parcela, para o app simular.",
+                "Você nunca calcula nem conclui sozinho se algo cabe, quando dá para pagar ou quanto sobra: peça a consulta " +
+                "certa ao app e explique o resultado que ele devolver. O veredito, os valores e as datas são os do app. " +
+                "Quando houver resultado de consulta, explique em até 4 frases o que ele significa e a próxima ação, " +
+                "dizendo as hipóteses e o que o app não sabe; não repita a lista de números. " +
+                "Se faltar um dado que muda a resposta, faça uma única pergunta objetiva. " +
+                "Você não altera registros por conta própria: só o app grava, e só quando o usuário pede.",
             prompt,
         )
     }

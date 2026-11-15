@@ -145,6 +145,9 @@ interface OrcamentoCategoriaDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(orcamento: OrcamentoCategoriaEntity)
 
+    @Query("DELETE FROM orcamento_categorias WHERE categoria = :categoria AND mesReferencia = :mesReferencia")
+    suspend fun delete(categoria: String, mesReferencia: String)
+
     @Query("DELETE FROM orcamento_categorias")
     suspend fun deleteAll()
 }

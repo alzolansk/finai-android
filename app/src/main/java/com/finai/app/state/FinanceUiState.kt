@@ -134,6 +134,8 @@ data class FinanceUiState(
     val inboxStates: List<com.finai.app.data.local.entity.AvisoEntity> = emptyList(),
     val unreadInbox: Int = 0,
     val dismissedInbox: Int = 0,
+    /** Acompanhamentos pedidos no chat ("avise quando…"), ativos ou pausados. */
+    val watchRules: List<com.finai.app.data.local.entity.AcompanhamentoEntity> = emptyList(),
     /** Gastos, Planos, simulador, fechamento e memória (fases 5–10). */
     val v2: V2State? = null,
 )

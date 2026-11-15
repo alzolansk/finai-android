@@ -36,7 +36,7 @@ import com.finai.app.data.local.entity.TesteNotificacaoEntity
  * per planning.md §4's privacy-first requirement.
  */
 /** Versão do schema do Room — também é a que o backup exportado carrega (Fase 7, item 12). */
-const val FINAI_DB_VERSION = 20
+const val FINAI_DB_VERSION = 22
 
 @Database(
     entities = [
@@ -56,6 +56,10 @@ const val FINAI_DB_VERSION = 20
         com.finai.app.data.local.entity.MemoriaEntity::class,
         com.finai.app.data.local.entity.RegraCategoriaEntity::class,
         com.finai.app.data.local.entity.FechamentoEntity::class,
+        com.finai.app.data.local.entity.SessaoAssistenteEntity::class,
+        com.finai.app.data.local.entity.AcaoAssistenteEntity::class,
+        com.finai.app.data.local.entity.AcompanhamentoEntity::class,
+        com.finai.app.data.local.entity.PlanoEntity::class,
     ],
     version = FINAI_DB_VERSION,
     // Fase 6: o schema de cada versão passa a ser exportado para
@@ -82,6 +86,10 @@ abstract class FinaiDatabase : RoomDatabase() {
     abstract fun memoriaDao(): com.finai.app.data.local.dao.MemoriaDao
     abstract fun regraCategoriaDao(): com.finai.app.data.local.dao.RegraCategoriaDao
     abstract fun fechamentoDao(): com.finai.app.data.local.dao.FechamentoDao
+    abstract fun sessaoAssistenteDao(): com.finai.app.data.local.dao.SessaoAssistenteDao
+    abstract fun acaoAssistenteDao(): com.finai.app.data.local.dao.AcaoAssistenteDao
+    abstract fun acompanhamentoDao(): com.finai.app.data.local.dao.AcompanhamentoDao
+    abstract fun planoDao(): com.finai.app.data.local.dao.PlanoDao
 
     companion object {
 
@@ -304,7 +312,43 @@ abstract class FinaiDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Assistente que executa e acompanha: resposta estruturada da mensagem, estado da conversa,
+         * recibos das ações (idempotência e Desfazer), acompanhamentos e planos aceitos.
+         */
         val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `mensagens_chat` ADD COLUMN `estrutura` TEXT")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `sessoes_assistente` (`conversaId` INTEGER NOT NULL, `estado` TEXT NOT NULL, `atualizadoEm` INTEGER NOT NULL, PRIMARY KEY(`conversaId`))")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `acoes_assistente` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `chave` TEXT NOT NULL, `conversaId` INTEGER NOT NULL, `tipo` TEXT NOT NULL, `resumo` TEXT NOT NULL, `recibo` TEXT NOT NULL, `estado` TEXT NOT NULL, `criadoEm` INTEGER NOT NULL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_acoes_assistente_chave` ON `acoes_assistente` (`chave`)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `acompanhamentos` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `tipo` TEXT NOT NULL, `alvo` TEXT NOT NULL, `alvoId` INTEGER, `valorCentavos` INTEGER NOT NULL, `descricao` TEXT NOT NULL, `estado` TEXT NOT NULL, `criadoEm` INTEGER NOT NULL, `ultimaAvaliacao` TEXT, `ultimoResultado` TEXT)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `planos` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mes` TEXT NOT NULL, `criadoEm` INTEGER NOT NULL, `conteudo` TEXT NOT NULL)")
+            }
+        }
+
+        /**
+         * Um APK anterior deixou bancos com user_version 20, mas ainda com o schema 19
+         * (hash 494b9b00…). Nesse estado o Room não executa 19→20 e fecha na abertura.
+         * A nova versão permite completar a migração dentro da transação do Room e validar
+         * o schema antes de atualizar o hash. Bancos 20 completos conservam seus dados.
+         */
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val hasStructure = db.query("PRAGMA table_info(`mensagens_chat`)").use { columns ->
+                    val nameIndex = columns.getColumnIndexOrThrow("name")
+                    var found = false
+                    while (columns.moveToNext()) {
+                        if (columns.getString(nameIndex) == "estrutura") found = true
+                    }
+                    found
+                }
+                if (!hasStructure) MIGRATION_19_20.migrate(db)
+            }
+        }
+
+        /** Integra a correção de faturas da main também para quem já instalou o assistente v20/v21. */
+        val MIGRATION_21_22 = object : Migration(21, 22) {
             override fun migrate(db: SupportSQLiteDatabase) = repairImportedInvoicePayments(db)
         }
 
@@ -329,7 +373,7 @@ abstract class FinaiDatabase : RoomDatabase() {
             db.execSQL("DROP TABLE invoice_payments_to_ignore")
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
 
         @Volatile private var instance: FinaiDatabase? = null
 

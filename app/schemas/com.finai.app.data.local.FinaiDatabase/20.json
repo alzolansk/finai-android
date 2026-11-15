@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 20,
-    "identityHash": "494b9b007c0b3519393b9d2289c5fa62",
+    "identityHash": "787505c6742a9e8abef84d582f9f6fe0",
     "entities": [
       {
         "tableName": "transacoes",
@@ -542,7 +542,7 @@
       },
       {
         "tableName": "mensagens_chat",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `papel` TEXT NOT NULL, `texto` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `conversaId` INTEGER NOT NULL DEFAULT 0, `contexto` TEXT)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `papel` TEXT NOT NULL, `texto` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `conversaId` INTEGER NOT NULL DEFAULT 0, `contexto` TEXT, `estrutura` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -578,6 +578,12 @@
           {
             "fieldPath": "contexto",
             "columnName": "contexto",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "estrutura",
+            "columnName": "estrutura",
             "affinity": "TEXT",
             "notNull": false
           }
@@ -1095,12 +1101,228 @@
         },
         "indices": [],
         "foreignKeys": []
+      },
+      {
+        "tableName": "sessoes_assistente",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`conversaId` INTEGER NOT NULL, `estado` TEXT NOT NULL, `atualizadoEm` INTEGER NOT NULL, PRIMARY KEY(`conversaId`))",
+        "fields": [
+          {
+            "fieldPath": "conversaId",
+            "columnName": "conversaId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "estado",
+            "columnName": "estado",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "atualizadoEm",
+            "columnName": "atualizadoEm",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "conversaId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "acoes_assistente",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `chave` TEXT NOT NULL, `conversaId` INTEGER NOT NULL, `tipo` TEXT NOT NULL, `resumo` TEXT NOT NULL, `recibo` TEXT NOT NULL, `estado` TEXT NOT NULL, `criadoEm` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chave",
+            "columnName": "chave",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "conversaId",
+            "columnName": "conversaId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tipo",
+            "columnName": "tipo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resumo",
+            "columnName": "resumo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recibo",
+            "columnName": "recibo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "estado",
+            "columnName": "estado",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "criadoEm",
+            "columnName": "criadoEm",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_acoes_assistente_chave",
+            "unique": true,
+            "columnNames": [
+              "chave"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_acoes_assistente_chave` ON `${TABLE_NAME}` (`chave`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "acompanhamentos",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `tipo` TEXT NOT NULL, `alvo` TEXT NOT NULL, `alvoId` INTEGER, `valorCentavos` INTEGER NOT NULL, `descricao` TEXT NOT NULL, `estado` TEXT NOT NULL, `criadoEm` INTEGER NOT NULL, `ultimaAvaliacao` TEXT, `ultimoResultado` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tipo",
+            "columnName": "tipo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alvo",
+            "columnName": "alvo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alvoId",
+            "columnName": "alvoId",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "valorCentavos",
+            "columnName": "valorCentavos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "descricao",
+            "columnName": "descricao",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "estado",
+            "columnName": "estado",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "criadoEm",
+            "columnName": "criadoEm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ultimaAvaliacao",
+            "columnName": "ultimaAvaliacao",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "ultimoResultado",
+            "columnName": "ultimoResultado",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "planos",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mes` TEXT NOT NULL, `criadoEm` INTEGER NOT NULL, `conteudo` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mes",
+            "columnName": "mes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "criadoEm",
+            "columnName": "criadoEm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "conteudo",
+            "columnName": "conteudo",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
       }
     ],
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '494b9b007c0b3519393b9d2289c5fa62')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '787505c6742a9e8abef84d582f9f6fe0')"
     ]
   }
 }

@@ -210,6 +210,8 @@ data class MensagemChatEntity(
      * vai no prompt de toda a conversa, mas não aparece no balão.
      */
     val contexto: String? = null,
+    /** Resposta estruturada do assistente (cartão), em JSON; nula em mensagem só de texto. */
+    val estrutura: String? = null,
 )
 
 /** Uma linha da lista "Conversas anteriores" — agregado de [MensagemChatEntity]. */

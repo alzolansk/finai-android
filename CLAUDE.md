@@ -7,6 +7,31 @@ que construir e em que ordem. Este arquivo é sobre *como* trabalhar no repo e
 
 ## Status atual
 
+**Reestruturação do assistente (14/11/2026, branch `claude/intelligent-curie-erx3os`, compila e testa; sem teste em
+aparelho).** Plano: `docs/PLANO-ASSISTENTE-FINANCEIRO.md`; estado e limites: `handoff.md`. Cálculo local, IA só
+escolhe ferramenta e explica; nenhuma escrita sem pedido explícito ou sim a uma proposta concreta; alcance padrão = um
+registro ou uma ocorrência.
+- **Domínio** (`domain/assistant/`, `domain/projection/`): `CashFlowProjection` é a projeção diária única (`FreeToSpend`
+  delega a ela), com `PaymentWindow` e `ScenarioEngine`; 17 consultas em `AssistantTools`; `ActionPlanner` com 16 ações
+  (salário recebido, conta/fatura, parcela, aporte, meta, limite, lançamento, série, exclusão, acompanhamento, memória,
+  plano) que só calculam as linhas; `Authorization` (explícito × hipótese × sim × não) e `IntentParser` (regras locais);
+  `AssistantOrchestrator` (pendência → regras → IA escolhe ferramenta, no máx. 3 rodadas); `FactGuard` confere centavos,
+  sinal e ano da explicação da IA, que entra em `AssistantAnswer.explanation` só se passar. Série e exclusão sempre pedem sim.
+- **Dados:** Room **v20** (`MIGRATION_19_20`: `mensagens_chat.estrutura`, `sessoes_assistente`, `acoes_assistente` com
+  chave única de idempotência e recibo, `acompanhamentos`, `planos`); `20.json` gerado pelo KSP e commitado.
+  `AssistantActionExecutor` revalida, grava numa transação e guarda o recibo (Desfazer); backup e "Apagar tudo" cobrem as tabelas novas.
+- **UI:** `ChatOverlay` desenha o cartão da resposta (métricas, evidências, opções que reenviam o texto, Desfazer,
+  "Ver na Agenda") e a lista de acompanhamentos (pausar/retomar/cancelar) junto de "Sei sobre você"; aviso
+  `acompanhamento` na Caixa abre o chat.
+- **Validação:** `assembleDebug`, `assemblePessoal`, `compileDebugAndroidTestKotlin` e 629 testes JVM verdes (novos:
+  `AssistantActionsTest`, `AssistantOrchestratorTest`, `AssistantToolsTest`, `ProjectionTest`). Os testes acharam e
+  corrigiram: "faça o que achar melhor" lido como sim; só a renda principal entrava na pergunta "qual salário caiu";
+  excluir aporte por texto não achava o lançamento; a explicação da IA não chegava ao cartão. **Não executados:**
+  `Migration19To20Test` e o executor contra Room (instrumentados), qualquer coisa em aparelho/emulador, modelos reais.
+- **Limites:** tool calling por linha JSON (sem function calling nativo); compra no cartão segue pelo formulário; item de
+  fatura só muda de categoria; antecipação de salário que cruza o mês cria recebimento avulso e suprime a ocorrência
+  (Minha renda › regenerar depois disso não foi analisado).
+
 **Merge de `claude/agenda-fatura-paga` (14/11/2026):** os dois branches tinham criado uma Room 17→18
 diferente. Ficou a dela (`contas.pagoEm`, que já tinha APK gerado) como 17→18, e as três tabelas da v2
 viraram `MIGRATION_18_19` (`Migration18To19Test`). Parcelamentos não volta (está em Planos ›

@@ -84,14 +84,22 @@ class FinanceCheckWorker(
         val overview = com.finai.app.domain.GoalPlanning.overview(plan, hasIncome, today)
         val insights = com.finai.app.domain.GoalPlanning.insights(plan, overview, dividas, hasIncome, today)
         val inbox = com.finai.app.data.repository.InboxRepository(db)
+        // Acompanhamentos pedidos no chat: reavaliados aqui e a cada mudança de dados na tela. Só o
+        // que passou a valer agora notifica; o que já valia fica na Caixa, sem repetir.
+        val snapshots = com.finai.app.data.assistant.FinancialSnapshotRepository(db, prefs)
+        val snapshot = snapshots.read(today)
+        val watches = snapshot.acompanhamentos.filter { it.estado == com.finai.app.domain.assistant.WatchRules.ACTIVE }
+            .map { com.finai.app.domain.assistant.WatchRules.evaluate(it, snapshot) }
+        val freshWatches = runCatching { com.finai.app.data.assistant.AssistantWatcher(db, snapshots).evaluate(today) }.getOrDefault(emptyList())
+            .map { "acomp-${it.rule.id}-${com.finai.app.domain.assistant.WatchRules.resultKey(it, today)}" }.toSet()
         val items = com.finai.app.domain.inbox.InboxCatalog.build(contas, transacoes, dividas, plan,
             budgetProgress, insights, db.sugestaoLancamentoDao().observeAll().first(), today, pattern,
-            AlertCalculator.alerts(contas, budgetProgress, subscriptionInsights, goalPlans, today, plan.shortfall))
+            AlertCalculator.alerts(contas, budgetProgress, subscriptionInsights, goalPlans, today, plan.shortfall), watches)
         inbox.synchronize(items, dismissed, today)
 
         // ── 3. Deduplicação — só o que ainda não foi notificado hoje ───────
         val visibleItems = com.finai.app.domain.inbox.InboxRules.visible(items, inbox.states.first(), today)
-        val specs = visibleItems.filter { dedupe.shouldSend(it.id, today) }
+        val specs = visibleItems.filter { dedupe.shouldSend(it.id, today) && (it.kind != "acompanhamento" || it.id in freshWatches) }
             .mapNotNull { com.finai.app.domain.notify.NotificationPlanner.forInbox(it, today) }
         val rich = com.finai.app.data.notifications.RichNotifier(context)
         if (specs.isEmpty()) {

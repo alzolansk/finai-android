@@ -195,7 +195,13 @@ data class QuickAction(
 
 enum class ChatRole { Me, Ai }
 
-data class ChatMessage(val role: ChatRole, val text: String)
+data class ChatMessage(
+    val role: ChatRole,
+    val text: String,
+    /** Cartão montado pelo app (valores, datas, estado da ação); nulo em mensagem só de texto. */
+    val answer: com.finai.app.domain.assistant.AssistantAnswer? = null,
+    val id: Long = 0,
+)
 
 data class SimEffect(val label: String, val detail: String, val delta: String, val color: Color)
 
