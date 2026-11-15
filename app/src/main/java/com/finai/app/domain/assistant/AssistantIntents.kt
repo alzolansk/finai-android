@@ -39,7 +39,8 @@ object Authorization {
         if (HYPOTHETICAL_ANYWHERE.containsMatchIn(f)) return Kind.Hypothetical
         if (words <= 6 && AFFIRM.containsMatchIn(f) && !f.contains("?")) return Kind.Affirm
         if (words <= 6 && DENY.containsMatchIn(f) && !f.contains("?")) return Kind.Deny
-        if (f.contains("?") || HYPOTHETICAL_START.containsMatchIn(f) || HYPOTHETICAL_ANYWHERE.containsMatchIn(f)) return Kind.Hypothetical
+        if (f.contains("?") || HYPOTHETICAL_START.containsMatchIn(f) || HYPOTHETICAL_ANYWHERE.containsMatchIn(f) ||
+            Regex("""\bquanto\s+(eu\s+)?(vou|posso|consigo|poderei|da|sobra|vai)\b""").containsMatchIn(f)) return Kind.Hypothetical
         return Kind.Explicit
     }
 
@@ -70,10 +71,18 @@ object IntentParser {
         has(f, """\banteontem\b""") -> "anteontem"
         has(f, """\bontem\b""") -> "ontem"
         has(f, """\b(hoje|agora|acabou de|acabei de)\b""") -> "hoje"
+        has(f, """\bamanha\b""") -> "amanhã"
+        has(f, """\b\d{4}-\d{2}-\d{2}\b""") -> Regex("""\b\d{4}-\d{2}-\d{2}\b""").find(f)?.value
         else -> Regex("""\b\d{1,2}/\d{1,2}(/\d{2,4})?\b""").find(f)?.value
     }
 
     private fun category(f: String): String? = Categorias.all.firstOrNull { has(f, """\b${Regex.escape(Fmt.fold(it))}\b""") }
+
+    private fun incomeName(f: String): String? {
+        val subject = f.replace(Regex("""\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b"""), " ")
+        return Regex("""\b(decimo(?:\s+terceiro)?|13[ºo°]|13\s+salario|bonus|freela\w*|restituicao|comissao|reembolso)(?![a-z0-9])""").find(subject)?.value
+            ?: Regex("""\b(?:o|meu)\s+(13)\b""").find(subject)?.groupValues?.get(1)
+    }
 
     private val FILLER = Regex("""\b(a|o|as|os|de|do|da|dos|das|meu|minha|meus|minhas|no|na|em|para|pra|pro|que|por|favor|ja|eu|hoje|ontem|anteontem|agora|esse|este|essa|esta|mes|conta|boleto|divida|parcela|proxima|ultima|sem|tocar|mexer|reserva|quando|puder|der|couber)\b""")
     private fun name(text: String): String = Fmt.fold(text).replace(Regex("""[^a-z0-9\s]"""), " ").replace(FILLER, " ").replace(Regex("""\s+"""), " ").trim()
@@ -84,6 +93,19 @@ object IntentParser {
         val f = Fmt.fold(text)
         val date = dateWord(f)
         fun args(vararg pairs: Pair<String, String?>) = pairs.mapNotNull { (k, v) -> v?.takeIf { it.isNotBlank() }?.let { k to it } }.toMap()
+
+        // Dividir uma receita já prevista: nunca transforma o nome do 13º em um valor novo.
+        val income = incomeName(f)
+        if (has(f, """\b(divid\w*|parcel\w*|separ\w*)\b""") && income != null && has(f, """\b(duas|2)\s*(vezes|partes|parcelas)|\b2x\b""")) {
+            val dates = Regex("""\b\d{1,2}/\d{1,2}(?:/\d{4})?\b""").findAll(f).map { it.value }.toList()
+            return ActionRequest(ActionPlanner.SPLIT_INCOME, args("texto" to income, "primeira_data" to dates.getOrNull(0), "segunda_data" to dates.getOrNull(1)))
+        }
+        val incomeFocus = session.focus.firstOrNull { ref -> IncomeActions.planned(s).any { it.id == ref.id && it.type == ref.type } }
+        val shortCorrection = has(f, """^(?:(corrija|mude|altere|antecipe|adie)\s+(a\s+data\s+)?(para|pra|pro)\b|(recebeu\s+sim[,\s]*)?(ela\s+|ele\s+)?(esta|era|vai\s+cair)\b)""")
+        if (date != null && has(f, """\b(mud\w*|alter\w*|corrig\w*|corrija|antecip\w*|adi\w*|esta|ficou|era|vai\s+cair)\b""") && (income != null || (incomeFocus != null && shortCorrection))) {
+            return ActionRequest(ActionPlanner.MOVE_INCOME, args("texto" to income, "data" to date,
+                "id" to incomeFocus?.id?.toString().takeIf { income == null }, "registro" to incomeFocus?.type.takeIf { income == null }))
+        }
 
         // Desfazer a última coisa que o assistente gravou.
         if (has(f, """^(desfaz|desfaca|desfazer|desfaca\s+isso|volta\s+atras|reverte|reverta)\b""")) return ActionRequest(ActionPlanner.UNDO)
@@ -249,6 +271,18 @@ object IntentParser {
         val refersBack = has(f, """\b(essa|esta|dessa|desta|nessa|a\s+mesma|ela|dela)\b""")
         val debtName = debtInText?.nome ?: session.focusOf(EntityRef.DEBT)?.label?.takeIf { refersBack || has(f, """\bdivida\b""") }
         val goalName = goalInText?.nome ?: session.focusOf(EntityRef.GOAL)?.label?.takeIf { refersBack || has(f, """\bmeta\b""") }
+
+        // Quanto guardar numa data é uma decisão própria, antes do resumo genérico ou da compra.
+        if (has(f, """\bquanto\b""") && (has(f, """\b(guardar|poupar|aportar|reservar|separar|investir)\b""") ||
+                has(f, """\b(colocar|por|destinar)\b.*\b(reserva|meta|objetivo|poupanca|investimento)\b"""))) {
+            return call("capacidade_aporte", "data" to dateWord(f))
+        }
+        if ((incomeName(f) != null || has(f, """\breceitas?\s+previstas?\b""")) && has(f, """\b(esta|previst\w*|cadastrad\w*|registrad\w*|agendad\w*|quando|cad[eê]|recebeu|encontr\w*)\b""")) {
+            return call("buscar_receitas_previstas", "texto" to incomeName(f))
+        }
+        if (dateWord(f) != null && has(f, """\b(recebeu\s+sim|ja\s+(esta|foi)\s+(cadastrad\w*|registrad\w*|agendad\w*))\b""")) {
+            return call("buscar_receitas_previstas", "data" to dateWord(f))
+        }
 
         // Seguimento do último cenário: "e em 6x?", "e à vista?", "e se for R$ 800?".
         session.lastScenario?.takeIf { has(f, """^e\s""") && f.length < 60 }?.let { last ->

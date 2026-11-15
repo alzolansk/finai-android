@@ -69,6 +69,8 @@ object AssistantTools {
         {"consulta":"explicar_saldo"}
         {"consulta":"listar_compromissos","dias":"30"}
         {"consulta":"projetar_caixa","meses":"3"}
+        {"consulta":"capacidade_aporte","data":"2027-01-15"} (quanto pode guardar ou colocar na reserva nessa data, seguindo a tendência)
+        {"consulta":"buscar_receitas_previstas","texto":"décimo terceiro"} (busca receitas futuras em todos os meses, também contas a receber)
         {"consulta":"janela_pagamento","valor":"1500"}  ou  {"consulta":"janela_pagamento","divida":"nome"}
         {"consulta":"simular_cenario","tipo":"gasto","valor":"1200","parcelas":"3"}
         {"consulta":"simular_cenario","tipo":"renda_extra","valor":"2000","data":"2026-12-20"}
@@ -86,7 +88,7 @@ object AssistantTools {
 
     val NAMES = setOf(
         "situacao", "buscar_lancamentos", "analisar_gastos", "total_por_categoria", "comparar_periodos", "explicar_saldo",
-        "listar_compromissos", "projetar_caixa", "saldo_previsto", "livre_hoje", "janela_pagamento", "simular_cenario",
+        "listar_compromissos", "projetar_caixa", "capacidade_aporte", "buscar_receitas_previstas", "saldo_previsto", "livre_hoje", "janela_pagamento", "simular_cenario",
         "simular_compra", "montar_plano", "revisar_meta", "revisar_divida", "acompanhar_plano", "rascunho_lancamento",
     )
 
@@ -188,6 +190,17 @@ object AssistantTools {
             "explicar_saldo" -> explain(s)
             "listar_compromissos" -> commitments(s, a)
             "projetar_caixa" -> projection(s, a)
+            "capacidade_aporte" -> SavingsAnswer.run(s, a)
+            "buscar_receitas_previstas" -> {
+                val on = ActionPlanner.parseFutureDate(a["data"], today)
+                val candidates = if (a["texto"].isNullOrBlank()) IncomeActions.planned(s) else IncomeActions.find(s, a["texto"].orEmpty())
+                val found = candidates.filter { on == null || it.date == on }
+                val answer = AssistantAnswer(AnswerKind.Query, "Receitas previstas",
+                    headline = if (found.isEmpty()) "Não encontrei receita avulsa futura com esse nome." else "Encontrei ${found.size} receita(s) prevista(s).",
+                    evidence = found.take(8).map { it.label(today) },
+                    notes = listOf("Busquei lançamentos de receita e contas a receber, inclusive nos meses seguintes."))
+                ToolResult("receitas previstas", answer.plainText(), answer, found.singleOrNull()?.let { listOf(it.ref()) }.orEmpty())
+            }
             "saldo_previsto" -> {
                 val date = runCatching { LocalDate.parse(a["data"].orEmpty()) }.getOrNull()?.takeIf { !it.isBefore(today) }
                     ?.let { minOf(it, today.plusMonths(CashFlowProjection.MAX_MONTHS)) } ?: today
@@ -439,7 +452,7 @@ object AssistantTools {
             appendLine("Projeção do caixa de ${dm(today)} a ${Fmt.date(end, today)}, com o que já está lançado (renda, contas, faturas, parcelas e recorrentes). Em conta hoje: ${brl(base.accountCents)}.")
             rows.forEach { (m, low, endBalance) ->
                 append("- ${monthName(m, today)}: menor saldo ${brl(low.cents)} em ${dm(low.date)}; termina em ${brl(endBalance)}")
-                lowsEst[m]?.let { append("; com o gasto do dia a dia estimado, menor saldo ${brl(it.cents)}") }
+                lowsEst[m]?.let { append("; com o gasto do dia a dia estimado, menor saldo ${brl(it.cents)} e termina em ${brl(estimated!!.balanceOn(minOf(m.atEndOfMonth(), end)))}") }
                 appendLine(".")
             }
             base.firstNegative?.let { appendLine("O saldo fica negativo a partir de ${Fmt.date(it.date, today)} (${brl(it.cents)}).") }
@@ -450,11 +463,12 @@ object AssistantTools {
         val worst = estimated ?: base
         val answer = AssistantAnswer(
             AnswerKind.Decision, "Seu caixa nos próximos $months mês(es)",
-            headline = base.firstNegative?.let { "Fica negativo a partir de ${Fmt.date(it.date, today)}" } ?: "Menor saldo: ${brl(base.lowest.cents)} em ${Fmt.date(base.lowest.date, today)}",
-            metrics = rows.map { (m, low, _) -> AnswerMetric(monthName(m, today).replaceFirstChar { it.uppercase() }, "mín. ${brl(low.cents)}" + (lowsEst[m]?.let { " · est. ${brl(it.cents)}" } ?: ""), tone(lowsEst[m]?.cents ?: low.cents, s.marginCents)) },
-            evidence = rows.map { (m, _, e) -> "${monthName(m, today).replaceFirstChar { it.uppercase() }} termina em ${brl(e)}" },
+            headline = worst.firstNegative?.let { "${if (estimated != null) "Com o gasto do dia a dia estimado, falta dinheiro" else "Fica negativo"} a partir de ${Fmt.date(it.date, today)}" }
+                ?: "${if (estimated != null) "Menor saldo estimado" else "Menor saldo pelos lançamentos"}: ${brl(worst.lowest.cents)} em ${Fmt.date(worst.lowest.date, today)}",
+            metrics = rows.map { (m, low, _) -> AnswerMetric("Menor saldo em ${monthName(m, today)}", brl(lowsEst[m]?.cents ?: low.cents), tone(lowsEst[m]?.cents ?: low.cents, s.marginCents)) },
+            evidence = rows.map { (m, _, e) -> "${monthName(m, today).replaceFirstChar { it.uppercase() }} termina em ${brl(estimated?.balanceOn(minOf(m.atEndOfMonth(), end)) ?: e)}${if (estimated != null) " com o dia a dia estimado" else " pelos lançamentos"}" },
             notes = listOfNotNull(
-                if (provision != null) "\"est.\" inclui ${brl(provision.monthlyAverageCents)}/mês de gasto do dia a dia (média de ${provision.sampleMonths} meses)." else "Sem histórico para estimar o dia a dia: o saldo real tende a ser menor.",
+                if (provision != null) "Os valores incluem ${brl(provision.monthlyAverageCents)}/mês de gasto do dia a dia estimado (média de ${provision.sampleMonths} meses)." else "Sem histórico para estimar o dia a dia: o saldo real tende a ser menor.",
                 "Com a estimativa, o menor saldo é ${brl(worst.lowest.cents)} em ${Fmt.date(worst.lowest.date, today)}.".takeIf { estimated != null },
                 "Aporte de meta só sai do caixa quando é registrado.",
             ),

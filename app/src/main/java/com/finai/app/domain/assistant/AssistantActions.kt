@@ -100,6 +100,8 @@ data class ActionPlan(
  */
 object ActionPlanner {
     const val RECEIVE_INCOME = "registrar_recebimento_renda"
+    const val SPLIT_INCOME = "dividir_receita"
+    const val MOVE_INCOME = "alterar_receita_prevista"
     const val PAY_BILL = "pagar_conta"
     const val REOPEN_BILL = "reabrir_conta"
     const val PAY_INSTALLMENT = "pagar_parcela"
@@ -118,12 +120,12 @@ object ActionPlanner {
     const val UNDO = "desfazer"
 
     val NAMES = setOf(
-        RECEIVE_INCOME, PAY_BILL, REOPEN_BILL, PAY_INSTALLMENT, CONTRIBUTE, CREATE_ENTRY, UPDATE_ENTRY, UPDATE_SERIES, DELETE_ENTRY,
+        RECEIVE_INCOME, SPLIT_INCOME, MOVE_INCOME, PAY_BILL, REOPEN_BILL, PAY_INSTALLMENT, CONTRIBUTE, CREATE_ENTRY, UPDATE_ENTRY, UPDATE_SERIES, DELETE_ENTRY,
         CREATE_GOAL, UPDATE_GOAL, SET_BUDGET, CREATE_WATCH, CANCEL_WATCH, REMEMBER, SAVE_PLAN, UNDO,
     )
 
     /** Ações que sempre mostram a mudança exata antes de gravar, mesmo com pedido explícito. */
-    val ALWAYS_CONFIRM = setOf(DELETE_ENTRY, UPDATE_SERIES)
+    val ALWAYS_CONFIRM = setOf(DELETE_ENTRY, UPDATE_SERIES, SPLIT_INCOME)
 
     const val ORIGIN = "assistente"
 
@@ -131,6 +133,8 @@ object ActionPlanner {
     val CATALOG: String = """
         Quando o usuário PEDIR ou INFORMAR algo que muda um registro (não pergunta, não hipótese), responda SOMENTE com uma linha JSON:
         {"acao":"registrar_recebimento_renda","data":"hoje"}  (opcionais: "parte":"adiantamento|saldo|integral", "valor")
+        {"acao":"dividir_receita","texto":"décimo terceiro","primeira_data":"30/11","segunda_data":"20/12"} (opcional: "primeiro_valor"; busca a receita existente e preserva o total; pergunta o que faltar)
+        {"acao":"alterar_receita_prevista","texto":"bônus","data":"20/12"}
         {"acao":"pagar_conta","nome":"fatura nubank","data":"hoje"}   {"acao":"reabrir_conta","nome":"internet"}
         {"acao":"pagar_parcela","divida":"picpay"}
         {"acao":"guardar_meta","meta":"viagem","valor":"200"}
@@ -143,6 +147,7 @@ object ActionPlanner {
         {"acao":"criar_acompanhamento","tipo":"quitacao|compra|categoria|saldo","alvo":"nome","valor":"1000"}   {"acao":"cancelar_acompanhamento","alvo":"nome"}
         {"acao":"lembrar","texto":"não quer mexer na reserva"}   {"acao":"salvar_plano"}   {"acao":"desfazer"}
         Nunca use "acao" para sugestão sua, pergunta, "se eu…", "talvez" ou "faça o que achar melhor": nesses casos consulte ou explique. Use só valores que o usuário disse.
+        Você É o app. Execute a ferramenta adequada para um pedido; nunca responda "peça ao app", "registre no app" ou afirme que um registro não existe sem consultar.
     """.trimIndent()
 
     /** Lê a linha JSON de ação; nulo quando a resposta não pede escrita. */
@@ -164,9 +169,22 @@ object ActionPlanner {
         return when {
             t.contains("anteontem") -> today.minusDays(2)
             t.contains("ontem") -> today.minusDays(1)
+            t.contains("amanha") -> today.plusDays(1)
             t.contains("hoje") || t.contains("agora") -> today
             else -> QuickEntryParser.parse("x 1 $t", today).takeIf { it.dateExplicit }?.date
         }
+    }
+
+    /** Em planejamento, 15/01 dito em novembro é o próximo janeiro; entrada de gasto mantém a regra histórica. */
+    fun parseFutureDate(text: String?, today: LocalDate): LocalDate? {
+        val folded = Fmt.fold(text.orEmpty())
+        val slash = Regex("""\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b""").find(folded)
+        if (slash != null) {
+            val year = slash.groupValues[3].toIntOrNull()?.let { if (it < 100) 2000 + it else it }
+            val date = runCatching { LocalDate.of(year ?: today.year, slash.groupValues[2].toInt(), slash.groupValues[1].toInt()) }.getOrNull() ?: return null
+            return if (year == null && date < today) date.plusYears(1) else date
+        }
+        return parseDate(text, today)
     }
 
     /** "outubro de 2028", "out/2028", "10/2028", "2028-10", "em 12 meses"; nulo = não entendi. */
@@ -193,6 +211,7 @@ object ActionPlanner {
     fun plan(request: ActionRequest, s: AssistantSnapshot, confirmed: Boolean = false): ActionPlan {
         val plan = when (request.name) {
             RECEIVE_INCOME -> receiveIncome(request, s)
+            SPLIT_INCOME, MOVE_INCOME -> IncomeActions.plan(request, s)
             PAY_BILL -> payBill(request, s)
             REOPEN_BILL -> reopenBill(request, s)
             PAY_INSTALLMENT -> payInstallment(request, s)

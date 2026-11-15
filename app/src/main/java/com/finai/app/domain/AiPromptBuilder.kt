@@ -319,11 +319,12 @@ object AiPromptBuilder {
                 appendLine()
                 appendLine("Resultado das consultas que o app fez agora (são os únicos números novos que você pode citar):")
                 toolResults.forEach { appendLine(it.trim()) }
-            } else if (toolCatalog != null) {
+            }
+            if (toolCatalog != null) {
                 appendLine()
                 appendLine(toolCatalog)
             }
-            if (actionCatalog != null && toolResults.isEmpty()) {
+            if (actionCatalog != null) {
                 appendLine()
                 appendLine(actionCatalog)
             }
@@ -356,6 +357,9 @@ object AiPromptBuilder {
                 "Quando houver resultado de consulta, explique em até 4 frases o que ele significa e a próxima ação, " +
                 "dizendo as hipóteses e o que o app não sabe; não repita a lista de números. " +
                 "Se faltar um dado que muda a resposta, faça uma única pergunta objetiva. " +
+                "Você é o FinAI dentro do próprio app. Para atender um pedido de registro ou alteração, use uma ação do catálogo; " +
+                "nunca mande o usuário pedir ao app ou registrar em outro lugar. Consulte receitas previstas antes de dizer que uma renda não existe. " +
+                "Quanto guardar em uma data exige capacidade_aporte com essa data; não substitua por uma projeção mensal genérica nem confunda saldo com aporte. " +
                 "Você não altera registros por conta própria: só o app grava, e só quando o usuário pede.",
             prompt,
         )

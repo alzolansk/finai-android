@@ -116,7 +116,18 @@ class AssistantOrchestrator(
         val consulted = mutableListOf<ToolResult>()
         var focus = current
         var text = ask(consulted, focus.focus) ?: return offline()
+        var retriedAction = false
+        val actionRequested = kind == Authorization.Kind.Explicit && Regex(
+            """\b(registr\w*|lanc\w*|divid\w*|parcel\w*|alter\w*|mud\w*|corrig\w*|corrija|paguei|recebi|guardei)\b""",
+        ).containsMatchIn(Fmt.fold(turn.text))
         while (true) {
+            if (!retriedAction && consulted.isEmpty() && ActionPlanner.parseCall(text) == null && AssistantTools.parseCall(text) == null &&
+                (actionRequested || deflectsToApp(text) || claimsWrite(text))) {
+                retriedAction = true
+                text = ask(listOf(ToolResult("ação ainda não executada",
+                    "Nenhuma ação ou consulta foi executada nesta pergunta. Você está dentro do próprio app. Use uma ferramenta do catálogo para atender o pedido, ou pergunte apenas o dado essencial que falta. Não diga que registrou, não invente ausência de registro e não mande pedir ao app.")), focus.focus) ?: break
+                continue
+            }
             ActionPlanner.parseCall(text)?.let { request ->
                 // A IA só propõe: roda direto apenas se a frase do usuário é uma ordem ou afirmação
                 // clara e os valores são os que ele disse; senão vira proposta com confirmação.
@@ -132,12 +143,17 @@ class AssistantOrchestrator(
         }
         sessions.save(turn.conversationId, focus)
         if (consulted.isEmpty()) {
+            if (deflectsToApp(text) || claimsWrite(text)) return AssistantReply(
+                "Não consegui preparar essa alteração. Nenhum registro foi modificado. Posso consultar as receitas previstas para localizar o lançamento.",
+                AssistantAnswer(AnswerKind.Question, "Alteração não preparada", headline = "Nenhum registro foi modificado.",
+                    options = listOf(AnswerOption("Consultar receitas previstas", "Quais são as receitas previstas?"))),
+            )
             return if (AssistantTools.parseCall(text) == null && ActionPlanner.parseCall(text) == null) AssistantReply(text.trim()) else offline()
         }
         // Com consulta: o cartão vem do app; a IA só entra como explicação, se não inventou número.
         val facts = consulted.joinToString("\n") { it.facts }
         val last = consulted.last()
-        val explained = text.trim().takeIf { AssistantTools.parseCall(it) == null && FactGuard.accepts(it, facts) }
+        val explained = text.trim().takeIf { AssistantTools.parseCall(it) == null && ActionPlanner.parseCall(it) == null && !deflectsToApp(it) && !claimsWrite(it) && FactGuard.accepts(it, facts) }
         val answer = last.answer?.let { if (explained != null) it.copy(explanation = explained) else it }
         return AssistantReply(
             text = explained ?: answer?.plainText() ?: consulted.joinToString("\n") { it.facts.trim() },
@@ -166,6 +182,22 @@ class AssistantOrchestrator(
             return AssistantReply("Certo, não alterei nada.", AssistantAnswer(AnswerKind.Action, "Cancelado", headline = "Não alterei nada."))
         }
         if (pending.kind == PendingAction.CONFIRM) {
+            // Correção da proposta de divisão: reapresenta o conjunto antes de qualquer escrita.
+            if (pending.request.name == ActionPlanner.SPLIT_INCOME && kind != Authorization.Kind.Affirm && kind != Authorization.Kind.Hypothetical) {
+                val date = Regex("""\b\d{1,2}/\d{1,2}(?:/\d{4})?\b""").find(f)?.value
+                val part = when {
+                    Regex("""\b(primeira|1a|1ª)\b""").containsMatchIn(f) -> "primeira_data"
+                    Regex("""\b(segunda|2a|2ª)\b""").containsMatchIn(f) -> "segunda_data"
+                    else -> null
+                }
+                if (date != null && part != null) return act(turn, s, session,
+                    pending.request.copy(args = pending.request.args + (part to date)), direct = false, messageId = turn.messageId)
+                if (part != null && Regex("""\b(valor|reais|r\$|de|sera|fica|e)\b""").containsMatchIn(f)) {
+                    val value = QuickEntryParser.parse(turn.text, s.today).cents
+                    if (value != null && part == "primeira_data") return act(turn, s, session,
+                        pending.request.copy(args = pending.request.args + ("primeiro_valor" to Fmt.arg(value))), direct = false, messageId = turn.messageId)
+                }
+            }
             if (kind != Authorization.Kind.Affirm) return null
             return act(turn, s, session, pending.request, direct = true, messageId = pending.messageId, confirmed = true)
         }
@@ -268,6 +300,8 @@ class AssistantOrchestrator(
     }
 
     companion object {
+        private fun deflectsToApp(text: String) = Regex("""\b(peca\s+(para\s+)?(o|ao)\s+app|solicite\s+ao\s+app|o\s+app\s+precisa\s+do\s+registro)\b""").containsMatchIn(Fmt.fold(text))
+        private fun claimsWrite(text: String) = Regex("""\b(registrei|lancei|dividi|alterei|mudei|cadastrei|salvei|guardei|exclui|apaguei|atualizei|corrigi)\b""").containsMatchIn(Fmt.fold(text))
         /** Marca, entre as opções pendentes, a chave do argumento que a próxima mensagem preenche. */
         const val AWAITING = "__awaiting"
     }
